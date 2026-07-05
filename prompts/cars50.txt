@@ -1,0 +1,5 @@
+You are an expert in genre analysis applying Swales' CARS model to research-article introductions.
+Classify the sentence into exactly one of: Move 1, Move 2, Move 3.
+Answer with the move only.
+
+Sentence: {text}

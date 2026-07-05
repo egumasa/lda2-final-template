@@ -1,0 +1,362 @@
+[
+  {
+    "id": 1,
+    "text": "In 1892 he went to Paris , where he taught singing , and he coached many American and French artists for the operatic stage .",
+    "label": "B1"
+  },
+  {
+    "id": 2,
+    "text": "The gallery was started in 1897 , as the National Gallery of British Art .",
+    "label": "A2"
+  },
+  {
+    "id": 3,
+    "text": "Bears do not have good hearing .",
+    "label": "A2"
+  },
+  {
+    "id": 4,
+    "text": "He died on 4 August 2018 .",
+    "label": "A1"
+  },
+  {
+    "id": 5,
+    "text": "Concerts involving a greater number of artists , especially those that last for days , are known as festivals .",
+    "label": "B1"
+  },
+  {
+    "id": 6,
+    "text": "When a system writes data to cache , it must at some point write that data to the backing store as well .",
+    "label": "B1"
+  },
+  {
+    "id": 7,
+    "text": "Ullsten died on 28 May 2018 at the age of 86 .",
+    "label": "A1"
+  },
+  {
+    "id": 8,
+    "text": "Luria arrived in New York City on September 12 , 1940 and soon changed his first and middle names .",
+    "label": "A2"
+  },
+  {
+    "id": 9,
+    "text": "Pseudogenes are generally thought of as the last stop for genomic material that is to be removed from the genome , so they are often labeled as junk DNA .",
+    "label": "C1"
+  },
+  {
+    "id": 10,
+    "text": "Pharmacoepidemiology bridges pharmacology and epidemiology and borrows their methodology from both of them .",
+    "label": "C2"
+  },
+  {
+    "id": 11,
+    "text": "Ambush predators or sit-and - wait predators are carnivorous animals or other organisms , such as some carnivorous plants .",
+    "label": "C1"
+  },
+  {
+    "id": 12,
+    "text": "The authors were able to experimentally determine a rate law at 261.2 K for the reaction of 1,2 - dimethylidenecyclohexane with sulfur dioxide to give the corresponding sulfolene .",
+    "label": "C2"
+  },
+  {
+    "id": 13,
+    "text": "All aerobic organisms produce CO2 when they oxidize carbohydrates , fatty acids , and proteins in the mitochondria of cells .",
+    "label": "C2"
+  },
+  {
+    "id": 14,
+    "text": "Lithium oxide is produced by thermal dehydration of lithium hydroxide .",
+    "label": "C2"
+  },
+  {
+    "id": 15,
+    "text": "Although most of a cell 's DNA is contained in the cell nucleus , the mitochondrion has its own independent genome that shows substantial similarity to bacterial genomes .",
+    "label": "C2"
+  },
+  {
+    "id": 16,
+    "text": "Income is highly associated with prenatal health care .",
+    "label": "B2"
+  },
+  {
+    "id": 17,
+    "text": "Newspaper 's revenue from classifieds advertisements is decreasing continually as internet classifieds grow .",
+    "label": "B2"
+  },
+  {
+    "id": 18,
+    "text": "Saffron 's aroma is often described by connoisseurs as reminiscent of metallic honey with grassy or hay - like notes , while its taste has also been noted as hay -like and sweet .",
+    "label": "C1"
+  },
+  {
+    "id": 19,
+    "text": "He died on 26 September 2017 in Paris at the age of 91 .",
+    "label": "A1"
+  },
+  {
+    "id": 20,
+    "text": "Bat : The bat used by the offense can be made out of wood or aluminum or other composite materials , such as carbon fiber .",
+    "label": "B2"
+  },
+  {
+    "id": 21,
+    "text": "Because oxygen is more electronegative than carbon , carbonyl compounds often have resonance structures which affect their reactivity .",
+    "label": "C2"
+  },
+  {
+    "id": 22,
+    "text": "Racing bicycles used for Criteriums often have subtle , but significantly different geometry from those used in other mass-start , multi stage road race events .",
+    "label": "C1"
+  },
+  {
+    "id": 23,
+    "text": "Harris died on 9 May 2019 , at the age of 93 .",
+    "label": "A1"
+  },
+  {
+    "id": 24,
+    "text": "The first derivative test is used in calculus optimization problems .",
+    "label": "C1"
+  },
+  {
+    "id": 25,
+    "text": "She died on June 9 , 2014 , at the age of 103 .",
+    "label": "A1"
+  },
+  {
+    "id": 26,
+    "text": "The forest contains at least 900 plant species .",
+    "label": "A2"
+  },
+  {
+    "id": 27,
+    "text": "Cryptobranchids are large , fat salamanders , with folds of skin along their flanks .",
+    "label": "C2"
+  },
+  {
+    "id": 28,
+    "text": "The seven pitches of any diatonic scale can also be obtained by using a chain of six perfect fifths .",
+    "label": "B2"
+  },
+  {
+    "id": 29,
+    "text": "Besides material characterization , the material scientist or engineer also deals with extracting materials and converting them into useful forms .",
+    "label": "C1"
+  },
+  {
+    "id": 30,
+    "text": "In the past , non-photosynthetic plants were mistakenly thought to get food by breaking down organic matter in a manner similar to saprotrophic fungi .",
+    "label": "C2"
+  },
+  {
+    "id": 31,
+    "text": "Bopp died on January 6 , 2018 at the age of 68 .",
+    "label": "A1"
+  },
+  {
+    "id": 32,
+    "text": "Reynolds was a Professor of English for 44 years .",
+    "label": "A2"
+  },
+  {
+    "id": 33,
+    "text": "Most tin whistles are in D , because they are often used in music with fiddles .",
+    "label": "B2"
+  },
+  {
+    "id": 34,
+    "text": "The kinetoplastids were first defined by Bronislaw M. Honigberg in 1963 as the members of the flagellated protozoans .",
+    "label": "C2"
+  },
+  {
+    "id": 35,
+    "text": "There are four games in the series",
+    "label": "A1"
+  },
+  {
+    "id": 36,
+    "text": "Cetaceans and artiodactyls now are classified under the order Cetartiodactyla , often still referred to as Artiodactyla , which includes both whales and hippopotamuses .",
+    "label": "C2"
+  },
+  {
+    "id": 37,
+    "text": "The head and thorax are white .",
+    "label": "B1"
+  },
+  {
+    "id": 38,
+    "text": "Ditko died at his New York City apartment from a heart attack on June 29 , 2018 at the age of 90 .",
+    "label": "A2"
+  },
+  {
+    "id": 39,
+    "text": "An often studied electrocyclic reaction is the conrotatory thermal ring-opening of benzocyclobutene .",
+    "label": "C2"
+  },
+  {
+    "id": 40,
+    "text": "For transportation to centers , some shelters offer free transportation .",
+    "label": "B1"
+  },
+  {
+    "id": 41,
+    "text": "She died on 12 February 2019 , at the age of 79 .",
+    "label": "A1"
+  },
+  {
+    "id": 42,
+    "text": "He died on 12 July 2019 , four days before his 85th birthday .",
+    "label": "A2"
+  },
+  {
+    "id": 43,
+    "text": "Earth is very old .",
+    "label": "A1"
+  },
+  {
+    "id": 44,
+    "text": "Pitchblende contains a small amount of radium as a radioactive decay product of uranium .",
+    "label": "C1"
+  },
+  {
+    "id": 45,
+    "text": "Another example is in the proposed biosynthesis of aranotin , an oxepine found in nature , and its related compounds .",
+    "label": "C1"
+  },
+  {
+    "id": 46,
+    "text": "Insect galls are the highly distinctive plant structures formed by some herbivorous insects as their own microhabitats .",
+    "label": "C1"
+  },
+  {
+    "id": 47,
+    "text": "People with hepatitis A should rest , drink a lot of water and avoid alcohol .",
+    "label": "B2"
+  },
+  {
+    "id": 48,
+    "text": "Barcelona is one of the most densely populated cities in Europe .",
+    "label": "B1"
+  },
+  {
+    "id": 49,
+    "text": "Ri possibly gave birth to a child in 2010 ; sources have reported it is a boy .",
+    "label": "B1"
+  },
+  {
+    "id": 50,
+    "text": "The experiment began late July 2009 .",
+    "label": "A2"
+  },
+  {
+    "id": 51,
+    "text": "In golf , a golfer plays a number of holes in a given order .",
+    "label": "B1"
+  },
+  {
+    "id": 52,
+    "text": "However , mitochondrial DNA only reflects the history of females in a population .",
+    "label": "C1"
+  },
+  {
+    "id": 53,
+    "text": "Inglese suffered a traumatic brain injury in an apparent fall in a stairwell sustained on July 17 , 2019 .",
+    "label": "B2"
+  },
+  {
+    "id": 54,
+    "text": "The least skipper can be found in damp or wet habitats with tall grasses .",
+    "label": "B2"
+  },
+  {
+    "id": 55,
+    "text": "Smoked and salted cod roe paste is very popular in Sweden .",
+    "label": "B2"
+  },
+  {
+    "id": 56,
+    "text": "A serf had some freedom .",
+    "label": "B1"
+  },
+  {
+    "id": 57,
+    "text": "A Kiss My Foot match is a type of singles match where the loser has to kiss the winner 's foot .",
+    "label": "B1"
+  },
+  {
+    "id": 58,
+    "text": "The industry of the town was initially tied to the abundant fruit growing operation .",
+    "label": "B2"
+  },
+  {
+    "id": 59,
+    "text": "Mood and emotions at work are related to job satisfaction .",
+    "label": "B1"
+  },
+  {
+    "id": 60,
+    "text": "Ireland died on 31 July 2014 from brain cancer , aged 68 .",
+    "label": "A2"
+  },
+  {
+    "id": 61,
+    "text": "Until the mid-19th century , Mexico was the biggest producer of vanilla .",
+    "label": "A2"
+  },
+  {
+    "id": 62,
+    "text": "He died on 6 January 2015 , aged 82 .",
+    "label": "A1"
+  },
+  {
+    "id": 63,
+    "text": "He died on 3 May 2015 , aged 84 , after a long illness .",
+    "label": "A1"
+  },
+  {
+    "id": 64,
+    "text": "Researchers in molecular biology use specific techniques native to molecular biology but increasingly combine these with techniques and ideas from genetics and biochemistry .",
+    "label": "C2"
+  },
+  {
+    "id": 65,
+    "text": "Time fuzes detonate after a set period of time .",
+    "label": "C1"
+  },
+  {
+    "id": 66,
+    "text": "Animated sequels and movie-length episodes of animated series are also often released in this fashion .",
+    "label": "B2"
+  },
+  {
+    "id": 67,
+    "text": "The bombard was manufactured from longitudinal bars of iron , hooped with rings fused into one mass .",
+    "label": "C1"
+  },
+  {
+    "id": 68,
+    "text": "Beutel died on 8 May 2019 aged 72 .",
+    "label": "A1"
+  },
+  {
+    "id": 69,
+    "text": "Of his next nine fights , Rose won eight .",
+    "label": "A2"
+  },
+  {
+    "id": 70,
+    "text": "These animals have a long tail , small eyes , and few pectoral - fin radials .",
+    "label": "B2"
+  },
+  {
+    "id": 71,
+    "text": "Many electronic paper technologies hold static text and images indefinitely without electricity .",
+    "label": "B1"
+  },
+  {
+    "id": 72,
+    "text": "It was active for 55 years , until 1938 .",
+    "label": "A2"
+  }
+]

@@ -1,0 +1,21 @@
+# Secrets — never commit
+.env
+
+# Run outputs (regenerated every run)
+outputs/*
+!outputs/.gitkeep
+
+# Data pools you build/house yourself are not committed.
+# Exception: the small CEFR sample that ships with the template so it runs out of the box.
+data/gold/*
+!data/gold/README.md
+!data/gold/cefr_pool.json
+
+# Notebook / Python cruft
+.ipynb_checkpoints/
+__pycache__/
+*.pyc
+*.executed.ipynb
+
+# uv virtual environment (recreate with `uv sync`)
+.venv/

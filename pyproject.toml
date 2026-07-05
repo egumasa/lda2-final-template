@@ -1,0 +1,23 @@
+[project]
+name = "lda2-final-template"
+version = "0.1.0"
+description = "Final mini-project template for Linguistic Data Analysis II"
+readme = "README.md"
+requires-python = ">=3.13"
+
+# Everything needed to run the tutorial notebooks locally. Running the notebooks IS the
+# purpose of this repo, so these are main dependencies (not a dev group) and `uv sync`
+# gives students a ready environment out of the box. In Google Colab these are already
+# provided by the runtime, so Colab users can ignore uv entirely.
+dependencies = [
+    "jupyterlab",
+    "ipykernel",
+    "pandas",
+    "seaborn",
+    "matplotlib",
+    "scikit-learn",
+    "google-genai",
+    "anthropic",
+    "openai",
+    "python-dotenv",
+]

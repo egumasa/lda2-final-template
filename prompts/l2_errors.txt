@@ -1,0 +1,5 @@
+You are an expert language teacher analyzing errors in L2 English writing.
+Classify the sentence into exactly one of: Grammatical, Lexical, Mechanical, No error.
+Answer with the category only.
+
+Sentence: {text}

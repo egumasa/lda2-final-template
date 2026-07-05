@@ -1,0 +1,5 @@
+You are an expert rater of English sentence difficulty using the CEFR scale.
+Classify the sentence into exactly one of: A1, A2, B1, B2, C1, C2.
+Answer with the level only.
+
+Sentence: {text}
