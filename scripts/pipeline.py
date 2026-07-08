@@ -12,6 +12,7 @@ import json
 import os
 import random
 import re
+import time
 import urllib.request
 from pathlib import Path
 
@@ -30,16 +31,110 @@ except ImportError:
 # ----------------------------------------------------------------------------------
 # LLM backend
 # ----------------------------------------------------------------------------------
+def _looks_like_rate_limit(error):
+    """True if an exception looks like a 'too many requests' / quota error.
+
+    We match on the text rather than a specific exception class, so the SAME guard
+    works for both backends (the Colab built-in Gemini and the Gemini API), which
+    raise different exception types.
+    """
+    text = str(error).lower()
+    for signal in ["429", "resource_exhausted", "rate limit", "quota", "too many requests"]:
+        if signal in text:
+            return True
+    return False
+
+
+def _looks_like_daily_quota(error):
+    """True if the rate-limit error is the PER-DAY cap (not the per-minute one).
+
+    A daily cap cannot be waited out in a single sitting, so retrying is pointless -
+    we want to stop immediately and tell the user how to actually get unblocked.
+    Gemini names the daily quota 'GenerateRequestsPerDay...' / 'PerDay' in the error.
+    """
+    text = str(error).lower()
+    return "perday" in text or "per day" in text or "requests_per_day" in text
+
+
+def _suggested_delay(error, fallback):
+    """Pull the server's own 'please retry in Ns' hint out of the error, if present.
+
+    Gemini includes a RetryInfo like 'Please retry in 7.17s.' - honoring it is more
+    accurate than a guessed backoff. Falls back to `fallback` seconds when absent.
+    """
+    match = re.search(r"retry in ([0-9]+(?:\.[0-9]+)?)s", str(error).lower())
+    if match:
+        return float(match.group(1)) + 1.0   # a small cushion over the server's figure
+    return fallback
+
+
+def _throttle_and_retry(call_model):
+    """Wrap a raw 'prompt -> text' function with free-tier friendliness.
+
+    Free-tier Gemini caps requests per minute (roughly 10 for flash). If we fire
+    faster than that, we get a 429 RESOURCE_EXHAUSTED / rate-limit error. Guards:
+      1) MIN_INTERVAL - wait at least this many seconds between calls, so we stay
+         under the per-minute cap in the first place.
+      2) on a per-minute rate-limit error, sleep (honoring the server's suggested
+         delay when given) and retry a few times.
+      3) on a PER-DAY quota error, stop immediately - retrying cannot help today -
+         and raise a clear message about how to get unblocked.
+    MIN_INTERVAL and MAX_RETRIES are tunable via environment variables.
+    """
+    min_interval = float(os.environ.get("LLM_MIN_INTERVAL", "4.5"))
+    max_retries = int(os.environ.get("LLM_MAX_RETRIES", "5"))
+    last_call_time = [0.0]   # a list so the inner function can update it
+
+    def generate_text(prompt):
+        for attempt in range(max_retries + 1):
+            # Guard 1: pace ourselves to at most one call per min_interval seconds.
+            wait = min_interval - (time.monotonic() - last_call_time[0])
+            if wait > 0:
+                time.sleep(wait)
+            try:
+                last_call_time[0] = time.monotonic()
+                return call_model(prompt)
+            except Exception as error:
+                # Non-rate-limit errors are real bugs - let them surface.
+                if not _looks_like_rate_limit(error):
+                    raise
+                # Guard 3: a DAILY cap will not clear today - stop now with advice.
+                if _looks_like_daily_quota(error):
+                    raise RuntimeError(
+                        "Gemini free-tier DAILY quota is exhausted for this model. "
+                        "Retrying will not help until it resets (~midnight Pacific). "
+                        "To keep working now: switch models by setting "
+                        "LLM_MODEL=gemini-3.1-flash-lite in your .env (a separate daily "
+                        "bucket with a much higher limit, ~500/day), run the notebook in "
+                        "Google Colab (free built-in Gemini), or enable billing. "
+                        "You can also lower N_PER_CLASS to make each run use fewer calls."
+                    ) from error
+                # Guard 2: a per-minute cap - back off (honoring the server hint) and retry.
+                if attempt == max_retries:
+                    raise
+                backoff = _suggested_delay(error, min_interval * (attempt + 1))
+                print("  (rate limited - waiting", round(backoff), "s then retrying)")
+                time.sleep(backoff)
+        # Should be unreachable, but keeps the function honest.
+        raise RuntimeError("The model kept returning rate-limit errors after retries.")
+
+    return generate_text
+
+
 def make_backend():
-    """Return a function that sends a prompt to an LLM and returns its text reply."""
+    """Return a function that sends a prompt to an LLM and returns its text reply.
+
+    Whichever backend we pick is wrapped by _throttle_and_retry, so EVERY notebook
+    gets the same free-tier pacing and rate-limit backoff for free.
+    """
     # Option 1: inside Google Colab, use the free built-in Gemini (no API key).
     try:
         from google.colab import ai
 
-        def generate_text(prompt):
+        def call_model(prompt):
             return ai.generate_text(prompt)
 
-        return generate_text, "Colab Gemini"
+        return _throttle_and_retry(call_model), "Colab Gemini"
     except ImportError:
         pass
 
@@ -48,13 +143,16 @@ def make_backend():
     if key:
         from google import genai
         client = genai.Client(api_key=key)
-        model = os.environ.get("LLM_MODEL", "gemini-2.5-flash")
+        # gemini-3.1-flash-lite has a far higher free daily quota (500/day vs 20/day
+        # for the plain flash models) - so it is the sensible default for a task that
+        # sends dozens of requests per run. Override with LLM_MODEL in your .env.
+        model = os.environ.get("LLM_MODEL", "gemini-3.1-flash-lite")
 
-        def generate_text(prompt):
+        def call_model(prompt):
             response = client.models.generate_content(model=model, contents=prompt)
             return response.text
 
-        return generate_text, "Gemini API (" + model + ")"
+        return _throttle_and_retry(call_model), "Gemini API (" + model + ")"
 
     # Option 3: nothing available - tell the user what to do.
     raise RuntimeError(
@@ -74,6 +172,20 @@ def load_gold(path_or_url):
         raw_text = raw_bytes.decode("utf-8")
         gold = json.loads(raw_text)
     else:
+        # Only cefr_pool.json ships with the template; other tracks are student-built.
+        # If the file is missing, say WHY and WHAT TO DO instead of a bare traceback.
+        if not Path(path_or_url).exists():
+            raise FileNotFoundError(
+                "Pool file not found: " + str(path_or_url) + "\n"
+                "Only the CEFR track ships with data. To run this track you must first "
+                "BUILD its pool file:\n"
+                "  1. Use the dataset download/preprocess notebooks (see the course repo's "
+                "sources/resources/datasets/ and data/gold/README.md).\n"
+                "  2. Save the result as data/gold/<track>_pool.json in the canonical "
+                '{"id", "text", "label"} shape.\n'
+                "  3. Make sure POOL_PATH in the CONFIG cell points at it.\n"
+                "To just see the pipeline run end to end, switch TRACK to 'cefr'."
+            )
         opened_file = open(path_or_url, encoding="utf-8")
         gold = json.loads(opened_file.read())
         opened_file.close()

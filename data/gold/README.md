@@ -12,9 +12,19 @@ a JSON list in the course's canonical shape:
 
 ## What ships with the template
 
-- **`cefr_pool.json`** — a ready-to-run CEFR sample (72 sentences, 12 per level) so the
-  `cefr` notebook works the moment you clone the repo. Use it to see the whole pipeline
-  run end to end before you switch to your own track.
+Small, balanced demo pools so **every** notebook runs the moment you clone the repo. Use
+them to see the whole pipeline run end to end before you swap in your own (larger) data.
+
+- **`cefr_pool.json`** — CEFR sentence level (72 sentences, 12 per level: A1–C2).
+- **`l2_errors_pool.json`** — L2 error category (60 sentences, 15 each: Grammatical,
+  Lexical, Mechanical, No error).
+- **`cars50_pool.json`** — Swales CARS moves in RA introductions (60 sentences, 20 each:
+  Move 1–3).
+- **`raamove_pool.json`** — rhetorical moves in RA abstracts (64 sentences, 8 each:
+  Background, Gap, Purpose, Method, Result, Conclusion, Contribution, Implication).
+
+These are deliberately small. For the real project, build a larger pool (below) and point
+`POOL_PATH` at it.
 
 ## Adding your track's data
 
