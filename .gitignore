@@ -17,5 +17,11 @@ __pycache__/
 *.pyc
 *.executed.ipynb
 
+# Per-track notebooks are not tracked here (distributed separately)
+notebooks/*.ipynb
+
+# macOS
+.DS_Store
+
 # uv virtual environment (recreate with `uv sync`)
 .venv/
