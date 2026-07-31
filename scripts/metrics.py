@@ -48,20 +48,6 @@ def evaluate(gold, predictions, ordered=False, labels=None, title="Confusion mat
     (alphabetical puts High first). If your labels are ordered and not alphabetical,
     pass them yourself: evaluate(gold, pred, ordered=True, labels=LABELS_ORDER).
     """
-    # --- Compatibility with the older 4-positional call form -----------------------
-    # An earlier version of this file took evaluate(gold, predictions, labels, title).
-    # If we were called that way, argument 3 is a list of labels rather than a
-    # true/false flag. Rather than fail with a confusing error - or worse, silently
-    # treat a non-empty list as "ordered=True" - detect it and shuffle the arguments.
-    if isinstance(ordered, (list, tuple)):
-        print("NOTE: old call form evaluate(gold, pred, labels, title) — treating "
-              "argument 3 as labels. The current form is "
-              "evaluate(gold, pred, ordered=..., labels=...).")
-        if isinstance(labels, str):
-            title = labels
-        labels = list(ordered)
-        ordered = False
-
     ### Step 1: line the two label lists up, gold first ###
     y_true = []                          # the correct labels, from the gold set
     for item in gold:
@@ -106,7 +92,14 @@ def agreement(labels_a, labels_b):
     """
     a = list(labels_a)
     b = list(labels_b)
-    assert len(a) == len(b), "the two label lists must be the same length"
+    if len(a) != len(b):
+        raise ValueError(
+            "The two lists of labels are different lengths: the first has "
+            + str(len(a)) + " and the second has " + str(len(b)) + ". They have to line "
+            "up item by item, or the comparison pairs the wrong sentences together.\n"
+            "Most often this means one coder left rows blank at the bottom of their "
+            "tab. Open your annotation Sheet, fill in the missing rows, and run the "
+            "cell again.")
 
     # Count the positions where the two annotators chose the same label.
     number_of_matches = 0
@@ -194,8 +187,15 @@ def errors_on_disagreed(errors, disagreed):
     the gold set was rebuilt from the sheet, so nothing has been renumbered in between.
     The sheet returns its ID column as text, though, so it is converted here.
     """
-    if errors is None or disagreed is None:
-        print("Nothing to compare - one of the two tables is empty.")
+    # Both of these tables are empty in the HAPPY case - no model errors, or no coder
+    # disagreements - and an empty table has no columns at all, so reading errors["id"]
+    # off one would fail. Check before reading, not after.
+    if errors is None or len(errors) == 0:
+        print("The model got every item right, so there are no errors to compare.")
+        return []
+    if disagreed is None or len(disagreed) == 0:
+        print("Your coders agreed on every item, so there is nothing to compare the",
+              "model's errors against.")
         return []
 
     error_ids = []
@@ -216,10 +216,6 @@ def errors_on_disagreed(errors, disagreed):
         if item_id in disagreed_ids and item_id not in overlap:
             overlap.append(item_id)
     overlap.sort()
-
-    if len(error_ids) == 0:
-        print("No errors to compare.")
-        return []
 
     share = len(overlap) / len(error_ids)
     print(len(error_ids), "errors.", len(overlap), "of them",
@@ -244,4 +240,7 @@ def show_errors(gold, predictions):
             }
             rows.append(row)
     print(f"{len(rows)} of {len(gold)} wrong.")
-    return pd.DataFrame(rows)             # a table, so Colab displays it nicely
+    # Name the columns even when there are no rows. A table built from an empty list
+    # has no columns at all, and then errors["gold"] in notebook 05 fails for the one
+    # group whose model got everything right - the least deserving group to break on.
+    return pd.DataFrame(rows, columns=["id", "gold", "pred", "text"])

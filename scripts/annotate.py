@@ -47,9 +47,9 @@ import json
 import pathlib
 
 import pandas as pd
-import seaborn as sns
-import matplotlib.pyplot as plt
 from sklearn.metrics import cohen_kappa_score, confusion_matrix
+
+from pipeline import plot_confusion_matrix
 
 # Sheet column headers (the annotation template uses these exact names):
 COL_ID, COL_TEXT = "ID", "Text"
@@ -193,19 +193,17 @@ def create_annotation_sheet(title, items, labels, share_with=(), remember=None,
         )
 
     ### Step 0: whose tabs are we making? ###
-    coder_names = []
-    for name in coders:
-        name = str(name).strip()
-        if name and name not in coder_names:
-            coder_names.append(name)
-    if not coder_names:
-        raise ValueError(
-            "`coders` came out empty, so there would be no tab to annotate in.\n"
-            'Pass the names you want, e.g. coders=["CoderA", "CoderB"].')
+    coder_names = _normalise_coder_names(
+        coders,
+        "The list of coder names is empty, so there would be no tab to annotate in.\n"
+        "Open config.yaml and put your group's coders in `members:`, or type the names "
+        'into this call: coders=["CoderA", "CoderB"]')
     if FINAL_TAB in coder_names:
         raise ValueError(
-            "One of your coders is called " + repr(FINAL_TAB) + ", which is also the name "
-            "of the tab you adjudicate in. Rename the coder.")
+            "One of your coders is called '" + FINAL_TAB + "', which is also the name of "
+            "the tab you adjudicate in - so one would overwrite the other.\n"
+            "Open config.yaml and change that name in `members:` to something else, "
+            "then re-run the SETUP cell and this one.")
 
     ### Step 1: make an empty spreadsheet in your own Drive ###
     sheet = _sheets_client().create(title)
@@ -213,56 +211,82 @@ def create_annotation_sheet(title, items, labels, share_with=(), remember=None,
     ### Step 2: is this a track that carries context? ###
     with_context = any(item.get("context") for item in items)   # All-or-nothing within a track.
 
-    def write_tab(worksheet, columns):
-        """Fill one tab: the header, one row per item, and make it readable.
-
-        Every tab is the same shape apart from its one label column, so this is written
-        once. The id and the text are filled in; the columns you type into are blank.
-        """
-        header = list(columns)
-        if with_context:
-            header = header + [COL_CONTEXT]
-
-        rows = []
-        blanks = [""] * (len(columns) - 2)          # every column after ID and Text
-        for item in items:
-            row = [item["id"], item["text"]] + list(blanks)
-            if with_context:
-                row.append(marked_context(item))    # The passage, this sentence marked.
-            rows.append(row)
-
-        # value_input_option="RAW" tells Sheets to store the text EXACTLY as given.
-        # Without it, a sentence starting with "=", "+", "-" or "'" can be read as a
-        # formula and mangled - which happens for real in learner-error and
-        # move-annotation data.
-        worksheet.update([header] + rows, value_input_option="RAW")
-        worksheet.freeze(rows=1)                    # header stays put as you scroll
-        if with_context:
-            # Without this the passage is one clipped line you can only read in the
-            # formula bar, which is a good way to make sure nobody reads it.
-            last_column = chr(ord("A") + len(header) - 1)
-            worksheet.format(last_column + "2:" + last_column,
-                             {"wrapStrategy": "WRAP", "verticalAlignment": "TOP"})
-            worksheet.columns_auto_resize(0, len(header) - 2)
-        return len(rows)
-
     ### Step 3: one tab per coder, then the tab you adjudicate in ###
-    # The first coder reuses the spreadsheet's default tab; the rest are added. Final
-    # goes last so it sits on the right, out of the way while you are still annotating
-    # blind - and so nobody fills it in before the two of you have talked.
+    number_of_rows = _write_all_tabs(sheet, coder_names, items, with_context)
+
+    ### Step 4: let the rest of your group in ###
+    shared = _share_sheet(sheet, share_with)
+
+    ### Step 5: write the URL down, so nobody has to keep it in a notebook cell ###
+    if remember is not None:
+        _remember_url(remember, sheet.url, title, coder_names)
+
+    _announce_sheet(title, sheet.url, number_of_rows, coder_names, labels, with_context,
+                    shared, remember)
+    return sheet.url
+
+
+def _write_tab(worksheet, columns, items, with_context):
+    """Fill one tab: the header, one row per item, and make it readable.
+
+    Every tab is the same shape apart from its one label column, so this is written
+    once. The id and the text are filled in; the columns you type into are blank.
+    """
+    header = list(columns)
+    if with_context:
+        header = header + [COL_CONTEXT]
+
+    rows = []
+    blanks = [""] * (len(columns) - 2)          # every column after ID and Text
+    for item in items:
+        row = [item["id"], item["text"]] + list(blanks)
+        if with_context:
+            row.append(marked_context(item))    # The passage, this sentence marked.
+        rows.append(row)
+
+    # value_input_option="RAW" tells Sheets to store the text EXACTLY as given.
+    # Without it, a sentence starting with "=", "+", "-" or "'" can be read as a
+    # formula and mangled - which happens for real in learner-error and
+    # move-annotation data.
+    worksheet.update([header] + rows, value_input_option="RAW")
+    worksheet.freeze(rows=1)                    # header stays put as you scroll
+    if with_context:
+        # Without this the passage is one clipped line you can only read in the
+        # formula bar, which is a good way to make sure nobody reads it.
+        last_column = chr(ord("A") + len(header) - 1)
+        worksheet.format(last_column + "2:" + last_column,
+                         {"wrapStrategy": "WRAP", "verticalAlignment": "TOP"})
+        worksheet.columns_auto_resize(0, len(header) - 2)
+    return len(rows)
+
+
+def _write_all_tabs(sheet, coder_names, items, with_context):
+    """One tab per coder, then Final. Returns how many rows each tab got.
+
+    The first coder reuses the spreadsheet's default tab; the rest are added. Final goes
+    last so it sits on the right, out of the way while you are still annotating blind -
+    and so nobody fills it in before the two of you have talked.
+    """
     height = len(items) + 1
     first_tab = sheet.sheet1
     first_tab.update_title(coder_names[0])
-    number_of_rows = write_tab(first_tab, CODER_HEADER)
+    number_of_rows = _write_tab(first_tab, CODER_HEADER, items, with_context)
     for name in coder_names[1:]:
-        write_tab(sheet.add_worksheet(title=name, rows=height,
-                                      cols=len(CODER_HEADER) + 1), CODER_HEADER)
-    write_tab(sheet.add_worksheet(title=FINAL_TAB, rows=height,
-                                  cols=len(FINAL_HEADER) + 1), FINAL_HEADER)
+        new_tab = sheet.add_worksheet(title=name, rows=height,
+                                      cols=len(CODER_HEADER) + 1)
+        _write_tab(new_tab, CODER_HEADER, items, with_context)
+    final_tab = sheet.add_worksheet(title=FINAL_TAB, rows=height,
+                                    cols=len(FINAL_HEADER) + 1)
+    _write_tab(final_tab, FINAL_HEADER, items, with_context)
+    return number_of_rows
 
-    ### Step 5: let the rest of your group in ###
-    # The sheet was created in the Drive of whoever ran this cell. Everyone else gets
-    # "you need access" until they are named here.
+
+def _share_sheet(sheet, share_with):
+    """Give the rest of the group edit access. Returns the addresses that worked.
+
+    The sheet was created in the Drive of whoever ran the cell. Everyone else gets
+    "you need access" until they are named here.
+    """
     shared = []
     for address in share_with:
         address = str(address).strip()
@@ -274,15 +298,21 @@ def create_annotation_sheet(title, items, labels, share_with=(), remember=None,
         except Exception as error:
             # One bad address should not cost you the other invitations.
             print("  could not share with", address + ":", error)
+    return shared
 
-    ### Step 6: write the URL down, so nobody has to keep it in a notebook cell ###
-    if remember is not None:
-        path = pathlib.Path(remember)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump({"url": sheet.url, "title": title, "coders": coder_names}, f,
-                      ensure_ascii=False, indent=2)
 
+def _remember_url(remember, url, title, coder_names):
+    """Write the sheet's link to a file, so nobody has to keep it in a notebook cell."""
+    path = pathlib.Path(remember)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump({"url": url, "title": title, "coders": coder_names}, f,
+                  ensure_ascii=False, indent=2)
+
+
+def _announce_sheet(title, url, number_of_rows, coder_names, labels, with_context,
+                    shared, remember):
+    """Say what was made and how to annotate in it."""
     print("Created '" + title + "' with", number_of_rows, "rows.")
     print("Tabs:", " · ".join(coder_names + [FINAL_TAB]))
     print("Allowed labels:", ", ".join(labels))
@@ -304,8 +334,39 @@ def create_annotation_sheet(title, items, labels, share_with=(), remember=None,
               "makes a second, empty sheet.")
     if remember is not None:
         print("Wrote the link to", remember, "- the next step finds it there.")
-    print("Open it:", sheet.url)
-    return sheet.url
+    print("Open it:", url)
+
+
+def _normalise_coder_names(coders, if_empty):
+    """Tidy a list of coder names: strip the spaces, drop the blanks and the repeats.
+
+    Every place that takes a list of coders needs the same three things done to it, and
+    a name typed with a trailing space is otherwise a tab nobody can find.
+    """
+    names = []
+    for name in coders:
+        name = str(name).strip()
+        if name and name not in names:
+            names.append(name)
+    if not names:
+        raise ValueError(if_empty)
+    return names
+
+
+def _open_sheet(sheet_id):
+    """Open the spreadsheet. A pasted URL and a bare id both work."""
+    client = _sheets_client()
+    if str(sheet_id).startswith("http"):
+        return client.open_by_url(sheet_id)
+    return client.open_by_key(sheet_id)
+
+
+def tab_names(sheet_id):
+    """The names of the tabs in your annotation sheet, as a list of strings."""
+    names = []
+    for worksheet in _open_sheet(sheet_id).worksheets():
+        names.append(worksheet.title)
+    return names
 
 
 def load_annotation_sheet(sheet_id, worksheet=DEFAULT_CODERS[0]):
@@ -321,35 +382,34 @@ def load_annotation_sheet(sheet_id, worksheet=DEFAULT_CODERS[0]):
     Usually you want `load_coder_sheets` instead - it calls this once per coder and
     joins the tabs into one table. Reach for this one to look at a single tab.
     """
-    ### Step 1: open the sheet - a pasted URL and a bare id both work ###
-    client = _sheets_client()
-    if str(sheet_id).startswith("http"):
-        sheet = client.open_by_url(sheet_id)
-    else:
-        sheet = client.open_by_key(sheet_id)
+    ### Step 1: open the sheet ###
+    sheet = _open_sheet(sheet_id)
 
-    ### Step 2: find the tab (the "round") - and say which tabs exist if it is missing ###
+    ### Step 2: find the tab - and say which tabs exist if it is missing ###
     try:
         ws = sheet.worksheet(worksheet)
     except Exception:
         tabs = []
         for w in sheet.worksheets():
             tabs.append(w.title)
-        raise ValueError("No tab named " + repr(worksheet)
-                         + ". Tabs in this sheet: " + str(tabs))
+        raise ValueError(
+            "Your annotation sheet has no tab called '" + str(worksheet) + "'.\n"
+            "The tabs it does have are: " + " · ".join(tabs) + "\n"
+            "Either rename a tab in the sheet to match, or change the list of coder "
+            "names in the cell above so it matches the tabs you actually made.")
 
     ### Step 3: read every row as a dict keyed by the header names ###
     try:
         rows = ws.get_all_records()    # [{"ID": 1, "Text": "...", "CoderA": "B1", ...}]
-    except Exception as error:
+    except Exception:
         # This is almost always a header problem: a duplicated or blank column name.
         raise ValueError(
-            "Could not read the rows of tab " + repr(worksheet) + ". This usually means "
-            "the header row has a DUPLICATE or BLANK column name. The columns must "
-            "include: " + " · ".join(ANNOTATION_HEADER) + " (plus " + COL_CONTEXT
-            + " on the rhetorical-move tracks) - fix the header in the sheet and "
-            "re-run.\nOriginal error: " + str(error)
-        ) from error
+            "The tab '" + str(worksheet) + "' opened, but its rows could not be read.\n"
+            "Nearly always this is the header row (row 1): two columns with the SAME "
+            "name, or a column with no name at all.\n"
+            "Open that tab and make row 1 read exactly: "
+            + " · ".join(ANNOTATION_HEADER) + " (plus " + COL_CONTEXT
+            + " on the rhetorical-move tracks). Then run this cell again.")
     print("Read", len(rows), "rows from tab '" + worksheet + "'.")
     return rows
 
@@ -369,15 +429,11 @@ def load_coder_sheets(sheet_id, coders=DEFAULT_CODERS, final=FINAL_TAB):
     it starts. Gained a third? Duplicate an empty tab, rename it "CoderC", add "CoderC"
     to this list. Nothing else changes.
     """
-    coder_names = []
-    for name in coders:
-        name = str(name).strip()
-        if name and name not in coder_names:
-            coder_names.append(name)
-    if not coder_names:
-        raise ValueError(
-            "`coders` came out empty, so there is nothing to read.\n"
-            'Pass the tab names, e.g. load_coder_sheets(SHEET_ID, ["CoderA", "CoderB"]).')
+    coder_names = _normalise_coder_names(
+        coders,
+        "The list of coder names is empty, so there is no tab to read.\n"
+        "Open config.yaml and put your group's coders in `members:`, or type the tab "
+        'names into the cell above: CODERS = ["CoderA", "CoderB"]')
 
     ### Step 1: read each coder's tab, and remember their label for every item ###
     merged = {}          # id -> the row being built
@@ -396,15 +452,19 @@ def load_coder_sheets(sheet_id, coders=DEFAULT_CODERS, final=FINAL_TAB):
             merged[item_id][name] = str(row.get(COL_LABEL, "")).strip()
 
     ### Step 2: the Final tab - your adjudicated label, and the note behind it ###
-    try:
+    # Ask whether the tab EXISTS before trying to read it. Catching the read failure
+    # instead would treat "you have no Final tab yet" and "your Final tab has a broken
+    # header" as the same thing - and the second one would then be reported as "that is
+    # fine", quietly throwing away a morning of adjudication.
+    if final in tab_names(sheet_id):
         for row in load_annotation_sheet(sheet_id, final):
             item_id = str(row.get(COL_ID, "")).strip()
             if item_id in merged:
                 merged[item_id][COL_FINAL] = str(row.get(COL_FINAL, "")).strip()
                 merged[item_id][COL_NOTES] = str(row.get(COL_NOTES, "")).strip()
-    except ValueError:
-        # No Final tab yet. That is the normal state before you adjudicate, so it is a
-        # note rather than an error - the agreement step below works without it.
+    else:
+        # The normal state before you adjudicate, so it is a note rather than an error -
+        # the agreement step below works without it.
         print("(no '" + final + "' tab yet - that is fine until you adjudicate)")
 
     rows = []
@@ -578,13 +638,19 @@ def fleiss_kappa(label_lists):
     return (observed - expected) / (1 - expected)
 
 
+def _draw_coder_matrix(a_labels, b_labels, name_a, name_b, title):
+    """One coder's labels against another's, as a heatmap. The diagonal is agreement."""
+    labels = sorted(set(a_labels) | set(b_labels))
+    matrix = confusion_matrix(a_labels, b_labels, labels=labels)
+    plot_confusion_matrix(matrix, labels, title, xlabel=name_b, ylabel=name_a)
+
+
 def _coder_columns(rows, coders):
     """Which columns hold labels, and every row where ALL of them are filled in."""
-    names = []
-    for name in coders:
-        name = str(name).strip()
-        if name and name not in names:
-            names.append(name)
+    names = _normalise_coder_names(
+        coders,
+        "The list of coder names is empty, so there are no columns to compare.\n"
+        'Set CODERS in the cell above, e.g. CODERS = ["CoderA", "CoderB"]')
 
     complete = []
     for row in rows:
@@ -596,6 +662,50 @@ def _coder_columns(rows, coders):
     return names, complete
 
 
+def _labels_by_coder(names, complete):
+    """Turn one list of labels per ROW into one list of labels per CODER."""
+    by_coder = []
+    for position in range(len(names)):
+        one = []
+        for labels in complete:
+            one.append(labels[position])
+        by_coder.append(one)
+    return by_coder
+
+
+def _kappa_of_pair(a_labels, b_labels):
+    """Cohen's kappa for two coders, or nan when they only ever used one label."""
+    if len(set(a_labels) | set(b_labels)) < 2:
+        return float("nan")
+    return cohen_kappa_score(a_labels, b_labels)
+
+
+def _pairwise_kappas(names, by_coder):
+    """Cohen's kappa for every pair of coders, printed and returned.
+
+    Also returns which pair agreed LEAST, because "who diverges from whom" is the
+    question that leads somewhere - a single group-wide number does not tell you which
+    label boundary to go and argue about.
+    """
+    print("  pairwise Cohen's kappa:")
+    pairwise = {}
+    worst_pair = None
+    worst_kappa = None
+    for first in range(len(names)):
+        for second in range(first + 1, len(names)):
+            kappa = _kappa_of_pair(by_coder[first], by_coder[second])
+            pair = names[first] + " - " + names[second]
+            pairwise[pair] = kappa
+            print("   ", pair, " ", format(kappa, ".3f"))
+            # kappa == kappa is False only when kappa is nan - that is, when this pair
+            # used a single label between them and there is nothing to rank.
+            is_a_real_number = kappa == kappa
+            if is_a_real_number and (worst_kappa is None or kappa < worst_kappa):
+                worst_kappa = kappa
+                worst_pair = (first, second)
+    return pairwise, worst_pair
+
+
 def _agreement_for_many(rows, coders):
     """Fleiss' kappa across the group, plus Cohen's kappa for every pair."""
     names, complete = _coder_columns(rows, coders)
@@ -604,52 +714,21 @@ def _agreement_for_many(rows, coders):
               "yet.")
         return None
 
-    # One list per coder, all in the same item order.
-    by_coder = []
-    for position in range(len(names)):
-        one = []
-        for labels in complete:
-            one.append(labels[position])
-        by_coder.append(one)
+    by_coder = _labels_by_coder(names, complete)
 
     ### The whole group, as one number ###
     overall = fleiss_kappa(by_coder)
     print(len(complete), "items labelled by all", len(names), "coders")
     print("  Fleiss' kappa (all coders):", format(overall, ".3f"))
 
-    ### Then pair by pair, because "which pair diverges" is the useful question ###
-    print("  pairwise Cohen's kappa:")
-    pairwise = {}
-    worst_pair = None
-    worst_kappa = None
-    for first in range(len(names)):
-        for second in range(first + 1, len(names)):
-            a_labels, b_labels = by_coder[first], by_coder[second]
-            if len(set(a_labels) | set(b_labels)) < 2:
-                kappa = float("nan")
-            else:
-                kappa = cohen_kappa_score(a_labels, b_labels)
-            pair = names[first] + " - " + names[second]
-            pairwise[pair] = kappa
-            print("   ", pair, " ", format(kappa, ".3f"))
-            if kappa == kappa and (worst_kappa is None or kappa < worst_kappa):
-                worst_kappa = kappa
-                worst_pair = (first, second)
+    ### Then pair by pair ###
+    pairwise, worst_pair = _pairwise_kappas(names, by_coder)
 
     ### One matrix, for the pair that agrees least - that is where the scheme leaks ###
     if worst_pair is not None:
         first, second = worst_pair
-        a_labels, b_labels = by_coder[first], by_coder[second]
-        labels = sorted(set(a_labels) | set(b_labels))
-        matrix = confusion_matrix(a_labels, b_labels, labels=labels)
-        plt.figure(figsize=(1.2 * len(labels) + 2, 1.0 * len(labels) + 1.5))
-        sns.heatmap(matrix, annot=True, fmt="d", cmap="Blues",
-                    xticklabels=labels, yticklabels=labels)
-        plt.xlabel(names[second])
-        plt.ylabel(names[first])
-        plt.title("Least agreement: " + names[first] + " vs " + names[second])
-        plt.tight_layout()
-        plt.show()
+        _draw_coder_matrix(by_coder[first], by_coder[second], names[first], names[second],
+                           "Least agreement: " + names[first] + " vs " + names[second])
         print("  The matrix above is your LEAST agreeing pair - the label boundary to "
               "argue about first.")
 
@@ -706,16 +785,9 @@ def annotator_agreement(rows, a=COL_A, b=COL_B, coders=None):
               "· Cohen's kappa", format(kappa, ".3f"))
 
     ### Step 3: draw WHICH labels you two confuse, not just how often ###
-    labels = sorted(labels_used)           # every label either of you used
-    matrix = confusion_matrix(a_labels, b_labels, labels=labels)
-    plt.figure(figsize=(1.2 * len(labels) + 2, 1.0 * len(labels) + 1.5))
-    sns.heatmap(matrix, annot=True, fmt="d", cmap="Blues",
-                xticklabels=labels, yticklabels=labels)
-    plt.xlabel("Annotator B")
-    plt.ylabel("Annotator A")              # the diagonal is where you agreed
-    plt.title("Annotator-vs-annotator confusion matrix")
-    plt.tight_layout()
-    plt.show()
+    # The diagonal is where you agreed; everything off it is a boundary to talk about.
+    _draw_coder_matrix(a_labels, b_labels, str(a), str(b),
+                       "Annotator-vs-annotator confusion matrix")
     # "kappa" and "cohen_kappa" are the same number under two names, so code written
     # against either the tutorials or metrics.agreement() keeps working.
     return {"n": len(a_labels), "percent_agreement": percent,
@@ -729,34 +801,41 @@ def disagreements(rows, a=COL_A, b=COL_B, coders=None):
     ALL agree. With two coders the behaviour is unchanged.
     """
     if coders is not None and len(coders) > 2:
-        names = []
-        for name in coders:
-            name = str(name).strip()
-            if name and name not in names:
-                names.append(name)
-        out = []
-        for row in rows:
-            labels = []
-            for name in names:
-                labels.append(str(row.get(name, "")).strip())
-            # keep a row only if everyone labelled it AND they did not all choose the same
-            if all(labels) and len(set(labels)) > 1:
-                out.append(row)
-        print(len(out), "rows to adjudicate. Agree on a `Final` label for each in the "
-              "sheet.")
-        return pd.DataFrame(out)
+        out = _disagreements_for_many(rows, coders)
+    else:
+        if coders is not None and len(coders) == 2:
+            a, b = coders[0], coders[1]
+        out = _disagreements_for_two(rows, a, b)
+    print(len(out), "rows to adjudicate. Agree on a `Final` label for each in the sheet.")
+    # Name the columns even when no rows come back, so that a group whose coders agreed
+    # on everything gets an empty table rather than a table with nothing in it at all.
+    return pd.DataFrame(out, columns=list(rows[0]) if rows else None)
 
-    if coders is not None and len(coders) == 2:
-        a, b = coders[0], coders[1]
+
+def _disagreements_for_two(rows, a, b):
+    """The rows where two coders both labelled, and chose differently."""
     out = []
     for row in rows:
         label_a = str(row.get(a, "")).strip()
         label_b = str(row.get(b, "")).strip()
-        # keep a row only if both annotators labelled it AND they chose differently
         if label_a and label_b and label_a != label_b:
             out.append(row)
-    print(len(out), "rows to adjudicate. Agree on a `Final` label for each in the sheet.")
-    return pd.DataFrame(out)
+    return out
+
+
+def _disagreements_for_many(rows, coders):
+    """The rows where everyone labelled, and they did not all choose the same label."""
+    names, _ = _coder_columns(rows, coders)
+    out = []
+    for row in rows:
+        labels = []
+        for name in names:
+            labels.append(str(row.get(name, "")).strip())
+        everyone_labelled = all(labels)
+        they_differ = len(set(labels)) > 1
+        if everyone_labelled and they_differ:
+            out.append(row)
+    return out
 
 
 def compare_to_published(gold, published):

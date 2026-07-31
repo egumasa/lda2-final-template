@@ -74,20 +74,41 @@ def validate(items, allowed=None):
     """
     seen_ids = set()
     for position, item in enumerate(items):
-        missing = {"id", "text", "label"} - set(item)
-        if missing:
-            raise ValueError("item " + str(position) + " is missing "
-                             + str(sorted(missing)) + ": " + repr(item))
+        where = "Item number " + str(position + 1) + " of " + str(len(items))
+        for field in ("id", "text", "label"):
+            if field not in item:
+                raise ValueError(
+                    where + " has no `" + field + "`, and every item needs all three of "
+                    "id, text and label.\n"
+                    "That item was built by the reshaping step above, so go back to the "
+                    "cell where you filled in your own decision and check it puts a "
+                    "`" + field + "` on every row.")
         if item["id"] in seen_ids:
-            raise ValueError("duplicate id " + str(item["id"]))
+            raise ValueError(
+                "Two items have the same id (" + str(item["id"]) + "), so one would "
+                "overwrite the other in your annotation sheet.\n"
+                "reid() renumbers everything 1, 2, 3 - make sure the last line of your "
+                "reshaping step hands its rows to it.")
         seen_ids.add(item["id"])
         if not isinstance(item["text"], str) or not item["text"].strip():
-            raise ValueError("empty text at id " + str(item["id"]))
+            raise ValueError(
+                "The item with id " + str(item["id"]) + " has no text - there is nothing "
+                "there for a coder or the model to read.\n"
+                "Blank rows usually come from the raw file. Skip them in the reshaping "
+                "step rather than annotate them.")
         if not isinstance(item["label"], str) or not item["label"]:
-            raise ValueError("empty label at id " + str(item["id"]))
+            raise ValueError(
+                "The item with id " + str(item["id"]) + " has no label.\n"
+                "Every item in a pool needs the published label it came with. If your "
+                "label mapping does not cover some code in the raw data, either add it "
+                "or drop those rows in the reshaping step - do not leave the label blank.")
         if allowed is not None and item["label"] not in allowed:
-            raise ValueError("label " + repr(item["label"]) + " at id "
-                             + str(item["id"]) + " is not in " + str(sorted(allowed)))
+            raise ValueError(
+                "The item with id " + str(item["id"]) + " has the label '"
+                + str(item["label"]) + "', which is not one of the labels you allowed:\n"
+                "  " + ", ".join(sorted(allowed)) + "\n"
+                "Either add it to your label set, or map it onto one of these in the "
+                "cell where you wrote your label mapping.")
 
 
 def label_counts(items):
@@ -146,7 +167,9 @@ def reshape_raamove(raamove_dir):
 
         ### PASS 2: emit one item per sentence, with its abstract attached ###
         for number, records in abstracts:
-            texts = [record["text"].strip() for record in records]   # The abstract, sentence by sentence.
+            texts = []                           # The abstract, sentence by sentence.
+            for record in records:
+                texts.append(record["text"].strip())
             context = "\n".join(texts)           # One string, newlines kept so the sentences stay visible.
             doc_id = path.stem + "-" + str(number)   # e.g. "Intelligence-0". idx alone is NOT unique across the two files.
 
@@ -168,6 +191,19 @@ def reshape_raamove(raamove_dir):
 # ----------------------------------------------------------------------------------
 # CaRS-50 -> Swales CARS Move (3 classes) or Move+Step (11 classes)
 # ----------------------------------------------------------------------------------
+def _tag_text(element):
+    """The text inside an XML tag, tidied - or "" when the tag is missing or empty.
+
+    ElementTree gives you None for a tag that is not there, and ALSO None for a tag that
+    is there but empty. Both mean "nothing to read", so both come back as "" here.
+    """
+    if element is None:
+        return ""
+    if element.text is None:
+        return ""
+    return element.text.strip()
+
+
 def reshape_cars50(cars50_dir):
     """Parse the 50 XML introductions into TWO datasets: moves, and move+step.
 
@@ -201,11 +237,13 @@ def reshape_cars50(cars50_dir):
         for sentence in tree.iter("sentence"):   # .iter() finds them at any depth, so the paragraph nesting does not matter.
             text_element = sentence.find("text")     # The <text> child, or None if absent.
             step_element = sentence.find("step")     # The <step> child, or None if absent.
-            text = (text_element.text or "").strip() if text_element is not None else ""   # `or ""` guards an empty tag, whose .text is None.
+            text = _tag_text(text_element)
             if text:
                 passage.append((text, step_element))
 
-        texts = [text for text, _ in passage]    # Just the sentences.
+        texts = []                               # Just the sentences.
+        for text, step_element in passage:
+            texts.append(text)
         context = "\n".join(texts)               # One string, newlines kept so the sentences stay visible.
 
         ### PASS 2: emit an item for each sentence that carries a usable code ###
@@ -213,7 +251,7 @@ def reshape_cars50(cars50_dir):
         # three different ways, mix two widths inside text038.xml, and t025s020 appears
         # twice in text025.xml.
         for position, (text, step_element) in enumerate(passage):
-            code = (step_element.text or "").strip() if step_element is not None else ""   # e.g. "1b".
+            code = _tag_text(step_element)       # e.g. "1b".
 
             # Skip anything unlabelled, or whose code does not start with a move digit.
             if not code or not code[0].isdigit():
@@ -226,10 +264,12 @@ def reshape_cars50(cars50_dir):
                      "context": context}         # The introduction itself.
 
             ### Record the SAME sentence at both granularities ###
-            move_rows.append({"id": 0, "text": text,
-                              "label": "Move " + code[0], **where})   # Leading digit only -> 3 classes.
-            step_rows.append({"id": 0, "text": text,
-                              "label": code, **where})                # Whole code -> 11 classes.
+            move_row = {"id": 0, "text": text, "label": "Move " + code[0]}   # Leading digit only -> 3 classes.
+            step_row = {"id": 0, "text": text, "label": code}                # Whole code -> 11 classes.
+            move_row.update(where)               # Add doc_id, sent_index, n_sents, context.
+            step_row.update(where)
+            move_rows.append(move_row)
+            step_rows.append(step_row)
 
     return reid(move_rows), reid(step_rows)      # Two datasets, each with ids running 1..N.
 
@@ -237,14 +277,21 @@ def reshape_cars50(cars50_dir):
 # ----------------------------------------------------------------------------------
 # AutoErrorAnalyzer -> L2 error category (4 classes) or error detection (2 classes)
 # ----------------------------------------------------------------------------------
-# The published 23-code taxonomy, collapsed into three broader categories.
-L2_COARSE = {}
-for _code in "ART PREP NUM TENSE VFORM WO AGR DET POSS MOD CONJ STRUCT".split():
-    L2_COARSE[_code] = "Grammatical"
-for _code in "N ADJ ADV V REF EXPR".split():
-    L2_COARSE[_code] = "Lexical"
-for _code in "SP MIS UNN CWS PUNC".split():
-    L2_COARSE[_code] = "Mechanical"
+# The published 23-code taxonomy, collapsed into three broader categories. Written out
+# one code at a time: this mapping IS the scheme decision on this track, and it should be
+# possible to read it and disagree with it without unpacking a loop first.
+L2_COARSE = {
+    "ART": "Grammatical", "PREP": "Grammatical", "NUM": "Grammatical",
+    "TENSE": "Grammatical", "VFORM": "Grammatical", "WO": "Grammatical",
+    "AGR": "Grammatical", "DET": "Grammatical", "POSS": "Grammatical",
+    "MOD": "Grammatical", "CONJ": "Grammatical", "STRUCT": "Grammatical",
+
+    "N": "Lexical", "ADJ": "Lexical", "ADV": "Lexical",
+    "V": "Lexical", "REF": "Lexical", "EXPR": "Lexical",
+
+    "SP": "Mechanical", "MIS": "Mechanical", "UNN": "Mechanical",
+    "CWS": "Mechanical", "PUNC": "Mechanical",
+}
 
 L2_LABELS = {"Grammatical", "Lexical", "Mechanical", "No error"}
 L2_DETECTION_LABELS = {"Has error", "No error"}

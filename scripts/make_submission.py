@@ -3,6 +3,9 @@
 
     python scripts/make_submission.py --group groupA
 
+Run it again after filling a gap and it stops rather than rebuild, because rebuilding
+deletes anything you put in the folder by hand. Add --overwrite when you mean it.
+
 It builds ../lda2_project_<group>/ next to this repo, keeping the
     scripts/ · prompts/ · data/ · notebooks/ · outputs/
 layout intact. Then, in Drive: right-click the folder -> Download -> upload the zip to
@@ -20,6 +23,10 @@ awkward to undo:
 So the rule here is an ALLOWLIST: nothing is copied unless it is named below. Adding a
 new kind of output means adding it here on purpose, rather than discovering later that
 a whole corpus went up to Classroom.
+
+The dev/test split and the test-scoring log are on the allowlist deliberately. They are
+what makes the reported number auditable: which items it was measured on, and how many
+times that set was scored before the number was quoted.
 
 WHY THE FOLDER STRUCTURE IS KEPT
 --------------------------------
@@ -74,7 +81,7 @@ def copy_matching(source_dir, destination_dir, pattern):
     return copied
 
 
-def main(argv):
+def parse_arguments(argv):
     parser = argparse.ArgumentParser(
         description="Collect your mini-project files into a submission folder.")
     parser.add_argument("--group", required=True,
@@ -85,55 +92,68 @@ def main(argv):
                         help="which run to bundle, e.g. v1; inferred (newest) if omitted")
     parser.add_argument("--out", default=None,
                         help="where to write the folder (default: next to this repo)")
-    args = parser.parse_args(argv)
+    parser.add_argument("--overwrite", action="store_true",
+                        help="rebuild the folder even though it already exists")
+    return parser.parse_args(argv)
 
-    group = args.group
-    if args.out:
-        bundle = Path(args.out).resolve()
-    else:
-        bundle = ROOT.parent / ("lda2_project_" + group)
 
-    # Work out the track and the run from whatever the export step wrote, unless told.
-    # Report files are named <track>_<group>_<run>_report.md, so both are in the name.
-    # Sorting puts the newest run last when they are v1, v2, v3 - so take the last one
-    # rather than the first, and say which, because a group that ran twice should not
-    # have to guess which attempt got submitted.
-    track = args.track
-    run = args.run
+def infer_track_and_run(group, track, run):
+    """Work out which track and run to bundle, from whatever the export step wrote.
+
+    Report files are named <track>_<group>_<run>_report.md, so both are in the name.
+    A group that ran twice should not have to guess which attempt got submitted, so the
+    choice is always announced.
+    """
     reports = sorted((ROOT / "outputs").glob("*_" + group + "_*_report.md"))
-    if reports:
-        newest = reports[-1].name
-        if track is None:
-            track = newest.split("_" + group + "_")[0]
-        if run is None:
-            run = newest.split("_" + group + "_")[1][:-len("_report.md")]
-        if len(reports) > 1:
-            print("Found", len(reports), "runs. Bundling the newest:", newest)
-    if track is None or run is None:
-        print("Could not work out which track and run this is. Either run the export "
-              "(export_results) first, or pass --track and --run.")
-        return 1
+    if not reports:
+        return track, run
+    newest = reports[-1].name
+    if track is None:
+        track = newest.split("_" + group + "_")[0]
+    if run is None:
+        run = newest.split("_" + group + "_")[1][:-len("_report.md")]
+    if len(reports) > 1:
+        print("Found", len(reports), "runs. Bundling the newest:", newest)
+        print("  (pass --run to bundle a different one.)")
+    return track, run
 
-    print("Track:", track, " Group:", group, " Run:", run)
-    print("Building:", bundle)
+
+def prepare_bundle_folder(bundle, overwrite):
+    """Make an empty folder to build in, refusing to wipe one you may have added to.
+
+    The folder is rebuilt from scratch so nothing stale survives - which also means
+    anything you dropped in by hand, like slides, goes with it. So it will not do that
+    behind your back.
+    """
+    if bundle.exists() and not overwrite:
+        print("That folder already exists:")
+        print("   ", bundle)
+        print("Rebuilding it deletes everything inside, including anything you added by")
+        print("hand (your slides, say). If that is what you want, run the command again")
+        print("with --overwrite on the end. Otherwise rename or move the old folder")
+        print("first.")
+        return False
     if bundle.exists():
-        shutil.rmtree(bundle)          # rebuild from scratch, so nothing stale survives
+        shutil.rmtree(bundle)
     bundle.mkdir(parents=True)
+    return True
 
-    stem = track + "_" + group + "_" + run
-    found = {}
-    missing = []
 
-    # --- the plan (the gate) ------------------------------------------------------
+def collect_the_plan(bundle, found, missing):
+    """PLAN.md - the gate. It travels with the bundle as evidence the gate was passed."""
     if copy_file(ROOT / "PLAN.md", bundle / "PLAN.md"):
         found["PLAN.md"] = ["PLAN.md"]
     else:
         missing.append("PLAN.md — the 作戦シート. It travels with the bundle as "
                        "evidence the gate was passed.")
 
-    # --- the notebook -------------------------------------------------------------
-    # All five, filled in. 01 is per-track, so only the one you actually ran is asked
-    # for; 02-05 are the same file for everyone and all four should be there.
+
+def collect_notebooks(bundle, found, missing):
+    """All five notebooks, filled in.
+
+    01 is per-track, so only the one you actually ran is asked 01 is per-track, so only the one you actually ran is asked
+    for; 02-05 are the same file for everyone and all four should be there.
+    """
     notebooks = copy_matching(ROOT / "notebooks", bundle / "notebooks", "0*.ipynb")
     if notebooks:
         found["notebooks/"] = notebooks
@@ -143,29 +163,55 @@ def main(argv):
         if not any(name.startswith(stage) for name in notebooks):
             missing.append("notebooks/" + stage + ".ipynb — filled in.")
 
-    # --- the prompts, including the iteration trail --------------------------------
+
+def collect_prompts(bundle, track, found, missing):
+    """Your prompt file(s), including the iteration trail."""
     prompts = copy_matching(ROOT / "prompts", bundle / "prompts", track + "*.txt")
     if prompts:
         found["prompts/"] = prompts
     else:
         missing.append("prompts/" + track + "*.txt — your prompt file(s).")
 
-    # --- your adjudicated gold set --------------------------------------------------
-    gold = copy_matching(ROOT / "data" / "gold", bundle / "data" / "gold", stem + "_gold.json")
-    if not gold:
-        gold = copy_matching(ROOT / "outputs", bundle / "data" / "gold", stem + "_gold.json")
+
+def collect_gold(bundle, stem, found, missing):
+    """Your adjudicated gold set, and the line you drew through it.
+
+    All three files, because the split is part of the claim: the headline F1 was computed on
+    the test half, and a reader who cannot see which items those were cannot check it.
+    """
+    gold = []
+    for name in (stem + "_gold.json", stem + "_dev.json", stem + "_test.json"):
+        copied = copy_matching(ROOT / "data" / "gold", bundle / "data" / "gold", name)
+        if not copied:
+            copied = copy_matching(ROOT / "outputs", bundle / "data" / "gold", name)
+        gold = gold + copied
     if gold:
         found["data/gold/"] = gold
-    else:
+    if not any(name.endswith("_gold.json") for name in gold):
         missing.append("data/gold/" + stem + "_gold.json — your ADJUDICATED gold set "
                        "(notebook 03). Without it the numbers cannot be checked.")
+    if not any(name.endswith("_test.json") for name in gold):
+        missing.append("data/gold/" + stem + "_test.json — your HELD-OUT test set "
+                       "(notebook 03). Your headline F1 was computed on it, so it has "
+                       "to be checkable.")
+    if not any(name.endswith("_dev.json") for name in gold):
+        missing.append("data/gold/" + stem + "_dev.json — the dev half you tuned on "
+                       "(notebook 03).")
 
-    # --- outputs: frozen predictions, CSV, report ------------------------------------
-    # Named patterns rather than "<stem>*": export_results also drops a copy of the gold
-    # set in outputs/, and shipping it in two places invites the question of which one
-    # the numbers were actually computed against. It belongs in data/gold/.
+
+def collect_outputs(bundle, stem, found, missing):
+    """The frozen predictions, the CSV, the report and the test log.
+
+    Named patterns rather than "<stem>*": export_results also drops a copy of the
+    # scored items in outputs/, and shipping them in two places invites the question of
+    # which one the numbers were computed against. They belong in data/gold/.
+    # "_predictions*.json" and not "_predictions.json": a second scoring of the held-out
+    # set lands in _predictions_attempt2.json rather than replacing the first, and the
+    whole point of keeping it is that it does not go missing here.
+    """
     outputs = []
-    for pattern in ("_predictions.json", "_predictions.csv", "_report.md"):
+    for pattern in ("_predictions*.json", "_predictions.csv", "_report.md",
+                    "_test_log.jsonl"):
         outputs = outputs + copy_matching(ROOT / "outputs", bundle / "outputs",
                                           stem + pattern)
     if outputs:
@@ -175,8 +221,14 @@ def main(argv):
                        "(notebook 04). This is the file your reported F1 must come from.")
     if not any(name.endswith("_report.md") for name in outputs):
         missing.append("outputs/" + stem + "_report.md — the one-page report (notebook 05).")
+    if not any(name.endswith("_test_log.jsonl") for name in outputs):
+        missing.append("outputs/" + stem + "_test_log.jsonl — the test-scoring log "
+                       "(notebook 04). It records how many times the held-out set was "
+                       "scored, and that is part of the method.")
 
-    # --- the plumbing, so the bundle actually runs -------------------------------------
+
+def collect_plumbing(bundle, found, missing):
+    """The code, so the bundle actually runs."""
     scripts = copy_matching(ROOT / "scripts", bundle / "scripts", "*.py")
     found["scripts/"] = scripts
 
@@ -195,7 +247,9 @@ def main(argv):
         missing.append("config.py — reads config.yaml and builds every path. Every "
                        "notebook imports it.")
 
-    # --- slides ------------------------------------------------------------------------
+
+def collect_slides(bundle, found, missing):
+    """Your 5 slides."""
     slides = []
     for candidate in ("slides.pdf", "slides.pptx", "slides.key"):
         if copy_file(ROOT / candidate, bundle / candidate):
@@ -206,7 +260,9 @@ def main(argv):
         missing.append("slides.pdf — your 5 slides. Put them in the repo root, or add "
                        "them to the folder by hand.")
 
-    # --- report ---------------------------------------------------------------------
+
+def print_what_was_collected(found, bundle):
+    """List every file that went in, section by section."""
     print()
     total = 0
     for section in sorted(found):
@@ -219,8 +275,10 @@ def main(argv):
     print()
     print(total, "file(s) collected into", bundle)
 
-    # A report still full of the scaffold's placeholder prose is the most common way to
-    # lose marks, and the easiest to check mechanically.
+
+def warn_about_placeholders(bundle, stem):
+    """A report still full of the scaffold's own prose is the easiest thing to lose
+    marks on, and the easiest to check mechanically."""
     report_path = bundle / "outputs" / (stem + "_report.md")
     if report_path.exists():
         text = report_path.read_text(encoding="utf-8")
@@ -232,6 +290,41 @@ def main(argv):
             print("         Those are the sections you are meant to write. A section "
                   "left as the")
             print("         scaffold's own prose scores zero.")
+
+
+def main(argv):
+    args = parse_arguments(argv)
+    group = args.group
+    if args.out:
+        bundle = Path(args.out).resolve()
+    else:
+        bundle = ROOT.parent / ("lda2_project_" + group)
+
+    track, run = infer_track_and_run(group, args.track, args.run)
+    if track is None or run is None:
+        print("Could not work out which track and run this is. Either run the export "
+              "(export_results) first, or pass --track and --run.")
+        return 1
+
+    print("Track:", track, " Group:", group, " Run:", run)
+    print("Building:", bundle)
+    if not prepare_bundle_folder(bundle, args.overwrite):
+        return 1
+
+    stem = track + "_" + group + "_" + run
+    found = {}
+    missing = []
+
+    collect_the_plan(bundle, found, missing)
+    collect_notebooks(bundle, found, missing)
+    collect_prompts(bundle, track, found, missing)
+    collect_gold(bundle, stem, found, missing)
+    collect_outputs(bundle, stem, found, missing)
+    collect_plumbing(bundle, found, missing)
+    collect_slides(bundle, found, missing)
+
+    print_what_was_collected(found, bundle)
+    warn_about_placeholders(bundle, stem)
 
     if missing:
         print()

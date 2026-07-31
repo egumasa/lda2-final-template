@@ -25,6 +25,7 @@ and sensible values are worked out automatically when they are left off.
 """
 
 import datetime
+import hashlib
 import json
 import os
 import random
@@ -92,60 +93,69 @@ def _suggested_delay(error, fallback):
     return fallback
 
 
-def _throttle_and_retry(call_model, default_min_interval):
-    """Wrap a raw 'prompt -> text' function with free-tier friendliness.
+# --- Talking to the model, at a pace the free tier allows ---------------------------
+# Free-tier Gemini caps how many requests you may send per minute, so every call goes
+# through generate_text() below, which waits its turn and retries if it is told off.
+#
+# These four remembered values are the whole of that machinery. They are module-level
+# rather than passed around because there is exactly one connection per notebook, and
+# threading a clock through every call would put it in front of you at every step.
+_CALL_MODEL = None        # the function that actually sends a prompt (set by make_backend)
+_BACKEND_NAME = ""        # what we connected to, for printing
+_MIN_INTERVAL = 4.4       # seconds to leave between calls
+_LAST_CALL_TIME = 0.0     # when the last call went out (time.monotonic)
 
-    Free-tier Gemini caps requests per minute. If we fire faster than that, we get a
-    429 RESOURCE_EXHAUSTED / rate-limit error. Guards:
-      1) MIN_INTERVAL - wait at least this many seconds between calls, so we stay
-         under the per-minute cap in the first place.
-      2) on a per-minute rate-limit error, sleep (honoring the server's suggested
-         delay when given) and retry a few times.
-      3) on a PER-DAY quota error, stop immediately - retrying cannot help today -
-         and raise a clear message about how to get unblocked.
 
-    `default_min_interval` depends on which backend we picked (the API key path can
-    go faster than colab.ai). Both it and the retry count are tunable via the
-    LLM_MIN_INTERVAL / LLM_MAX_RETRIES environment variables.
+def _wait_our_turn():
+    """Sleep until at least _MIN_INTERVAL seconds have passed since the last call."""
+    global _LAST_CALL_TIME
+    wait = _MIN_INTERVAL - (time.monotonic() - _LAST_CALL_TIME)
+    if wait > 0:
+        time.sleep(wait)
+    _LAST_CALL_TIME = time.monotonic()
+
+
+def generate_text(prompt):
+    """Send one prompt to the model and return its text reply.
+
+    Three guards, in order:
+      1) wait our turn, so we stay under the per-minute cap in the first place
+      2) on a per-minute rate-limit error, sleep (honoring the delay the server
+         suggests, when it gives one) and try again a few times
+      3) on a PER-DAY quota error, stop at once - retrying cannot help today - and say
+         how to get unblocked.
     """
-    min_interval = float(os.environ.get("LLM_MIN_INTERVAL", str(default_min_interval)))
     max_retries = int(os.environ.get("LLM_MAX_RETRIES", "5"))
-    last_call_time = [0.0]   # a list so the inner function can update it
-
-    def generate_text(prompt):
-        for attempt in range(max_retries + 1):
-            # Guard 1: pace ourselves to at most one call per min_interval seconds.
-            wait = min_interval - (time.monotonic() - last_call_time[0])
-            if wait > 0:
-                time.sleep(wait)
-            try:
-                last_call_time[0] = time.monotonic()
-                return call_model(prompt)
-            except Exception as error:
-                # Non-rate-limit errors are real bugs - let them surface.
-                if not _looks_like_rate_limit(error):
-                    raise
-                # Guard 3: a DAILY cap will not clear today - stop now with advice.
-                if _looks_like_daily_quota(error):
-                    raise RuntimeError(
-                        "Gemini free-tier DAILY quota is exhausted for this model. "
-                        "Retrying will not help until it resets (~midnight Pacific). "
-                        "To keep working now: hand the 'driver' role to another group "
-                        "member and use their key (your files stay put in the shared "
-                        "Drive folder), lower N_PER_CLASS so each run uses fewer calls, "
-                        "or run in Google Colab without a key (free built-in Gemini - "
-                        "but NOT reproducible, so it must not be your final frozen run)."
-                    ) from error
-                # Guard 2: a per-minute cap - back off (honoring the server hint) and retry.
-                if attempt == max_retries:
-                    raise
-                backoff = _suggested_delay(error, min_interval * (attempt + 1))
-                print("  (rate limited - waiting", round(backoff), "s then retrying)")
-                time.sleep(backoff)
-        # Should be unreachable, but keeps the function honest.
-        raise RuntimeError("The model kept returning rate-limit errors after retries.")
-
-    return generate_text
+    for attempt in range(max_retries + 1):
+        _wait_our_turn()
+        try:
+            return _CALL_MODEL(prompt)
+        except Exception as error:
+            # Non-rate-limit errors are real bugs - let them surface.
+            if not _looks_like_rate_limit(error):
+                raise
+            # A DAILY cap will not clear today - stop now with advice.
+            if _looks_like_daily_quota(error):
+                raise RuntimeError(
+                    "Gemini free-tier DAILY quota is exhausted for this model. "
+                    "Retrying will not help until it resets (~midnight Pacific). "
+                    "To keep working now: hand the 'driver' role to another group "
+                    "member and use their key (your files stay put in the shared "
+                    "Drive folder), lower N_PER_CLASS so each run uses fewer calls, "
+                    "or run in Google Colab without a key (free built-in Gemini - "
+                    "but NOT reproducible, so it must not be your final frozen run)."
+                ) from error
+            if attempt == max_retries:
+                raise RuntimeError(
+                    "The model refused " + str(max_retries + 1) + " times in a row, "
+                    "every time because we were sending requests too fast.\n"
+                    "Wait a couple of minutes and run the cell again. If it keeps "
+                    "happening, another member of your group is probably running their "
+                    "own calls on the same key at the same time - agree who is driving."
+                ) from error
+            backoff = _suggested_delay(error, _MIN_INTERVAL * (attempt + 1))
+            print("  (rate limited - waiting", round(backoff), "s then retrying)")
+            time.sleep(backoff)
 
 
 def _resolve_gemini_key():
@@ -165,65 +175,87 @@ def _resolve_gemini_key():
     return os.environ.get("GEMINI_API_KEY")     # last resort: an environment variable
 
 
-# Once make_backend() has run, its result is remembered here so that re-running the
-# Setup cell does not build a second backend (which would reset the pacing clock and
-# risk a burst of calls). run_prompt() reads this when you do not pass a backend in.
-_BACKEND = None
+# What model the connection is actually using. Logged into your test log, so that the
+# number in your report can be traced to the model that produced it.
+_MODEL_IN_USE = ""
+
+
+def _connect_to_gemini_api(key):
+    """Set up the API-key connection. Returns the model id we will be using.
+
+    temperature=0 + a fixed seed = the same prompt gives the same answer every run.
+    That is what "reproducible" means in practice, and it is the whole reason we prefer
+    the key path over Colab's built-in model.
+    """
+    global _GENAI_CLIENT, _GENAI_CONFIG
+    from google import genai
+    from google.genai import types
+    _GENAI_CLIENT = genai.Client(api_key=key)
+    _GENAI_CONFIG = types.GenerateContentConfig(temperature=0, seed=42)
+    return os.environ.get("LLM_MODEL", MODEL_ID)
+
+
+_GENAI_CLIENT = None
+_GENAI_CONFIG = None
+
+
+def _call_gemini_api(prompt):
+    """Send one prompt through the API-key connection."""
+    response = _GENAI_CLIENT.models.generate_content(
+        model=_MODEL_IN_USE, contents=prompt, config=_GENAI_CONFIG)
+    return response.text
+
+
+def _call_colab_gemini(prompt):
+    """Send one prompt through Colab's built-in, keyless Gemini."""
+    from google.colab import ai
+    return ai.generate_text(prompt)
 
 
 def make_backend():
-    """Return (generate_text, backend_name) - a function that sends a prompt and
-    returns the model's text reply, plus a label describing what we connected to.
+    """Connect to the model. Returns (generate_text, backend_name).
 
     We prefer an API KEY, because the API lets us pin temperature=0 and a fixed seed,
     which is what makes a run reproducible. Colab's keyless built-in Gemini is only a
     fallback: it works with zero setup but exposes no temperature or seed, so the same
     prompt can give different answers - fine for a quick look, NOT for your final
     frozen run.
+
+    Safe to call more than once: after the first time it just hands back the connection
+    it already made, so re-running the SETUP cell does not reset the pacing clock and
+    let a burst of calls through.
     """
-    global _BACKEND
-    if _BACKEND is not None:
-        return _BACKEND                      # already built - reuse it, stay paced
+    global _CALL_MODEL, _BACKEND_NAME, _MIN_INTERVAL, _MODEL_IN_USE
+    if _CALL_MODEL is not None:
+        return generate_text, _BACKEND_NAME   # already connected - reuse it, stay paced
 
     # Option 1 (preferred): the Gemini API with your own key. Reproducible.
     key = _resolve_gemini_key()
     if key:
-        from google import genai
-        from google.genai import types
-        client = genai.Client(api_key=key)
-        model = os.environ.get("LLM_MODEL", MODEL_ID)
-        # temperature=0 + a fixed seed = the same prompt gives the same answer every
-        # run. This is what "reproducible" means in practice, and it is the whole
-        # reason we prefer the key path over Colab's built-in model.
-        config = types.GenerateContentConfig(temperature=0, seed=42)
-
-        def call_model(prompt):
-            response = client.models.generate_content(
-                model=model, contents=prompt, config=config)
-            return response.text
-
-        label = "Gemini API (" + model + ", temperature=0, seed=42)"
-        # 4.4s between calls keeps us under the 15-requests-per-minute free-tier cap.
-        _BACKEND = (_throttle_and_retry(call_model, 4.4), label)
-        return _BACKEND
+        _MODEL_IN_USE = _connect_to_gemini_api(key)
+        _CALL_MODEL = _call_gemini_api
+        _BACKEND_NAME = ("Gemini API (" + _MODEL_IN_USE
+                         + ", temperature=0, seed=42)")
+        # 4.4s between calls keeps us under the 15-per-minute free-tier cap.
+        _MIN_INTERVAL = 4.4
+        return generate_text, _BACKEND_NAME
 
     # Option 2 (fallback): Colab's free built-in Gemini. No key, but not reproducible.
     try:
-        from google.colab import ai
-
-        def call_model(prompt):
-            return ai.generate_text(prompt)
-
+        from google.colab import ai            # noqa: F401 - just checking it is there
+    except ImportError:
+        ai = None
+    if ai is not None:
         print("WARNING: no API key found, so we are using Colab's built-in Gemini.")
         print("         It has no temperature or seed setting, so the same prompt can")
         print("         give different answers - your numbers will NOT be reproducible.")
         print("         Put your key in the Colab Secrets panel as GEMINI_API_KEY")
         print("         before your final run. A free key: aistudio.google.com/apikey")
-        # colab.ai publishes no rate limit, so pace conservatively.
-        _BACKEND = (_throttle_and_retry(call_model, 13.2), "Colab Gemini (non-reproducible)")
-        return _BACKEND
-    except ImportError:
-        pass
+        _MODEL_IN_USE = "colab built-in gemini"
+        _CALL_MODEL = _call_colab_gemini
+        _BACKEND_NAME = "Colab Gemini (non-reproducible)"
+        _MIN_INTERVAL = 13.2                   # no published limit, so pace carefully
+        return generate_text, _BACKEND_NAME
 
     # Option 3: nothing available - tell the user what to do.
     raise RuntimeError(
@@ -235,19 +267,25 @@ def make_backend():
 
 
 def setup():
-    """Connect to the model and say what we connected to. Run this once, at the top.
-
-    Safe to re-run: the backend is built only the first time, so re-running this cell
-    will not reset the pacing clock.
-    """
-    generate_text, backend_name = make_backend()
+    """Connect to the model and say what we connected to. Run this once, at the top."""
+    _, backend_name = make_backend()
     print("LLM backend:", backend_name)
 
 
+def model_in_use():
+    """The model id the current connection is using, for the test log."""
+    if not _MODEL_IN_USE:
+        return MODEL_ID
+    return _MODEL_IN_USE
+
+
 def _default_backend():
-    """The backend to use when a caller did not pass one in explicitly."""
-    generate_text, backend_name = make_backend()
-    return generate_text
+    """The function that sends a prompt, for when a caller did not pass one in.
+
+    This is generate_text - the paced, retrying one - never the raw connection.
+    """
+    sender, _ = make_backend()
+    return sender
 
 
 # ----------------------------------------------------------------------------------
@@ -285,6 +323,11 @@ def load_gold(url_or_path):
         opened_file = open(url_or_path, encoding="utf-8")
         gold = json.loads(opened_file.read())
         opened_file.close()
+    if len(gold) == 0:
+        raise ValueError(
+            "The file " + str(url_or_path) + " opened, but there is nothing in it.\n"
+            "Whichever notebook was supposed to write it has not finished - go back and "
+            "run its save cell, then come back to this one.")
     print("Loaded", len(gold), "items. First one:", gold[0])
     return gold
 
@@ -329,8 +372,35 @@ def _refuse_to_overwrite(path, overwrite, what):
         "  * Want to KEEP it? Open config.yaml and change  run: to the next version\n"
         "    (v1 -> v2). Everything you save from then on gets a new name, and this\n"
         "    file stays where it is. Then re-run the SETUP cell.\n"
+        "    Careful: run: is part of EVERY filename - your sample, your annotation\n"
+        "    sheet, your gold set and its dev/test split included. Bumping it means\n"
+        "    starting the study over, not redoing one step.\n"
         "  * Meant to REPLACE it? Add overwrite=True inside the brackets of the call\n"
         "    you just ran."
+    )
+
+
+def _refuse_to_load_missing(path, what, made_by):
+    """Explain a missing handoff file: which notebook makes it, and what to do.
+
+    Notebooks 04 and 05 read files that an EARLIER notebook wrote. Arriving at 05
+    without having finished 04 is the ordinary way to meet this, and a bare
+    FileNotFoundError pointing into open() does not say that.
+    """
+    if Path(path).exists():
+        return
+    raise FileNotFoundError(
+        "File not found: " + str(path) + "\n"
+        "This is the " + what + " file, and " + made_by + " writes it.\n"
+        "Nothing is wrong with your setup - that notebook has just not been run to\n"
+        "the end yet on this config.\n"
+        "  * Go and finish " + made_by + ", including its SAVE cell. A run you did\n"
+        "    not save is a run this notebook cannot see: the variables live in that\n"
+        "    session's memory, not on disk.\n"
+        "  * Already ran it? Then it saved somewhere else. `run:` and `group:` in\n"
+        "    config.yaml are part of every output filename, so changing either one\n"
+        "    since that run points these paths at a file that was never written.\n"
+        "    Check the name above against what is actually in outputs/."
     )
 
 
@@ -369,11 +439,143 @@ def load_predictions(url_or_path):
         raw_bytes = urllib.request.urlopen(url_or_path).read()
         predictions = json.loads(raw_bytes.decode("utf-8"))
     else:
+        _refuse_to_load_missing(url_or_path, "frozen predictions",
+                                "notebook 04_prompt")
         opened_file = open(url_or_path, encoding="utf-8")
         predictions = json.loads(opened_file.read())
         opened_file.close()
     print("Loaded", len(predictions), "frozen predictions.")
     return predictions
+
+
+# ----------------------------------------------------------------------------------
+# Scoring the held-out set, on the record
+# ----------------------------------------------------------------------------------
+# Nothing here stops you running the test set twice. Stopping you would be the wrong
+# design: at four o'clock on the last day, a group that hit a genuine mistake needs a
+# way forward, and the way forward must not be to bump `run:` in config.yaml - that
+# renames the sample, the sheet, the gold set and the split too, and walks off from a
+# week of annotation.
+#
+# So instead: nothing is overwritten, every attempt is kept, and every scoring writes a
+# line to a log that goes in your submission. A second attempt is allowed. It is just
+# not invisible.
+def save_test_run(predictions, path, overwrite=False):
+    """Freeze a run on the TEST set. Returns (path_written, attempt_number).
+
+    First call writes the path you gave it. A second call does not replace that file -
+    it writes ..._predictions_attempt2.json beside it, and says so.
+    """
+    first_path = Path(path)
+    first_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if overwrite or not first_path.exists():
+        attempt = 1
+        output_path = first_path
+        if overwrite and first_path.exists():
+            print("OVERWROTE", first_path.name, "on purpose (overwrite=True).")
+    else:
+        attempt = _next_attempt_number(first_path)
+        output_path = first_path.with_name(
+            first_path.stem + "_attempt" + str(attempt) + first_path.suffix)
+
+    output_path.write_text(
+        json.dumps(predictions, ensure_ascii=False, indent=2), encoding="utf-8")
+    print("Froze", len(predictions), "test predictions to", str(output_path))
+
+    if attempt > 1:
+        print("")
+        print("This is test scoring attempt", str(attempt) + ".", first_path.name,
+              "is untouched.")
+        print("Every attempt is bundled with your submission, and the test log records")
+        print("all of them. If the number you report is not attempt 1, section 5 of your")
+        print("report has to say why there was more than one.")
+    return output_path, attempt
+
+
+def _next_attempt_number(first_path):
+    """Find the lowest attempt number that is not on disk yet."""
+    highest = 1
+    pattern = first_path.stem + "_attempt*" + first_path.suffix
+    for existing in first_path.parent.glob(pattern):
+        digits = existing.stem.split("_attempt")[-1]
+        if digits.isdigit() and int(digits) > highest:
+            highest = int(digits)
+    return highest + 1
+
+
+def log_test_run(log_path, record):
+    """Append one record to the test log. Never refuses, never replaces.
+
+    One JSON object per line (a .jsonl file), rather than one JSON list, because a list
+    would have to be read and rewritten whole every time - and a rewrite interrupted
+    halfway loses exactly the history this file exists to keep.
+    """
+    output_path = Path(log_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    line = json.dumps(record, ensure_ascii=False)
+    log_file = open(output_path, "a", encoding="utf-8")
+    log_file.write(line + "\n")
+    log_file.close()
+    return output_path
+
+
+def read_test_log(log_path):
+    """Read the test log back as a table, oldest scoring first."""
+    output_path = Path(log_path)
+    if not output_path.exists():
+        print("No test log at", str(output_path), "- notebook 04 writes it when you")
+        print("score the held-out set.")
+        return pd.DataFrame()
+    records = []
+    for line in output_path.read_text(encoding="utf-8").splitlines():
+        if line.strip():
+            records.append(json.loads(line))
+    return pd.DataFrame(records)
+
+
+def record_test_scoring(log_path, macro_f1, attempt, pred_path, prompt, prompt_file,
+                        gold_items, dev_f1=None, round_key="", note="",
+                        predictions=None):
+    """Write down one scoring of the held-out set, and print it back."""
+    # How many replies no label could be read out of. A macro-F1 computed over a run
+    # with eight "??" in it is a different claim from the same number with none.
+    unparseable = 0
+    if predictions is not None:
+        for predicted in predictions:
+            if predicted == "??":
+                unparseable = unparseable + 1
+    fingerprint = hashlib.sha1(prompt.encode("utf-8")).hexdigest()[:12]
+    record = {
+        "at": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+        "attempt": attempt,
+        "pred_file": Path(pred_path).name,
+        "n_test": len(gold_items),
+        "prompt_file": Path(prompt_file).name,
+        # The point of the whole log. Scoring test twice with the SAME prompt is a
+        # re-roll of the dice; scoring it twice with a DIFFERENT one is a prompt tuned
+        # after seeing the held-out set. Nothing else in your submission tells them
+        # apart, and the difference is the whole reason the split exists.
+        "prompt_sha1": fingerprint,
+        "prompt_chars": len(prompt),
+        "model": model_in_use(),   # what we actually connected to
+        "macro_f1": macro_f1,
+        "dev_f1": dev_f1,
+        "round_key": round_key,
+        "unparseable": unparseable,
+        "note": note,
+    }
+    log_test_run(log_path, record)
+
+    print("Logged test scoring", str(attempt), "· macro-F1", macro_f1,
+          "· prompt", fingerprint)
+    if dev_f1 is not None:
+        print("        dev was", dev_f1, "- the gap between them is a finding, not a")
+        print("        failure. Say what you make of it in the report.")
+    if attempt > 1:
+        print("        This is test scoring number", str(attempt) + ". All of them are")
+        print("        in the log, and the log is in your submission.")
+    return record
 
 
 # ----------------------------------------------------------------------------------
@@ -394,8 +596,15 @@ def save_json(data, path, what="items", overwrite=False):
     return output_path
 
 
-def load_json(path, what="items"):
-    """Read back what save_json wrote."""
+def load_json(path, what="items", made_by=None):
+    """Read back what save_json wrote.
+
+    `made_by` names the notebook that writes this file, so that a missing one says
+    where it comes from. Leave it off and the message stays general.
+    """
+    if made_by is None:
+        made_by = "an earlier notebook"
+    _refuse_to_load_missing(path, what, made_by)
     opened_file = open(path, encoding="utf-8")
     data = json.loads(opened_file.read())
     opened_file.close()
@@ -524,7 +733,7 @@ def sample_by_document(pool, n_docs, n_per_doc, seed=42):
         if "doc_id" not in item:
             items_without_doc = items_without_doc + 1
     if items_without_doc > 0:
-        raise KeyError(
+        raise ValueError(
             "sample_by_document needs to know which document each item came from, "
             "and " + str(items_without_doc) + " of these " + str(len(pool)) + " items "
             "do not carry a doc_id.\n"
@@ -582,6 +791,212 @@ def label_set(gold):
             labels.append(label)
     labels.sort()
     return labels
+
+
+# ----------------------------------------------------------------------------------
+# Drawing the line: dev and test
+# ----------------------------------------------------------------------------------
+# You will change your prompt because of what you saw it get wrong. That is the work.
+# But a score measured on the same items you kept adjusting against is not a measure of
+# how good the prompt is - it is a measure of how long you kept adjusting. The fix is a
+# line drawn through the gold set BEFORE any of that starts:
+#
+#   dev   the items you may look at. Iterate here, as many rounds as you like.
+#   test  opened once, at the end. Whatever it says is what you report.
+#
+# The line is drawn after annotation, so it costs no extra coding - both halves were
+# double-coded in the same sheet. What it costs is items you are allowed to learn from.
+def split_dev_test(gold, dev_per_class=None, dev_fraction=None, seed=42,
+                   by_document=False):
+    """Split an adjudicated gold set into (dev, test).
+
+    Two ways to say how big dev should be, and you set exactly one:
+
+        dev_per_class=3      a fixed number of dev items per label
+        dev_fraction=0.35    a proportion of each label's items
+
+    Both stratify by label, so every label is represented on both sides of the line
+    wherever the data allows it. The same seed always gives the same split.
+
+    Set by_document=True if you drew your sample with sample_by_document, so that no
+    passage has some of its sentences in dev and the rest in test.
+    """
+    _check_split_spec(dev_per_class, dev_fraction)
+
+    if by_document:
+        dev, test = _split_by_document(gold, dev_per_class, dev_fraction, seed)
+    else:
+        dev, test = _split_by_label(gold, dev_per_class, dev_fraction, seed)
+
+    _report_split(dev, test, by_document)
+    return dev, test
+
+
+def _check_split_spec(dev_per_class, dev_fraction):
+    """Exactly one of the two ways of sizing dev - not both, not neither."""
+    how_many_given = 0
+    if dev_per_class is not None:
+        how_many_given = how_many_given + 1
+    if dev_fraction is not None:
+        how_many_given = how_many_given + 1
+    if how_many_given == 1:
+        return None
+    if how_many_given == 2:
+        problem = ("Both dev_per_class and dev_fraction were given, so the size of the "
+                   "dev set is ambiguous.")
+    else:
+        problem = "Neither dev_per_class nor dev_fraction was given, so there is no split."
+    raise ValueError(
+        problem + "\n"
+        "Set EXACTLY ONE of them in config.yaml, and leave the other commented out:\n"
+        "    dev_per_class: 3      # a fixed number of dev items per label\n"
+        "    dev_fraction:  0.35   # a proportion of each label's items\n"
+        "Then re-run the SETUP cell at the top of this notebook."
+    )
+
+
+def _dev_target(bucket_size, dev_per_class, dev_fraction):
+    """How many of a label's items should go to dev, before the rare-class clamp."""
+    if dev_per_class is not None:
+        wanted = dev_per_class
+    else:
+        # Round half UP, written out rather than left to round(). Python's round() does
+        # banker's rounding: round(0.5) is 0 and round(1.5) is 2, which is not something
+        # you want to have to explain in the Q&A about why one class got no dev items.
+        wanted = int(dev_fraction * bucket_size + 0.5)
+
+    # The clamp, and the one asymmetric decision in this function. A label missing from
+    # TEST drops out of the macro average without saying so, and test is the number you
+    # report - so test gets served first. A label missing from DEV only means you get no
+    # feedback on it while you iterate, which you can live with.
+    if bucket_size <= 1:
+        return 0
+    return max(0, min(wanted, bucket_size - 1))
+
+
+def _split_by_label(gold, dev_per_class, dev_fraction, seed):
+    """Stratified split: each label is divided in the same proportion."""
+    random_generator = random.Random(seed)
+
+    # Same bucket-then-sorted-then-shuffle shape as sample_pool, so the two read alike
+    # and the seed - not the order the list happened to be built in - decides the draw.
+    items_by_label = {}
+    for item in gold:
+        label = item["label"]
+        if label not in items_by_label:
+            items_by_label[label] = []
+        items_by_label[label].append(item)
+
+    dev = []
+    test = []
+    for label in sorted(items_by_label):
+        items_with_this_label = items_by_label[label]
+        random_generator.shuffle(items_with_this_label)
+        n_dev = _dev_target(len(items_with_this_label), dev_per_class, dev_fraction)
+
+        if n_dev == 0 and len(items_with_this_label) > 0:
+            print("NOTE: label", label, "has only", len(items_with_this_label),
+                  "item(s), so all of them went to TEST - test is the number you")
+            print("      report, and a label missing from it drops out of the macro")
+            print("      average without saying so.")
+
+        for item in items_with_this_label[:n_dev]:
+            dev.append(item)
+        for item in items_with_this_label[n_dev:]:
+            test.append(item)
+
+    # Shuffle each half so the labels are not left in blocks, but do NOT renumber the
+    # ids. Every id here was fixed when the annotation sheet was built, and notebook 05
+    # joins on them to ask which of the model's errors are also the items your two
+    # coders disagreed about. Renumbering would leave that join silently meaningless.
+    random_generator.shuffle(dev)
+    random_generator.shuffle(test)
+    return dev, test
+
+
+def _split_by_document(gold, dev_per_class, dev_fraction, seed):
+    """Split whole documents, so no passage has sentences on both sides of the line."""
+    items_without_doc = 0
+    for item in gold:
+        if "doc_id" not in item:
+            items_without_doc = items_without_doc + 1
+    if items_without_doc > 0:
+        raise ValueError(
+            "by_document=True needs to know which document each item came from, and "
+            + str(items_without_doc) + " of these " + str(len(gold)) + " items do not "
+            "carry a doc_id.\n"
+            "Only the rhetorical-move tracks record that: cars50, cars50_step and "
+            "raamove. On this track a sentence is not part of a passage in the data.\n"
+            "Leave by_document off and the split stratifies by label instead.")
+
+    # How many dev items we are aiming for overall. Whole documents cannot be cut, so
+    # this is a target to reach or pass, not a size to hit exactly.
+    if dev_per_class is not None:
+        wanted = dev_per_class * len(label_set(gold))
+    else:
+        wanted = int(dev_fraction * len(gold) + 0.5)
+
+    items_by_doc = {}
+    for item in gold:
+        doc_id = item["doc_id"]
+        if doc_id not in items_by_doc:
+            items_by_doc[doc_id] = []
+        items_by_doc[doc_id].append(item)
+
+    doc_ids = sorted(items_by_doc)
+    random.Random(seed).shuffle(doc_ids)
+
+    dev = []
+    test = []
+    for doc_id in doc_ids:
+        if len(dev) < wanted:
+            for item in items_by_doc[doc_id]:
+                dev.append(item)
+        else:
+            for item in items_by_doc[doc_id]:
+                test.append(item)
+
+    print("Split by document:", len(doc_ids), "documents, none of them straddling the")
+    print("        line. No label balancing is possible this way - check the counts")
+    print("        below and say in your report what they cost you.")
+    return dev, test
+
+
+def _report_split(dev, test, by_document=False):
+    """Print what the split produced, and warn about labels that fell off one side."""
+    dev_counts = _label_counts(dev)
+    test_counts = _label_counts(test)
+    print("Split:", len(dev), "dev ·", len(test), "test ·",
+          len(dev) + len(test), "annotated in total.")
+    print("        dev  per label:", dev_counts)
+    print("        test per label:", test_counts)
+
+    for label in sorted(dev_counts):
+        if label not in test_counts:
+            print("WARNING: label", label, "is in dev but NOT in test, so it cannot")
+            print("         appear in the score you report. Fix this before notebook 04")
+            if by_document:
+                print("         - a different seed will land the documents differently.")
+            else:
+                print("         - lower your dev size, or redraw with a bigger sample.")
+
+    if len(dev) < 5 or len(test) < 5:
+        print("NOTE: halves this small usually mean you are on the DEMO pool. Fine for")
+        print("      watching the pipeline run, useless for a number you would report.")
+
+    print("        dev is what you iterate against in notebook 04. test is opened once,")
+    print("        in the last step of that notebook, and scored once.")
+
+
+def _label_counts(items):
+    """Count items per label - the shared shape behind every 'per-label counts' line."""
+    counts = {}
+    for item in items:
+        label = item["label"]
+        if label not in counts:
+            counts[label] = 0
+        counts[label] = counts[label] + 1
+    return counts
 
 
 # ----------------------------------------------------------------------------------
@@ -771,7 +1186,7 @@ def triage_category(reason):
 
 
 def export_results(track, gold, predictions, macro_f1_by_round, out_dir, group="",
-                   run="", overwrite=False, triage=None):
+                   run="", overwrite=False, triage=None, dev=None):
     """Write your gold set, a predictions CSV, and a one-page report scaffold.
 
     `group` and `run` are added to every filename, so several groups can drop their
@@ -782,152 +1197,222 @@ def export_results(track, gold, predictions, macro_f1_by_round, out_dir, group="
     Give it and section 4 becomes your analysis, with the counts at the top and your
     reason beside each item. Leave it off and section 4 is a placeholder asking for
     exactly that, which is worth less to you and to whoever reads the report.
+
+    `gold` here is whatever you scored - which, from notebook 05, is your TEST half.
+    Pass `dev=` as well and the report says so: how many items you tuned on, how many
+    you reported on, and that the rounds table is a dev trail with one test row at the
+    bottom. A reader cannot tell those apart from the numbers alone.
     """
     output_folder = Path(out_dir)
     output_folder.mkdir(parents=True, exist_ok=True)
-    labels = label_set(gold)
 
-    # Every file we write starts with the same stem, e.g. "cars50_kimura_v1".
+    ### Step 1: work out the three filenames, and refuse to replace any of them ###
+    gold_path, csv_path, report_path = _export_paths(output_folder, track, group, run,
+                                                     dev)
+    # Checked BEFORE writing any of them. Stopping halfway would leave a report that
+    # describes one run sitting beside the gold set of another.
+    _refuse_to_overwrite(gold_path, overwrite, "items")
+    _refuse_to_overwrite(csv_path, overwrite, "rows")
+    _refuse_to_overwrite(report_path, overwrite, "sections")
+
+    ### Step 2: the items themselves - the numbers below mean nothing without them ###
+    gold_path.write_text(
+        json.dumps(gold, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    ### Step 3: one row per item, as a spreadsheet you can open and sort ###
+    records = _prediction_records(gold, predictions)
+    pd.DataFrame(records).to_csv(csv_path, index=False)
+
+    ### Step 4: the report ###
+    report = _build_report(track, group, gold, dev, records, macro_f1_by_round, triage)
+    report_path.write_text(report, encoding="utf-8")
+
+    print("Wrote", gold_path.name + ",", csv_path.name, "and", report_path.name,
+          "to", str(output_folder) + "/")
+    return {"gold": gold_path, "csv": csv_path, "report": report_path}
+
+
+def _export_paths(output_folder, track, group, run, dev):
+    """The three files export_results writes: the items, the CSV and the report."""
+    # The same stem config.py builds, from the same three pieces, so the names cannot
+    # drift apart. Any of the three may be empty when export_results is called by hand.
     stem = track
     if group != "":
         stem = stem + "_" + group
     if run != "":
         stem = stem + "_" + run
 
-    gold_path = output_folder / (stem + "_gold.json")
-    csv_path = output_folder / (stem + "_predictions.csv")
-    report_path = output_folder / (stem + "_report.md")
+    # With a split, the items saved beside the results are the TEST half, and calling
+    # that copy "_gold" would misdescribe it.
+    if dev is None:
+        gold_path = output_folder / (stem + "_gold.json")
+    else:
+        gold_path = output_folder / (stem + "_test.json")
+    return (gold_path,
+            output_folder / (stem + "_predictions.csv"),
+            output_folder / (stem + "_report.md"))
 
-    # Check all three BEFORE writing any of them. Stopping halfway would leave a report
-    # that describes one run sitting beside the gold set of another.
-    _refuse_to_overwrite(gold_path, overwrite, "items")
-    _refuse_to_overwrite(csv_path, overwrite, "rows")
-    _refuse_to_overwrite(report_path, overwrite, "sections")
 
-    # Save the gold set alongside the results: the numbers below mean nothing
-    # without the exact items they were computed on.
-    gold_path.write_text(
-        json.dumps(gold, ensure_ascii=False, indent=2), encoding="utf-8")
-
-    # Build one row per item for the CSV.
+def _prediction_records(gold, predictions):
+    """One row per item: what it was, what the model said, and whether that matched."""
     records = []
     for item, predicted in zip(gold, predictions):
-        is_correct = (item["label"] == predicted)
         record = {
             "id": item["id"],
             "gold": item["label"],
             "pred": predicted,
-            "correct": is_correct,
+            "correct": item["label"] == predicted,
             "text": item["text"],
         }
         records.append(record)
-    table = pd.DataFrame(records)
-    table.to_csv(csv_path, index=False)
+    return records
 
-    # Count how many gold items carry each label.
-    label_counts = {}
+
+def _count_labels(gold):
+    """How many gold items carry each label."""
+    counts = {}
     for item in gold:
         label = item["label"]
-        if label not in label_counts:
-            label_counts[label] = 0
-        label_counts[label] = label_counts[label] + 1
+        if label not in counts:
+            counts[label] = 0
+        counts[label] = counts[label] + 1
+    return counts
 
-    # Build the rows of the "F1 per round" table.
-    round_lines = []
+
+def _rounds_table(macro_f1_by_round):
+    """The rows of the "F1 per round" table, as Markdown."""
+    lines = []
     for round_name in macro_f1_by_round:
         score = macro_f1_by_round[round_name]
-        round_lines.append("| " + round_name + " | " + format(score, ".3f") + " |")
-    round_rows = "\n".join(round_lines)
+        lines.append("| " + round_name + " | " + format(score, ".3f") + " |")
+    return "\n".join(lines)
 
-    # The final F1 is the score of the last round we ran.
-    if len(macro_f1_by_round) > 0:
-        all_scores = list(macro_f1_by_round.values())
-        final_f1 = all_scores[-1]
+
+def _final_f1(macro_f1_by_round):
+    """The score of the last round we ran."""
+    if len(macro_f1_by_round) == 0:
+        return float("nan")
+    all_scores = list(macro_f1_by_round.values())
+    return all_scores[-1]
+
+
+def _error_line(record):
+    """One wrong item, as a Markdown bullet."""
+    snippet = str(record["text"])[:120]
+    return ("- **id " + str(record["id"]) + "** gold `" + str(record["gold"])
+            + "` -> pred `" + str(record["pred"]) + "`: " + snippet)
+
+
+def _error_examples(wrong_records, triage):
+    """The wrong items, as Markdown.
+
+    With a triage, EVERY triaged one is listed with your group's reason beside it -
+    that judgment is the section. Without one, the first five are listed as a prompt to
+    go and make it.
+    """
+    lines = []
+    if triage:
+        for record in wrong_records:
+            reason = triage.get(record["id"])
+            if reason is None:
+                reason = triage.get(str(record["id"]))   # keys survive a JSON trip as text
+            if reason is None:
+                continue
+            lines.append(_error_line(record))
+            lines.append("  - " + str(reason))
     else:
-        final_f1 = float("nan")
+        for record in wrong_records:
+            if len(lines) >= 5:
+                break
+            lines.append(_error_line(record))
 
-    # The wrong items. With a triage, EVERY triaged one is listed, with your group's
-    # reason beside it - that judgment is the section. Without one, the first five are
-    # listed as a prompt to go and make it.
+    if len(lines) == 0:
+        return "- (no errors to show)"
+    return "\n".join(lines)
+
+
+def _triage_summary(triage, wrong_records):
+    """The headline of the error section: what the errors were CAUSED by.
+
+    "6 of 14 are the scheme's fault" is a finding; "F1 was 0.62" is not.
+    """
+    if not triage:
+        return ""
+    all_categories = TRIAGE_CATEGORIES + ["uncategorised"]
+    counts = {}
+    for category in all_categories:
+        counts[category] = 0
+    for item_id in triage:
+        category = triage_category(triage[item_id])
+        if category is None:
+            category = "uncategorised"
+        counts[category] = counts[category] + 1
+    parts = []
+    for category in all_categories:
+        if counts[category] > 0:
+            parts.append(str(counts[category]) + " " + category)
+    return ("- **Your triage of " + str(len(triage)) + " of " + str(len(wrong_records))
+            + " errors:** " + " / ".join(parts) + "\n\n")
+
+
+def _build_report(track, group, gold, dev, records, macro_f1_by_round, triage):
+    """The one-page report, section by section.
+
+    Anything in _italics_ is a placeholder YOU replace - a section left as the
+    placeholder scores zero.
+    """
+    labels = label_set(gold)
+    label_counts = _count_labels(gold)
+    round_rows = _rounds_table(macro_f1_by_round)
+    final_f1 = _final_f1(macro_f1_by_round)
+
     wrong_records = []
     for record in records:
         if not record["correct"]:
             wrong_records.append(record)
 
-    error_lines = []
-    if triage:
-        for record in wrong_records:
-            reason = triage.get(record["id"])
-            if reason is None:
-                reason = triage.get(str(record["id"]))     # keys survive a JSON trip as text
-            if reason is None:
-                continue
-            snippet = str(record["text"])[:120]
-            error_lines.append("- **id " + str(record["id"]) + "** gold `"
-                               + str(record["gold"]) + "` -> pred `"
-                               + str(record["pred"]) + "`: " + snippet)
-            error_lines.append("  - " + str(reason))
-    else:
-        for record in wrong_records:
-            if len(error_lines) >= 5:
-                break
-            snippet = str(record["text"])[:120]
-            error_lines.append("- **id " + str(record["id"]) + "** gold `"
-                               + str(record["gold"]) + "` -> pred `"
-                               + str(record["pred"]) + "`: " + snippet)
-
-    if len(error_lines) == 0:
-        error_examples = "- (no errors to show)"
-    else:
-        error_examples = "\n".join(error_lines)
-
-    # The headline of the error section: what the errors were CAUSED by, in your own
-    # judgment. "6 of 14 are the scheme's fault" is a finding; "F1 was 0.62" is not.
-    triage_summary = ""
-    if triage:
-        counts = {}
-        for category in TRIAGE_CATEGORIES + ["uncategorised"]:
-            counts[category] = 0
-        for item_id in triage:
-            category = triage_category(triage[item_id])
-            if category is None:
-                category = "uncategorised"
-            counts[category] = counts[category] + 1
-        parts = []
-        for category in TRIAGE_CATEGORIES + ["uncategorised"]:
-            if counts[category] > 0:
-                parts.append(str(counts[category]) + " " + category)
-        triage_summary = ("- **Your triage of " + str(len(triage)) + " of "
-                          + str(len(wrong_records)) + " errors:** "
-                          + " / ".join(parts) + "\n\n")
-
-    # Assemble the one-page report, section by section. Anything in _italics_ is a
-    # placeholder YOU replace - a section left as the placeholder scores zero.
     report = ""
     report = report + "# One-page report - " + track + "\n\n"
     if group != "":
         report = report + "Group: " + group + "\n\n"
     report = report + "## 1. Scheme & gold\n"
     report = report + "- **Labels:** " + ", ".join(labels) + "\n"
-    report = report + ("- **Gold set:** " + str(len(gold))
-                       + " items sampled from the pool; per-label counts: "
-                       + str(label_counts) + "\n")
+    if dev is None:
+        report = report + ("- **Gold set:** " + str(len(gold))
+                           + " items sampled from the pool; per-label counts: "
+                           + str(label_counts) + "\n")
+    else:
+        report = report + ("- **Gold set:** " + str(len(dev) + len(gold))
+                           + " items sampled and double-coded, split into "
+                           + str(len(dev)) + " dev (tuned on) and " + str(len(gold))
+                           + " test (held out, scored once). Per-label counts of the "
+                           "test half: " + str(label_counts) + "\n")
     report = report + ("- **QC / adjudication:** _<your percent agreement and kappa, how "
                        "many labels your adjudication changed, which label pair caused "
                        "the most disagreement, and what your scheme now says about it>_\n\n")
     report = report + "## 2. Prompt iterations\n"
     report = report + "| Round | Macro-F1 |\n|---|---|\n" + round_rows + "\n\n"
+    if dev is not None:
+        report = report + ("_Every round above is a **dev** score. The last row is the "
+                           "held-out test set, scored once._\n\n")
     report = report + ("_For each round: what did you change, and WHY did you expect it to "
                        "help?_\n\n")
     report = report + "## 3. Evaluation\n"
-    report = report + ("- **Final macro-F1:** " + format(final_f1, ".3f") + " on "
-                       + str(len(gold)) + " gold items.\n")
+    if dev is None:
+        report = report + ("- **Final macro-F1:** " + format(final_f1, ".3f") + " on "
+                           + str(len(gold)) + " gold items.\n")
+    else:
+        report = report + ("- **Final macro-F1:** " + format(final_f1, ".3f") + " on "
+                           + str(len(gold)) + " held-out test items.\n")
+        report = report + ("- _How far below your best dev round did that land? That "
+                           "distance is roughly how much of your improvement was tuning "
+                           "to those particular dev items._\n")
     report = report + ("- Per-class precision/recall/F1 and the confusion matrix are in "
                        "the notebook output.\n")
     report = report + "- _Which class did worst, and what did it get confused with?_\n\n"
     report = report + "## 4. Error analysis\n"
-    report = report + triage_summary
-    report = report + error_examples + "\n\n"
+    report = report + _triage_summary(triage, wrong_records)
+    report = report + _error_examples(wrong_records, triage) + "\n\n"
     if triage:
         report = report + ("_What do the **scheme** errors have in common? That pattern "
                            "is the finding - say what your scheme would have to add to "
@@ -945,8 +1430,12 @@ def export_results(track, gold, predictions, macro_f1_by_round, out_dir, group="
                        "have seen.\n")
     report = report + ("- " + str(len(gold)) + " items is a small sample - treat per-class "
                        "scores for rare labels with caution.\n")
+    if dev is not None:
+        report = report + ("- The prompt was tuned on " + str(len(dev)) + " dev items and "
+                           "reported on " + str(len(gold)) + " held-out ones. A study that "
+                           "could support a claim about the corpus would need hundreds of "
+                           "each; at roughly 4.4 seconds per API call, that was not "
+                           "available in a five-day course. The discipline here is real; "
+                           "the confidence interval on the number is wide.\n")
 
-    report_path.write_text(report, encoding="utf-8")
-    print("Wrote", gold_path.name + ",", csv_path.name, "and", report_path.name,
-          "to", str(output_folder) + "/")
-    return {"gold": gold_path, "csv": csv_path, "report": report_path}
+    return report

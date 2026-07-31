@@ -19,18 +19,114 @@ import yaml
 ROOT = Path(__file__).resolve().parent
 CONFIG_FILE = ROOT / "config.yaml"
 
-settings = yaml.safe_load(CONFIG_FILE.read_text(encoding="utf-8"))
+# This is the first thing that happens in every notebook, so it is also the first place
+# a mistake in config.yaml can show up. Say what is wrong in words rather than let a
+# YAML parser explain itself with a line and column number.
+if not CONFIG_FILE.exists():
+    raise FileNotFoundError(
+        "There is no config.yaml next to config.py.\n"
+        "  looked in: " + str(ROOT) + "\n"
+        "config.yaml is the one file your group edits, and every path in the project is "
+        "worked out from it. Copy it back from the template, or check that the SETUP "
+        "cell moved you into your group's shared Drive folder and not somewhere else.")
 
-TRACK = settings["track"]
-GROUP = settings["group"]
-RUN = settings["run"]
-SEED = settings["seed"]
-N_PER_CLASS = settings["n_per_class"]
+try:
+    settings = yaml.safe_load(CONFIG_FILE.read_text(encoding="utf-8"))
+except yaml.YAMLError:
+    raise ValueError(
+        "config.yaml could not be read. Something in it is not valid YAML.\n"
+        "Almost always one of three things:\n"
+        "  * a missing space after a colon - it must be `track: cars50`, not "
+        "`track:cars50`\n"
+        "  * a line indented with a Tab instead of spaces\n"
+        "  * a quote opened and not closed\n"
+        "Open config.yaml, compare it line by line with the comments in it, and try "
+        "again.")
+
+
+def _setting(name):
+    """One setting out of config.yaml, or a message naming the line to go and add."""
+    if name not in settings:
+        # A ValueError, not a KeyError: KeyError prints its message as a quoted repr,
+        # which turns these two lines into one unreadable string with a \n in it.
+        raise ValueError(
+            "config.yaml has no `" + name + ":` line, and every notebook needs it.\n"
+            "Open config.yaml and add it back - the template's copy of the file lists "
+            "every setting with a comment explaining what it is for.")
+    return settings[name]
+
+
+TRACK = _setting("track")
+GROUP = _setting("group")
+RUN = _setting("run")
+SEED = _setting("seed")
+N_PER_CLASS = _setting("n_per_class")
+
+# The dev/test split. Exactly one of these is set; the other stays commented out in the
+# YAML and reads as None here. Which one you set is itself a decision — see config.yaml.
+DEV_PER_CLASS = settings.get("dev_per_class")
+DEV_FRACTION = settings.get("dev_fraction")
 
 # Left empty in the YAML, these read as None. Downstream code expects a list of members
 # and expects None to mean "no label order given", so hand it what it expects.
-MEMBERS = settings["members"] or []
-LABELS_ORDER = settings["labels_order"] or None
+MEMBERS = _setting("members") or []
+LABELS_ORDER = _setting("labels_order") or None
+
+
+# ----------------------------------------------------------------------------------
+# The split check — run before anything else, because it is cheap and it is a design
+# error, not a typo.
+# ----------------------------------------------------------------------------------
+# Two ways to say the same thing, and setting both means you have not decided. Setting
+# neither means notebook 03 cannot draw the line between the items you may look at and
+# the items you report on, which is the one thing that makes your final number honest.
+_SPLIT_HELP = (
+    "Set EXACTLY ONE of these in config.yaml, and leave the other commented out:\n"
+    "    dev_per_class: 3      # a fixed number of dev items per label\n"
+    "    dev_fraction:  0.35   # a proportion of each label's items\n"
+    "Then re-run the SETUP cell at the top of this notebook."
+)
+
+if DEV_PER_CLASS is not None and DEV_FRACTION is not None:
+    raise ValueError(
+        "config.yaml sets BOTH dev_per_class (" + str(DEV_PER_CLASS) + ") and "
+        "dev_fraction (" + str(DEV_FRACTION) + "), so the split is ambiguous.\n"
+        + _SPLIT_HELP
+    )
+
+if DEV_PER_CLASS is None and DEV_FRACTION is None:
+    raise ValueError(
+        "config.yaml sets neither dev_per_class nor dev_fraction, so there is no "
+        "dev/test split.\n"
+        "The split is what separates the items you tune your prompt on from the items "
+        "you report a score on. Without it, the number in your report is the number you "
+        "tuned until it went up.\n"
+        + _SPLIT_HELP
+    )
+
+if DEV_FRACTION is not None and not (0 < DEV_FRACTION < 1):
+    raise ValueError(
+        "config.yaml has dev_fraction: " + str(DEV_FRACTION) + ", which is not a "
+        "proportion. It has to be strictly between 0 and 1 — 0.35 means about a third of "
+        "each label goes to dev and the rest is held out.\n"
+        + _SPLIT_HELP
+    )
+
+if DEV_PER_CLASS is not None:
+    if not isinstance(DEV_PER_CLASS, int) or isinstance(DEV_PER_CLASS, bool) \
+            or DEV_PER_CLASS < 1:
+        raise ValueError(
+            "config.yaml has dev_per_class: " + str(DEV_PER_CLASS) + ", which has to be "
+            "a whole number of items, at least 1.\n" + _SPLIT_HELP
+        )
+    if DEV_PER_CLASS >= N_PER_CLASS:
+        raise ValueError(
+            "config.yaml has dev_per_class: " + str(DEV_PER_CLASS) + " and n_per_class: "
+            + str(N_PER_CLASS) + ". A dev set of " + str(DEV_PER_CLASS) + " per class out "
+            "of a sample of " + str(N_PER_CLASS) + " per class leaves nothing to test on.\n"
+            "Either lower dev_per_class, or raise n_per_class and redraw in notebook 02.\n"
+            "Then re-run the SETUP cell at the top of this notebook."
+        )
 
 
 # ----------------------------------------------------------------------------------
@@ -67,13 +163,36 @@ if IN_COLAB and not ON_DRIVE:
 # The pool is the one file with no group and no run in its name: it is the corpus as it
 # comes, the same for every group on the track, and it does not change as you iterate.
 # Everything downstream is your group's own work, so it carries both.
-STEM = TRACK + "_" + GROUP + "_" + RUN
+def stem_for(track, group, run):
+    """The front of every filename your group produces: track_group_run.
+
+    One function, so that the name notebook 02 writes and the name notebook 05 looks
+    for cannot drift apart. Anything that needs to build one of these filenames calls
+    this rather than joining the three pieces itself.
+    """
+    return str(track) + "_" + str(group) + "_" + str(run)
+
+
+STEM = stem_for(TRACK, GROUP, RUN)
 
 POOL_PATH = ROOT / "data" / "pools" / (TRACK + "_pool.json")           # 01 writes
 SAMPLE_PATH = ROOT / "data" / "gold" / (STEM + "_sample.json")         # 02 writes
 GOLD_PATH = ROOT / "data" / "gold" / (STEM + "_gold.json")             # 03 writes
-PRED_PATH = ROOT / "outputs" / (STEM + "_predictions.json")            # 04 writes
+
+# The two halves of that gold set. Both are gold — the same adjudicated items, with a
+# line drawn through them: dev is what notebook 04 iterates against, test is opened once
+# and is the number your report leads with.
+DEV_PATH = ROOT / "data" / "gold" / (STEM + "_dev.json")               # 03 writes
+TEST_PATH = ROOT / "data" / "gold" / (STEM + "_test.json")             # 03 writes
+
+PRED_PATH = ROOT / "outputs" / (STEM + "_predictions.json")            # 04 writes:
+#                                                          the frozen run on TEST. The
+#   dev rounds are not saved at all — they exist to be thrown away.
 ROUNDS_PATH = ROOT / "outputs" / (STEM + "_rounds.json")               # 04 writes
+
+# Every time the held-out set is scored, one line lands here. Nothing stops you scoring
+# it twice; this is what makes the second time visible, to you and to the reader.
+TESTLOG_PATH = ROOT / "outputs" / (STEM + "_test_log.jsonl")           # 04 appends
 
 # Your group's reading of the model's errors - which are the scheme's fault, which are
 # the model's. Written in notebook 05 and read straight back into the report, because
@@ -97,6 +216,12 @@ def describe():
     """Print the settings, so every notebook can show what it is working on."""
     print("track", TRACK, "· group", GROUP, "· run", RUN, "· seed", SEED,
           "· n_per_class", N_PER_CLASS)
+    # Two per-class counts in one config file are easy to mix up, so print the split as
+    # a sentence rather than as a second bare number.
+    if DEV_PER_CLASS is not None:
+        print("split: dev_per_class", DEV_PER_CLASS, "per label · test gets the rest")
+    else:
+        print("split: dev_fraction", DEV_FRACTION, "of each label · test gets the rest")
     print("labels order:", LABELS_ORDER)
     # Where the files go. Say it every time: it is the one setting nobody edits and
     # everybody depends on, and "which folder am I actually in" is the question behind
