@@ -93,60 +93,90 @@ def save(name, cells):
     print("wrote", name, "(" + str(len(cells)), "cells,", blanks, "blank)")
 
 
-def embed(*objects, imports=()):
-    """Render live functions/constants from reshape.py as notebook source text.
+def lead(*lines):
+    """A markdown signpost immediately above a code cell: what we are about to do.
+
+    Every code cell in these notebooks has one. A cell a student meets with no idea
+    what it is for is a cell they run and scroll past, and running a cell you cannot
+    describe is not the skill this course is trying to build.
+    """
+    return md(*lines)
+
+
+def reading_note(what):
+    """The markdown that introduces a run of embedded-source cells."""
+    return md(
+        "### The code that does it — read it, then run it",
+        "",
+        what,
+        "",
+        "It is read straight out of `scripts/reshape.py` when this notebook is "
+        "generated, so it is not a simplified copy: it is the code that runs.",
+        "",
+        "It arrives one function per cell, so you can take them one at a time. **None "
+        "of these cells print anything.** They only give the functions their names — "
+        "that is what `def` does. You will see no output until the cell *after* them, "
+        "which calls one.")
+
+
+def source_cells(described, imports=()):
+    """One cell per embedded function, each with its own one-line signpost.
+
+    `described` is a list of (object, sentence) pairs. Splitting them up matters: the
+    single cell these replaced ran to over a hundred lines and defined four unrelated
+    things, which is a wall rather than something anyone reads.
 
     Functions come through `inspect.getsource`, so what the notebook shows is literally
-    what prep_datasets.py runs. Constants are rendered from their real values - but the
-    ones that encode a decision are NOT passed here; a blank cell asks for those.
-
-    `imports` are the module-level names the embedded source needs. reshape.py has them
-    at the top of the file, which inspect.getsource does not carry across - so without
-    this the cell dies on `NameError: Path` the first time it is run.
+    what prep_datasets.py runs. `imports` are the module-level names that source needs -
+    reshape.py has them at the top of the file, which inspect.getsource does not carry
+    across, so without this the first cell dies on `NameError: Path`.
     """
-    blocks = []
+    cells = []
     if imports:
-        blocks.append("\n".join(imports))
-    for obj in objects:
-        if isinstance(obj, tuple):          # ("NAME", value) -> a constant
-            name, value = obj
-            blocks.append(name + " = " + repr(value))
-        else:
-            blocks.append(inspect.getsource(obj).rstrip("\n"))
-    return "\n\n".join(blocks)
+        cells.append(lead("First, the two library modules the code below needs. "
+                          "`import` is how Python is told to load one."))
+        cells.append(code(*imports))
+    for obj, sentence in described:
+        cells.append(lead(sentence))
+        cells.append(code(*inspect.getsource(obj).rstrip("\n").split("\n")))
+    return cells
 
 
-def blank(title, goal, produces, hints, notes=(), starter=None):
-    """A blank cell: what to write, what it must be called, and what it is FOR.
+def blank(signpost, title, goal, produces, hints, notes=(), starter=None):
+    """A decision cell, with a markdown signpost above it. Returns BOTH cells.
+
+    What to write, what it must be called, and what it is FOR.
 
     Never blank something without saying what the next cell expects to find - a
     student stuck on a NAME has learned nothing about annotation.
 
-    `starter` is the skeleton the cell ships with, and no blank cell goes without one -
-    the DECISION is what goes in the gaps, and the surrounding structure is just typing.
-    A beginner retyping twenty dict keys from scratch is being tested on dict syntax,
-    which is not what any of these cells are for.
+    `starter` ships COMPLETE and runnable - every argument filled in with a real,
+    defensible value. There are no blanks to fill.
 
-    The gaps are `____` rather than `...`, on purpose. `...` is real Python: a mapping
-    left half-filled runs, the labels come out as `Ellipsis`, the counts print, and the
-    first sign of trouble is a TypeError inside json.dump five cells later. `____` is
-    not defined, so it stops in the cell where the decision was, and names it.
+    That is deliberate. A blank standing in for an argument tests whether you can copy
+    a word out of the comment beside it, and a student who does that has made no
+    decision at all. The decision these cells are actually for is a different one:
+    whether the value that is already there is the RIGHT one for the study you are
+    describing in PLAN.md - whether those band boundaries, those category names, that
+    sampling strategy are what you would defend in the Q&A. So the cell runs on first
+    execution, prints what it did, and the work is reading the result and arguing about
+    it. Changing nothing is a choice too, and one you still have to justify.
     """
     rule = "─" * max(4, 60 - len(title))
     lines = ["# ✏️ " + title + " " + rule,
              "# Goal      : " + goal]
     for index, hint in enumerate(hints):
-        lines.append(("# Shape     : " if index == 0 else "#             ") + hint)
+        lines.append(("# Example   : " if index == 0 else "#             ") + hint)
     lines.append("# Produce   : " + produces + "      ← later cells use this name")
     for note in notes:
         lines.append("# " + note)
     lines.append("")
-    lines.append("# ✏️ your code here — fill in each ____")
+    lines.append("# ✏️ this runs as written — the work is deciding whether it should")
     lines.append("")
     for line in starter:
         lines.append(line)
     lines.append("")
-    return code(*lines)
+    return [lead(signpost), code(*lines)]
 
 
 SCHEMA_NOTE = (
@@ -208,24 +238,40 @@ def header(title, subtitle, what, licence_line, citation, difficulty):
     )
 
 
-def inspect_cell():
-    return code(
-        "from collections import Counter",
-        "",
-        'print("total items:", len(rows))',
-        'print("label counts:", dict(Counter(item["label"] for item in rows)))',
-        'print("fields per item:", list(rows[0]))',
-        "",
-        "# Peek at the first three. `context`, where a track has one, is trimmed: it is",
-        "# the whole passage and would bury everything else in this output.",
-        "for item in rows[:3]:",
-        "    preview = dict(item)",
-        '    if preview.get("context"):',
-        '        preview["context"] = preview["context"][:70] + " …"',
-        "    print(preview)")
+def inspect_cells():
+    """Two cells: how big the pool is and how it is balanced, then what an item looks
+    like. Two questions, so two cells."""
+    return [
+        lead("Now we count what we have got: how many items, how many of each label, "
+             "and which fields every item carries."),
+        code(
+            "# Count how many items carry each label, one item at a time.",
+            "label_counts = {}",
+            'for item in rows:',
+            '    label = item["label"]',
+            "    if label not in label_counts:",
+            "        label_counts[label] = 0",
+            "    label_counts[label] = label_counts[label] + 1",
+            "",
+            'print("total items:", len(rows))',
+            'print("label counts:", label_counts)',
+            'print("fields per item:", list(rows[0].keys()))'),
+        lead("Now we look at three whole items, to see the shape of one.",
+             "",
+             "Where a track carries a `context` (the whole passage a sentence came "
+             "from), it is shortened here so it does not bury everything else. That "
+             "only changes what is **printed** — `rows` itself is untouched."),
+        code(
+            "for item in rows[:3]:",
+            "    preview = dict(item)          # a copy, so trimming it changes nothing",
+            '    if preview.get("context"):',
+            '        preview["context"] = preview["context"][:70] + " …"',
+            "    print(preview)",
+            '    print("---")'),
+    ]
 
 
-def parser_note(heading, intro, structure, api_steps, demo=None):
+def parser_note(heading, intro, structure, api_steps, demos=()):
     """Teach the library this track's raw format needs, before the reshaping code.
 
     Every track hands you a different format, and the reshaping function further down
@@ -234,8 +280,9 @@ def parser_note(heading, intro, structure, api_steps, demo=None):
     otherwise the function below reads as magic.
 
     `structure` is a bulleted map of the format; `api_steps` is a numbered list of the
-    calls the function makes. `demo` (a list of source lines) adds a runnable cell -
-    give it only when the track's Step 2 cell does not already exercise the library.
+    calls the function makes. `demos` is a list of (signpost, source lines) pairs, each
+    becoming a lead-in and a runnable cell - give them only when the track's Step 2 cell
+    does not already exercise the library.
     """
     lines = ["### " + heading, "", intro, ""]
     for item in structure:
@@ -246,8 +293,9 @@ def parser_note(heading, intro, structure, api_steps, demo=None):
     for index, item in enumerate(api_steps):
         lines.append(str(index + 1) + ". " + item)
     cells = [md(*lines)]
-    if demo:
-        cells.append(code(*demo))
+    for signpost, source in demos:
+        cells.append(lead(signpost))
+        cells.append(code(*source))
     return cells
 
 
@@ -274,26 +322,43 @@ def save_cell(track, note="", variants=()):
     the variant is what puts the pool in its own file, so the guard has to allow it.
     """
     allowed = [track] + list(variants)
-    lines = [
-        "# Save the pool into your group's Drive folder, under the exact name notebook",
-        "# 02 will look for. POOL_PATH comes from config.yaml, so the two cannot drift.",
+    cells = [
+        lead("**First, a safety check.** `POOL_PATH` is built from the `track:` line in "
+             "`config.yaml`. If that still says another track, saving now would write "
+             + track + " data into a file belonging to something else — and everything "
+             "downstream would run perfectly on the wrong data. The first sign of "
+             "trouble would be labels that make no sense in notebook 03, by which point "
+             "two people have annotated forty items.",
+             "",
+             "If this cell stops you: open `config.yaml`, set `track:` to `" + track
+             + "`, save it, then re-run the SETUP cell at the top of this notebook."),
+        code(
+            "if TRACK not in " + repr(allowed) + ":",
+            '    raise RuntimeError(',
+            '        "config.yaml says  track: " + str(TRACK) + "  but this is the '
+            + track + ' "',
+            '        "notebook, so saving now would put ' + track + ' data into "',
+            '        + POOL_PATH.name + ", which belongs to another track.\\n"',
+            '        "Open config.yaml, set  track: to one of ' + " · ".join(allowed)
+            + ',"',
+            '        " save it, then re-run the SETUP cell at the top of this notebook.")',
+            "",
+            'print("config.yaml agrees: this is the", TRACK, "track.")'),
+        lead("**Now we check the shape of every item.** Everything downstream — the "
+             "sampling, the annotation sheet, the scoring — assumes each item has an "
+             "`id`, a `text` and a `label`. A pool that breaks that assumption does not "
+             "fail here; it fails in notebook 03, after two people have annotated forty "
+             "items.",
+             "",
+             "`validate` says nothing when all is well. Silence is the pass."),
+        code("validate(rows)",
+             'print("All", len(rows), "items have an id, a text and a label.")'),
+        lead("**Now we write the pool** into your group's Drive folder, under the exact "
+             "name notebook 02 will look for. Both notebooks get that name from "
+             "`config.yaml`, so there is nothing to copy or paste between them."),
+    ]
+    write_lines = [
         "import json",
-        "",
-        "if TRACK not in " + repr(allowed) + ":",
-        '    raise RuntimeError(',
-        '        "config.yaml says  track: " + str(TRACK) + "  but this is the ' + track
-        + ' "',
-        '        "notebook, so saving now would put ' + track + ' data into "',
-        '        + POOL_PATH.name + ", which belongs to another track.\\n"',
-        '        "Open config.yaml, set  track: to one of ' + " · ".join(allowed) + ',"',
-        '        " save it, then re-run the SETUP cell at the top of this notebook.")',
-        "",
-        "",
-        "# Check the shape before writing. Everything downstream — the sampling, the",
-        "# annotation sheet, the scoring — assumes every item has an id, a text and a",
-        "# label, and a pool that breaks that assumption does not fail here: it fails",
-        "# in notebook 03, after two people have annotated forty items.",
-        "validate(rows)",
         "",
         "POOL_PATH.parent.mkdir(parents=True, exist_ok=True)",
         'with open(POOL_PATH, "w", encoding="utf-8") as f:',
@@ -301,8 +366,9 @@ def save_cell(track, note="", variants=()):
         'print("Saved", len(rows), "items to", POOL_PATH)',
     ]
     if note:
-        lines = lines + ["", "# " + note]
-    return code(*lines)
+        write_lines = write_lines + ["", "# " + note]
+    cells.append(code(*write_lines))
+    return cells
 
 
 def handoff(track):
@@ -348,7 +414,15 @@ save("01_build_pool_raamove.ipynb", [
         "can be genuinely hard to separate.",
     ),
     *setup("raamove"),
-    md("## Step 1 — Download the raw data"),
+    md("## Step 1 — Download the raw data",
+       "",
+       "Now we fetch the corpus itself. It lives in a public GitHub repository, and "
+       "`git clone` copies the whole thing down into the folder this notebook is "
+       "working in.",
+       "",
+       "The `!` at the front is not Python. In Colab it means *run this line as a "
+       "terminal command*, and you will see it whenever a cell reaches outside Python "
+       "to fetch or install something."),
     code("!git clone --depth 1 https://github.com/ljk1228/RAAMove"),
     md("## Step 2 — Look at the raw format",
        "",
@@ -361,16 +435,35 @@ save("01_build_pool_raamove.ipynb", [
        "Then look at the `idx` values: the file is one long list of sentences, but the "
        "sentences of an abstract sit together, in order. That is the only reason the "
        "abstracts can be put back together at all."),
-    code('RAW_DIR = "RAAMove"',
+    code('RAW_DIR = "RAAMove"          # the folder git clone just made',
          "",
          "import json",
-         "from collections import Counter",
+         "from pathlib import Path",
          "",
-         'data = json.loads(open(RAW_DIR + "/Intelligence.json", encoding="utf-8").read())',
-         'print("records:", len(data))',
-         'print("codes:", Counter(record["labels"] for record in data))',
-         'print("abstracts:", len({record["idx"] for record in data}))',
-         "data[:3]"),
+         "# Read the file as one long string, then turn that string into Python lists",
+         "# and dicts. Two steps, so you can see where the file stops and the data",
+         "# starts.",
+         'raw_text = Path(RAW_DIR + "/Intelligence.json").read_text(encoding="utf-8")',
+         "data = json.loads(raw_text)",
+         'print("records:", len(data))'),
+    lead("Now we look at what is in those records: which move codes appear, and how "
+         "many separate abstracts the sentences came from."),
+    code("# Count the move codes, and collect the abstract numbers, one record at a time.",
+         "code_counts = {}",
+         "abstract_numbers = []",
+         "for record in data:",
+         '    move_code = record["labels"]',
+         "    if move_code not in code_counts:",
+         "        code_counts[move_code] = 0",
+         "    code_counts[move_code] = code_counts[move_code] + 1",
+         '    if record["idx"] not in abstract_numbers:',
+         '        abstract_numbers.append(record["idx"])',
+         "",
+         'print("codes:", code_counts)',
+         'print("abstracts:", len(abstract_numbers))'),
+    lead("Now we print three whole records, so you can see the shape of one."),
+    code("for record in data[:3]:",
+         "    print(record)"),
     *parser_note(
         "Reading JSON with `json.loads`",
         "`json.loads(text)` turns a JSON string into ordinary Python objects — a JSON "
@@ -433,7 +526,8 @@ save("01_build_pool_raamove.ipynb", [
        "*use* it is a decision for `PLAN.md` — `prompts/raamove.txt` shows the model "
        "the sentence alone, `prompts/raamove_context.txt` shows it the abstract first, "
        "and running both is one of the cleanest experiments this track offers."),
-    blank(
+    *blank(
+        "## Step 3a — Name the moves\n\nNow we write the label set. The cell below already runs; the work is reading those eight names as a *scheme* and deciding whether they are the ones your coders should see.",
         "Step 3a · Name the moves",
         "fill in the move name your prompt will use for each three-letter code.",
         "RAAMOVE_LABELS (a dict)",
@@ -447,30 +541,56 @@ save("01_build_pool_raamove.ipynb", [
                "            — {\"RST\": \"Finding\", \"CLN\": \"Finding\"} makes one class of",
                "            two. Decide that HERE and say so in PLAN.md, not after you",
                "            have seen the model do badly on them."],
-        starter=['RAAMOVE_LABELS = {',
-                 '    "BAC": ____,      # e.g. "Background" — in quotes: the wording your',
-                 '                      #   prompt, your sheet and your matrix will use',
-                 '    "GAP": ____,',
-                 '    "MTD": ____,',
-                 '    "PUR": ____,',
-                 '    "RST": ____,',
-                 '    "CLN": ____,',
-                 '    "CTN": ____,',
-                 '    "IMP": ____,',
+        starter=['# The corpus\'s own names, spelled out. They run as they are — but this',
+                 '# wording goes into your prompt, onto your coders\' sheet and onto your',
+                 '# confusion matrix, so read them as a scheme rather than as a given.',
+                 '# Rewrite any that your coders would read differently, and give two',
+                 '# codes the SAME name to merge them into one class.',
+                 'RAAMOVE_LABELS = {',
+                 '    "BAC": "Background",',
+                 '    "GAP": "Gap",',
+                 '    "MTD": "Method",',
+                 '    "PUR": "Purpose",',
+                 '    "RST": "Result",',
+                 '    "CLN": "Conclusion",',
+                 '    "CTN": "Contribution",',
+                 '    "IMP": "Implication",',
                  '}',
                  '',
                  'print(RAAMOVE_LABELS)']),
-    md("The function below reads the `RAAMOVE_LABELS` you just defined."),
-    code(embed(reshape.reid, reshape.reshape_raamove, reshape.validate,
-               imports=["import json", "from pathlib import Path"])),
-    code("rows = reshape_raamove(RAW_DIR)"),
+    reading_note("Three functions. The middle one is the reshaping itself, and it reads "
+                 "the `RAAMOVE_LABELS` you just defined — so if you skip the cell above, "
+                 "this one will stop on `NameError: RAAMOVE_LABELS is not defined`."),
+    *source_cells(
+        [(reshape.reid,
+          "`reid` renumbers items 1, 2, 3 … so that every item has an id of its own. "
+          "Everything downstream joins on those ids."),
+         (reshape.reshape_raamove,
+          "`reshape_raamove` is the work: it reads both discipline files, groups the "
+          "flat list of sentences back into abstracts, and emits one item per sentence "
+          "with its abstract attached. Read the two passes."),
+         (reshape.validate,
+          "`validate` checks that every item has an id, a text and a label. Nothing "
+          "calls it here — step 5 does, just before saving.")],
+        imports=["import json", "from pathlib import Path"]),
+    lead("## Step 3b — Run it",
+         "",
+         "Now we run the reshaping on the files we downloaded. It hands back a list of "
+         "items in the canonical shape, which we call `rows`."),
+    code("rows = reshape_raamove(RAW_DIR)",
+         'print("built", len(rows), "items")'),
     md("## Step 4 — Check the label balance",
        "",
-       "Very imbalanced: `Method` is the biggest class by far, and `Implication` has "
-       "only a couple of dozen sentences."),
-    inspect_cell(),
-    md("## Step 5 — Save it"),
-    save_cell("raamove"),
+       "Now we look at what came out, because the balance decides what you can sample. "
+       "This corpus is very imbalanced: `Method` is the biggest class by far, and "
+       "`Implication` has only a couple of dozen sentences — which is a ceiling on any "
+       "balanced draw you make in notebook 02."),
+    *inspect_cells(),
+    md("## Step 5 — Save it",
+       "",
+       "Three short cells: check that `config.yaml` agrees which track this is, check "
+       "the shape of every item, then write the file."),
+    *save_cell("raamove"),
     handoff("raamove"),
 ])
 
@@ -496,27 +616,44 @@ save("01_build_pool_cars50.ipynb", [
        "not look like a browser, hence the `User-Agent` header."),
     code("import json, urllib.request, pathlib",
          "",
-         'RAW_DIR = pathlib.Path("cars50")',
-         "RAW_DIR.mkdir(exist_ok=True)",
+         'RAW_DIR = pathlib.Path("cars50")     # the folder to download into',
+         "RAW_DIR.mkdir(exist_ok=True)"),
+    lead("Now we write a small function of our own. `fetch` opens one web address and "
+         "hands back what is there — with a `User-Agent` header, because the server "
+         "refuses requests that do not look like they came from a browser.",
          "",
-         "def fetch(url):",
+         "A `def` gives a name to a few lines so they can be used more than once. This "
+         "cell prints nothing; the next one calls it."),
+    code("def fetch(url):",
          '    request = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})',
-         "    return urllib.request.urlopen(request, timeout=60)",
+         "    return urllib.request.urlopen(request, timeout=60)"),
+    lead("Now we ask Mendeley what files this dataset has, then download each one."),
+    code("# One call to the Mendeley API, unpacked a step at a time.",
+         'catalogue_url = "https://data.mendeley.com/public-api/datasets/kwr9s5c4nk"',
+         "raw_text = fetch(catalogue_url).read()",
+         "catalogue = json.loads(raw_text)",
          "",
-         'meta = json.loads(fetch("https://data.mendeley.com/public-api/datasets/kwr9s5c4nk").read())',
-         'for record in meta["files"]:',
+         'for record in catalogue["files"]:',
          '    target = RAW_DIR / record["filename"]',
          "    if not target.exists():",
-         '        target.write_bytes(fetch(record["content_details"]["download_url"]).read())',
-         'print("downloaded", len(list(RAW_DIR.glob("*.xml"))), "XML files")'),
+         '        download_url = record["content_details"]["download_url"]',
+         "        target.write_bytes(fetch(download_url).read())",
+         "",
+         'xml_files = sorted(RAW_DIR.glob("*.xml"))',
+         'print("downloaded", len(xml_files), "XML files")'),
     md("## Step 2 — Look at the raw format",
        "",
        "**XML** this time. Each sentence carries a `step` code like `1b`:",
        "",
        "```xml",
        "<sentence><sentenceID/><text/><step>1b</step></sentence>",
-       "```"),
-    code('print(open(sorted(RAW_DIR.glob("*.xml"))[0], encoding="utf-8").read()[:900])'),
+       "```",
+       "",
+       "Now we print the beginning of the first file, so you can see the real thing "
+       "rather than that sketch of it."),
+    code("first_file = xml_files[0]",
+         'raw_xml = first_file.read_text(encoding="utf-8")',
+         "print(raw_xml[:900])"),
     *parser_note(
         "Reading XML with `ElementTree`",
         "XML is nested, so unlike a TSV or a CSV you cannot get at a field by position. "
@@ -543,19 +680,29 @@ save("01_build_pool_cars50.ipynb", [
          "document id. **Not** `<sentenceID>`: those are padded three different ways, "
          "mix two widths inside `text038.xml`, and `t025s020` appears twice in "
          "`text025.xml`. Position comes from counting, not from reading an id."],
-        demo=["import xml.etree.ElementTree as ET",
+        demos=[
+            ("Now we parse that same file into a tree, so we can ask it for tags by "
+             "name instead of hunting through the text.",
+             ["import xml.etree.ElementTree as ET",
               "",
-              'first_file = sorted(RAW_DIR.glob("*.xml"))[0]',
               "tree = ET.parse(first_file)",
-              "",
-              'print("reading", first_file.name, "\\n")',
-              'for i, sentence in enumerate(tree.iter("sentence")):',
-              "    if i >= 3:                       # just the first three, to keep the output short",
-              "        break",
-              '    for tag in ("sentenceID", "text", "step"):',
-              "        child = sentence.find(tag)",
-              '        print(" ", tag + ":", child.text.strip() if child is not None and child.text else "MISSING")',
-              '    print()']),
+              'print("reading", first_file.name)']),
+            ("Now we walk the first three sentences and print what each one carries.",
+             ["# Walk the first three sentences and print their three child tags.",
+               'for position, sentence in enumerate(tree.iter("sentence")):',
+               "    if position >= 3:                # just the first three, to keep this short",
+               "        break",
+               '    for tag in ("sentenceID", "text", "step"):',
+               "        child = sentence.find(tag)",
+               "        # A tag can be missing (child is None) or present but empty",
+               "        # (child.text is None). Both mean there is nothing to read.",
+               "        if child is None or child.text is None:",
+               '            value = "MISSING"',
+               "        else:",
+               "            value = child.text.strip()",
+               '        print(" ", tag + ":", value)',
+               '    print()']),
+        ]),
     md("## Step 3 — Reshape into the canonical schema",
        "",
        "The parsing is written for you, and it gives you **both granularities at once**:",
@@ -608,41 +755,86 @@ save("01_build_pool_cars50.ipynb", [
        "`prompts/cars50_context.txt` shows it the introduction first. These are 26 "
        "sentences on average and up to 47, so the context condition is noticeably "
        "slower to run — worth knowing before you start it at 4pm."),
-    code(embed(reshape.reid, reshape.reshape_cars50, reshape.validate,
-               imports=["import xml.etree.ElementTree as ET",
-                        "from pathlib import Path"])),
-    code("move_rows, step_rows = reshape_cars50(RAW_DIR)",
-         'print("moves:", len(move_rows), " steps:", len(step_rows))',
+    reading_note("Three functions. `reshape_cars50` is the one to read: it is where the "
+                 "one parse becomes two datasets."),
+    *source_cells(
+        [(reshape.reid,
+          "`reid` renumbers items 1, 2, 3 … so that every item has an id of its own."),
+         (reshape._tag_text,
+          "`_tag_text` reads the text inside one XML tag. It is separate because a tag "
+          "can be missing *or* present-but-empty, and both have to come back as \"\". "
+          "The leading underscore is a convention meaning \"a helper for the function "
+          "below\" — it is not a typo, and nothing stops you calling it."),
+         (reshape.reshape_cars50,
+          "`reshape_cars50` is the work: one walk through the XML, two lists out — the "
+          "3-class moves and the 11-class steps. Read the two passes."),
+         (reshape.validate,
+          "`validate` checks that every item has an id, a text and a label. Nothing "
+          "calls it here — step 5 does, just before saving.")],
+        imports=["import xml.etree.ElementTree as ET", "from pathlib import Path"]),
+    lead("## Step 3a — Run it",
          "",
-         "from collections import Counter",
-         'print("move classes:", Counter(r["label"] for r in move_rows))',
-         'print("step classes:", Counter(r["label"] for r in step_rows))'),
-    blank(
-        "Step 3a · Choose your granularity",
+         "Now we run the parsing over all 50 files. It hands back **two** lists at once "
+         "— that is what the comma on the left of the `=` means — one labelled at each "
+         "granularity."),
+    code("move_rows, step_rows = reshape_cars50(RAW_DIR)",
+         'print("moves:", len(move_rows), " steps:", len(step_rows))'),
+    lead("Now we count the classes in each, because how many items the smallest class "
+         "has is the ceiling on any balanced draw you make in notebook 02."),
+    code("def count_labels(items):",
+         "    counts = {}",
+         "    for item in items:",
+         '        label = item["label"]',
+         "        if label not in counts:",
+         "            counts[label] = 0",
+         "        counts[label] = counts[label] + 1",
+         "    return counts",
+         "",
+         'print("move classes:", count_labels(move_rows))',
+         'print("step classes:", count_labels(step_rows))'),
+    *blank(
+        "## Step 3b — Choose your granularity\n\nNow we pick which of the two schemes your group will actually study, and give it the name `rows` that the rest of the notebook uses.",
+        "Step 3b · Choose your granularity",
         "pick the version of the scheme your group will actually study.",
         "rows (a list) — either move_rows or step_rows",
-        ["rows = move_rows    # 3 classes",
-         "rows = step_rows    # 11 classes"],
-        notes=["Note      : one line. Spend the time on the ARGUMENT, not the typing —",
+        ['GRANULARITY = "move"    # 3 classes',
+         'GRANULARITY = "step"    # 11 classes'],
+        notes=["Note      : one word. Spend the time on the ARGUMENT, not the typing —",
                "            PLAN.md asks you to justify it in a sentence.",
                "Careful   : whichever you pick, the label names in your prompt and your",
                "            annotation sheet must match these exactly (\"Move 1\", or",
                "            \"1b\")."],
-        starter=["# Delete whichever line you are not using.",
-                 "rows = move_rows      # 3 classes: Move 1 · Move 2 · Move 3",
-                 "rows = step_rows      # 11 classes: 1a · 1b · 2a … the finer scheme",
+        starter=['# Change this one word to "step" for the 11-class version.',
+                 '# It is written as a choice rather than two lines you delete one of,',
+                 '# because with two live lines the SECOND one silently wins — and you',
+                 '# would not find out until notebook 03, halfway through annotating.',
+                 'GRANULARITY = "move"',
                  "",
-                 'print(len(rows), "items")']),
-    md("## Step 4 — Check the label balance"),
-    inspect_cell(),
-    md("## Step 5 — Save it"),
-    save_cell("cars50",
+                 'if GRANULARITY == "move":',
+                 "    rows = move_rows          # 3 classes: Move 1 · Move 2 · Move 3",
+                 'elif GRANULARITY == "step":',
+                 "    rows = step_rows          # 11 classes: 1a · 1b · 2a … the finer scheme",
+                 "else:",
+                 '    raise ValueError(',
+                 '        "GRANULARITY has to be either \\"move\\" or \\"step\\", and it says "',
+                 '        + repr(GRANULARITY) + ". Fix the line above and run this cell again.")',
+                 "",
+                 'print("studying the", GRANULARITY, "scheme:", len(rows), "items")']),
+    md("## Step 4 — Check the label balance",
+       "",
+       "Now we look at what you chose, in the shape it will actually be annotated in."),
+    *inspect_cells(),
+    md("## Step 5 — Save it",
+       "",
+       "Three short cells: check that `config.yaml` agrees which track this is, check "
+       "the shape of every item, then write the file."),
+    *save_cell("cars50",
               'If you chose steps, set  track: cars50_step  in config.yaml before running '
               "this: POOL_PATH then becomes cars50_step_pool.json, and the finer scheme "
               "gets its own file rather than overwriting the 3-move one. Notebook 04 "
               "then reads prompts/cars50_step.txt, which is already there — a baseline "
               "naming the eleven codes, for you to improve on.",
-              variants=("cars50_step",)),
+               variants=("cars50_step",)),
     handoff("cars50"),
 ])
 
@@ -663,8 +855,8 @@ save("01_build_pool_l2_errors.ipynb", [
     *setup("l2_errors"),
     md("## Step 1 — Download the raw data",
        "",
-       "The annotations live on the paper's **OSF** project. We fetch one CSV directly "
-       "by its OSF link."),
+       "The annotations live on the paper's **OSF** project. Now we fetch one CSV "
+       "directly by its OSF link."),
     code("import urllib.request",
          "",
          'RAW_FILE = "data_category.csv"',
@@ -680,16 +872,27 @@ save("01_build_pool_l2_errors.ipynb", [
        "that list in front of you for step 3 — it is the taxonomy you are about to "
        "collapse."),
     code("import csv",
-         "from collections import Counter",
          "",
-         "codes = Counter()",
+         '# DictReader hands you each row as {column name: value}.',
          'with open(RAW_FILE, encoding="utf-8-sig", newline="") as f:',
          "    reader = csv.DictReader(f)",
-         '    print("columns:", reader.fieldnames)',
-         "    for row in reader:",
-         '        for code in (row["Human_ErrorCategories"] or "").split(","):',
-         "            if code.strip():",
-         "                codes[code.strip()] = codes[code.strip()] + 1",
+         '    print("columns:", reader.fieldnames)'),
+    lead("Now we count how often each error code appears, which is the taxonomy you are "
+         "about to collapse in step 3.",
+         "",
+         "One row can carry several codes, comma-separated. A row with no error has "
+         "nothing in that column at all, which Python reads as `None` — so `or \"\"` "
+         "below stands in an empty string for it, because you cannot split `None`."),
+    code("codes = {}",
+         'with open(RAW_FILE, encoding="utf-8-sig", newline="") as f:',
+         "    for row in csv.DictReader(f):",
+         '        human_field = row["Human_ErrorCategories"] or ""',
+         '        for code in human_field.split(","):',
+         "            code = code.strip()",
+         "            if code:",
+         "                if code not in codes:",
+         "                    codes[code] = 0",
+         "                codes[code] = codes[code] + 1",
          "",
          'print(len(codes), "distinct codes:")',
          "for code, n in codes.most_common():",
@@ -740,7 +943,8 @@ save("01_build_pool_l2_errors.ipynb", [
        "— i.e. drops the sentence — when the codes span more than one of your "
        "categories, so a *coarser* grouping keeps more data and a *finer* one keeps "
        "less. That trade-off is yours to make and to report."),
-    blank(
+    *blank(
+        "## Step 3a — Group the error codes\n\nNow we collapse the published taxonomy into the handful of categories your group will annotate. This is the decision on this track.",
         "Step 3a · Group the error codes",
         "map each raw error code to the broader category you will actually study.",
         "L2_COARSE (a dict)",
@@ -766,46 +970,81 @@ save("01_build_pool_l2_errors.ipynb", [
             "L2_COARSE = {",
             '    "ART": "Grammatical",      # articles — given as an example of the shape',
             '    "SP": "Mechanical",        # spelling — mechanical, or lexical? your call',
-            '    "PREP": ____,              # prepositions — grammatical or lexical?',
-            '    "____": ____,',
-            '    "____": ____,',
-            "    # … keep going, one line per code from step 2 that you want to study",
+            '    "PREP": "Grammatical",     # prepositions — grammatical, or lexical?',
+            '    "TENSE": "Grammatical",    # verb tense',
+            '    "N": "Lexical",            # wrong noun choice',
+            "    # … keep going, one line per code from step 2 that you want to study.",
+            "    # Four lines is not a study. Argue about each one before you add it.",
             "}",
             "",
             'print(len(L2_COARSE), "codes kept ·", sorted(set(L2_COARSE.values())))',
         ]),
-    md("The two functions below read the `L2_COARSE` you just defined."),
-    code(embed(reshape._l2_coarse_label, reshape.reid, reshape.reshape_l2_errors,
-               reshape.validate, imports=["import csv"])),
+    reading_note("Four functions. The first two read the `L2_COARSE` you just defined, "
+                 "so if you skip the cell above they will stop on "
+                 "`NameError: L2_COARSE is not defined`."),
+    *source_cells(
+        [(reshape._l2_coarse_label,
+          "`_l2_coarse_label` turns a sentence's comma-separated codes into ONE broader "
+          "category, or `None` when the codes span more than one — those get dropped. "
+          "The leading underscore is a convention meaning \"a helper for the function "
+          "below\"; it is not a typo, and nothing stops you calling it."),
+         (reshape.reid,
+          "`reid` renumbers items 1, 2, 3 … so that every item has an id of its own."),
+         (reshape.reshape_l2_errors,
+          "`reshape_l2_errors` is the work: one pass over the CSV, two lists out — your "
+          "categories, and the yes/no detection version."),
+         (reshape.validate,
+          "`validate` checks that every item has an id, a text and a label. Nothing "
+          "calls it here — step 5 does, just before saving.")],
+        imports=["import csv"]),
+    lead("## Step 3b — Run it",
+         "",
+         "Now we run the reshaping over the CSV. It hands back **two** lists at once — "
+         "that is what the comma on the left of the `=` means."),
     code("category_rows, detection_rows = reshape_l2_errors(RAW_FILE)",
          'print("categories:", len(category_rows), " detection:", len(detection_rows))'),
-    blank(
-        "Step 3b · Choose your task",
+    *blank(
+        "## Step 3c — Choose your task\n\nNow we pick which of the two tasks your group will study, and give it the name `rows` that the rest of the notebook uses.",
+        "Step 3c · Choose your task",
         "the n-way categorisation, or the yes/no detection task.",
         "rows (a list) — either category_rows or detection_rows",
-        ["rows = category_rows     # your categories from 3a",
-         "rows = detection_rows    # Has error / No error"],
+        ['TASK = "category"     # your categories from 3a',
+         'TASK = "detection"    # Has error / No error'],
         notes=["Note      : detection is a genuinely easier task and a smaller project.",
                "            If you take it, plan an extension — benchmarking against the",
                "            published tool's own predictions is right there in the CSV."],
-        starter=["# Delete whichever line you are not using.",
-                 "rows = category_rows      # your categories from 3a",
-                 "rows = detection_rows     # Has error / No error",
+        starter=['# Change this one word to "detection" for the yes/no version.',
+                 '# It is written as a choice rather than two lines you delete one of,',
+                 '# because with two live lines the SECOND one silently wins — and you',
+                 '# would not find out until notebook 03, halfway through annotating.',
+                 'TASK = "category"',
                  "",
-                 'print(len(rows), "items")']),
+                 'if TASK == "category":',
+                 "    rows = category_rows      # your categories from 3a",
+                 'elif TASK == "detection":',
+                 "    rows = detection_rows     # Has error / No error",
+                 "else:",
+                 '    raise ValueError(',
+                 '        "TASK has to be either \\"category\\" or \\"detection\\", and it says "',
+                 '        + repr(TASK) + ". Fix the line above and run this cell again.")',
+                 "",
+                 'print("studying the", TASK, "task:", len(rows), "items")']),
     md("## Step 4 — Check the label balance",
        "",
        "Note how many sentences were dropped: compare your category count against the "
        "detection count, which keeps everything. The gap is your mixed-category "
        "sentences, and it is a direct consequence of the grouping you wrote in 3a."),
-    inspect_cell(),
-    md("## Step 5 — Save it"),
-    save_cell("l2_errors",
+    *inspect_cells(),
+    md("## Step 5 — Save it",
+       "",
+       "Three short cells: check that `config.yaml` agrees which track this is, check "
+       "the shape of every item, then write the file."),
+    *save_cell("l2_errors",
               'For the binary version, set  track: l2_error_detection  in config.yaml '
               "before running this, so POOL_PATH becomes l2_error_detection_pool.json "
               "and the two versions do not overwrite each other. Notebook 04 then reads "
               "prompts/l2_error_detection.txt, which is already there as a baseline.",
-              variants=("l2_error_detection",)),
+               variants=("l2_error_detection",)),
     handoff("l2_errors"),
 ])
 
@@ -844,18 +1083,29 @@ save("01_build_pool_icnale.ipynb", [
        "⚠️ `data/raw/` is excluded from git and from your submission bundle, and "
        "anything with `icnale` in the name is excluded twice over. Leave it that way — "
        "the licence does not permit redistribution."),
-    code("# In Colab: uncomment to upload your essays_scores.csv",
-         "# from google.colab import files; files.upload()",
+    lead("**First, get the file into this session.** Run the cell below and a file "
+         "picker opens; choose your `essays_scores.csv`.",
          "",
-         'RAW_FILE = "essays_scores.csv"        # the copy you just uploaded',
+         "Skip this cell if you have already put the file in your group's Drive folder "
+         "— the next cell points at it there."),
+    code("from google.colab import files",
          "",
-         "# Or, having put it in your group's Drive folder once, use it from there and",
-         "# skip the upload every session:",
+         "files.upload()"),
+    lead("**Now we say where the file is.** One of the two lines below is live and the "
+         "other is commented out. Keep the first if you just uploaded the file; switch "
+         "to the second, by moving the `#`, once you have put a copy in your group's "
+         "Drive folder and want to stop uploading it every session."),
+    code('RAW_FILE = "essays_scores.csv"        # the copy you just uploaded',
+         "",
+         "# The copy in your group's Drive folder, if you put one there:",
          '# RAW_FILE = str(ROOT / "data" / "raw" / "icnale" / "essays_scores.csv")',
          "",
-         "# Say so here rather than three cells down, where the same problem arrives as",
-         "# a bare FileNotFoundError from inside `open`.",
-         "import os",
+         'print("using", RAW_FILE)'),
+    lead("**Now we check the file is really there.** We say so here rather than three "
+         "cells down, where the same problem arrives as a bare `FileNotFoundError` from "
+         "inside `open`, with nothing to tell you what to do about it."),
+    code("import os",
+         "",
          "if not os.path.isfile(RAW_FILE):",
          "    raise FileNotFoundError(",
          '        RAW_FILE + " is not here.\\n"',
@@ -865,7 +1115,8 @@ save("01_build_pool_icnale.ipynb", [
          '        "upload line above and run this cell again, or put the file in "',
          '        "data/raw/icnale/ in your group\'s Drive folder and use the second "',
          '        "RAW_FILE line.")',
-         'print("using", RAW_FILE)'),
+         "",
+         'print("found it:", RAW_FILE)'),
     md("## Step 2 — Look at the raw format",
        "",
        "The cell prints the **distribution** of the scores, not just a couple of rows. "
@@ -874,7 +1125,10 @@ save("01_build_pool_icnale.ipynb", [
        "ones."),
     code("import csv",
          "",
+         "# Collect the scores. They arrive as strings, so each one is converted to a",
+         "# number - and a cell that is not a number at all is counted, not ignored.",
          "scores = []",
+         "not_a_number = 0",
          'with open(RAW_FILE, encoding="utf-8-sig", newline="") as f:',
          "    reader = csv.DictReader(f)",
          '    print("columns:", reader.fieldnames)',
@@ -882,12 +1136,21 @@ save("01_build_pool_icnale.ipynb", [
          "        try:",
          '            scores.append(float(row["score"]))',
          "        except (TypeError, ValueError):",
-         "            pass",
+         "            not_a_number = not_a_number + 1",
          "",
-         "scores.sort()",
-         'print(len(scores), "scores · min", scores[0], "· max", scores[-1])',
+         'print(len(scores), "usable scores ·", not_a_number, "cells that were not numbers")'),
+    lead("Now we look at how those scores are spread out.",
+         "",
+         "Read the percentiles carefully — they are what step 3 asks you to cut the "
+         "scale with. Cutting at the 33rd and 67th gives you three classes of roughly "
+         "equal size; cutting anywhere else does not, and you will see that in step 4."),
+    code("scores.sort()             # smallest first, so we can pick positions out of it",
+         'print("min", scores[0], "· max", scores[-1])',
+         "",
          "for q in (10, 25, 33, 50, 67, 75, 90):",
-         '    print("   ", str(q) + "th percentile:", scores[int(len(scores) * q / 100)])'),
+         "    # A rough percentile: the score q% of the way along the sorted list.",
+         "    position = int(len(scores) * q / 100)",
+         '    print("   ", str(q) + "th percentile:", scores[position])'),
     *parser_note(
         "Reading CSV with `csv.DictReader`",
         "`csv.DictReader` reads a CSV using its header row, so each row arrives as a "
@@ -929,32 +1192,53 @@ save("01_build_pool_icnale.ipynb", [
        "alphabetical. List them under `labels_order:` in `config.yaml` — Low, then Mid, "
        "then High — or the weighted κ gets computed over `High < Low < Mid`, which "
        "means nothing."),
-    code(embed(reshape.reid, reshape.reshape_icnale, reshape.validate,
-               imports=["import csv"])),
-    blank(
+    reading_note("Three functions. `reshape_icnale` is the one to read: the two "
+                 "boundaries you are about to choose are its only arguments."),
+    *source_cells(
+        [(reshape.reid,
+          "`reid` renumbers items 1, 2, 3 … so that every item has an id of its own."),
+         (reshape.reshape_icnale,
+          "`reshape_icnale` reads the CSV and turns each score into a band. Find the "
+          "`if / elif / else` — those three lines are the whole scheme."),
+         (reshape.validate,
+          "`validate` checks that every item has an id, a text and a label. Nothing "
+          "calls it here — step 5 does, just before saving.")],
+        imports=["import csv"]),
+    *blank(
+        "## Step 3a — Cut the scale\n\nNow we turn each numeric score into one of three bands. The two boundaries are yours to choose, and the percentiles printed above are the evidence for choosing them.",
         "Step 3a · Cut the scale",
         "turn a numeric score into three bands, and be able to defend where.",
         "rows (a list)",
-        ["rows = reshape_icnale(RAW_FILE, low_below=..., mid_below=...)",
+        ["rows = reshape_icnale(RAW_FILE, low_below=4.0, mid_below=7.0)",
          "the defaults (4.0 / 7.0) are ROUND NUMBERS, not a rubric —",
          "using them unchanged is a choice you would have to defend too"],
         notes=["Note      : run it a couple of ways and look at step 4 each time. Seeing",
                "            the counts move as you shift a boundary is the point.",
                "Careful   : whatever you settle on goes in PLAN.md as two numbers and a",
                "            reason. Do not re-cut after seeing your F1."],
-        starter=["# Two numbers, from the rubric or from the percentiles printed above.",
-                 "# A score below low_below is Low; below mid_below is Mid; the rest High.",
-                 "rows = reshape_icnale(RAW_FILE, low_below=____, mid_below=____)",
+        starter=["# A score below low_below is Low; below mid_below is Mid; the rest High.",
+                 "#",
+                 "# 4.0 and 7.0 are the defaults, and they are round numbers rather than",
+                 "# a rubric — leaving them is as much a decision as changing them, and",
+                 "# you have to defend it either way. Re-run with the percentiles printed",
+                 "# above and watch the counts in step 4 move.",
+                 "rows = reshape_icnale(RAW_FILE, low_below=4.0, mid_below=7.0)",
                  "",
                  'print(len(rows), "essays")']),
-    md("## Step 4 — Check the label balance"),
-    inspect_cell(),
+    md("## Step 4 — Check the label balance",
+       "",
+       "Now we look at what your two boundaries actually produced. If one band has "
+       "almost everything in it, go back to step 3a and move a cut-off."),
+    *inspect_cells(),
     md("## Step 5 — Save it",
+       "",
+       "Three short cells: check that `config.yaml` agrees which track this is, check "
+       "the shape of every item, then write the file.",
        "",
        "⚠️ Keep this file **out of git** and **out of your submission bundle**. "
        "`.gitignore` and `scripts/make_submission.py` both exclude anything with "
        "`icnale` in the name — please leave that in place."),
-    save_cell("icnale"),
+    *save_cell("icnale"),
     handoff("icnale"),
 ])
 

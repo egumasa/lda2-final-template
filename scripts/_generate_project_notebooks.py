@@ -42,6 +42,7 @@ and the thing they have to narrate in the Q&A.
 import inspect
 import json
 import sys
+import textwrap
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -71,15 +72,22 @@ def code(*lines):
 
 
 def step(number, title, goal, available, pointer, produces, extra=(), source=None,
-         starter=()):
-    """A step cell: the shape of the code, with the decisions left blank.
+         starter=(), signpost=""):
+    """A step cell: complete, runnable code, and the decision stated next to it.
 
-    `starter` is the skeleton the cell ships with, and no step cell goes without one.
-    An empty cell asks a beginner to remember the assignment form, the exact spelling
-    of a global, and the syntax around the call, all at once - and only the last of
-    those three is what the step is about. So the left-hand side is always given (it
-    is the name the next cell depends on, and must not be mistypeable), any syntax the
-    course has not taught is typed out in full, and `____` marks the decision itself.
+    `starter` ships FILLED IN - every argument a real value, nothing left blank. An
+    empty cell asks a beginner to remember the assignment form, the exact spelling of a
+    global and the syntax around the call all at once, none of which is what the step
+    is about. But a blank standing in for an argument is no better: with the answer in
+    the comment beside it, it is a copying exercise, and with the answer withheld it is
+    a guessing one.
+
+    So the cell runs on first execution and PRINTS something, and the decision lives in
+    what you do next: which of the three sampling strategies to keep, whether those
+    band boundaries are yours or just the defaults, whether your labels are a scale.
+    The comment says what the choice is and what turns on it; the report and the Q&A
+    are where it gets defended. Leaving a value alone is a choice as well, and it needs
+    the same defence as changing it.
 
     `source` names the file and function the step calls, so a student who wants to
     know what happens inside it can go and read it.
@@ -94,19 +102,26 @@ def step(number, title, goal, available, pointer, produces, extra=(), source=Non
     if source:
         lines.append("# Source    : " + source)
     lines.append("# Pointer   : " + pointer)
-    lines.append("# Produce   : " + produces + "      ← later cells use these names")
+    # The arrow is a warning that the names matter downstream. On a step that produces
+    # nothing it contradicts the line it is attached to, so leave it off.
+    if produces.startswith("nothing"):
+        lines.append("# Produce   : " + produces)
+    else:
+        lines.append("# Produce   : " + produces + "      ← later cells use these names")
     for line in extra:
         lines.append("# " + line)
     lines.append("")
     if starter:
-        lines.append("# ✏️ your code here — fill in each ____")
+        lines.append("# ✏️ this runs as written — the work is deciding whether it should")
         lines.append("")
         for line in starter:
             lines.append(line)
     else:
         lines.append("# ✏️ your code here")
     lines.append("")
-    return code(*lines)
+    if signpost:
+        return [lead(signpost), code(*lines)]
+    return [code(*lines)]
 
 
 def embed(*objects, imports=(), why=""):
@@ -123,12 +138,43 @@ def embed(*objects, imports=(), why=""):
     """
     blocks = []
     if why:
-        blocks.append(why)
+        # `why` is prose. It goes into a CODE cell, so every line of it has to be a
+        # comment - a bare sentence here is a SyntaxError in the student's notebook.
+        commented = []
+        for line in textwrap.wrap(why.lstrip("# "), width=86):
+            commented.append("# " + line)
+        blocks.append("\n".join(commented))
     if imports:
         blocks.append("\n".join(imports))
     for obj in objects:
         blocks.append(inspect.getsource(obj).rstrip("\n"))
     return code(*("\n\n".join(blocks)).split("\n"))
+
+
+def lead(*lines):
+    """A markdown signpost immediately above a code cell: what we are about to do.
+
+    Every code cell in these notebooks has one. A cell a student meets with no idea
+    what it is for is a cell they run and scroll past.
+    """
+    return md(*lines)
+
+
+def source_cells(described, imports=()):
+    """One cell per embedded function, each with its own one-line signpost.
+
+    `described` is a list of (object, sentence) pairs. Splitting them up matters: the
+    single cells these replaced ran to 140 and 180 lines and defined half a dozen
+    unrelated things each, which is a wall rather than something anyone reads.
+    """
+    cells = []
+    if imports:
+        cells.append(lead("First, what the code below needs loaded."))
+        cells.append(code(*imports))
+    for obj, sentence in described:
+        cells.append(lead(sentence))
+        cells.append(code(*inspect.getsource(obj).rstrip("\n").split("\n")))
+    return cells
 
 
 def read_me_md(what, points):
@@ -276,7 +322,7 @@ cells = [
         "this notebook work before then, point at `DEMO_POOL_PATH` in the cell below — "
         "but the demo pools are small enough that a real sample would eat most of them, "
         "and `sample_pool` will warn you when it does."),
-    step(
+    *step(
         1, "Load the pool",
         "open what notebook 01 wrote, and see its natural imbalance.",
         ["load_gold(POOL_PATH)  ->  a list of {id, text, label}",
@@ -288,7 +334,7 @@ cells = [
                "            is typed out for you — the decision in this cell is which of",
                "            the two paths to open, not how to count."],
         starter=[
-            "pool = load_gold(____)          # POOL_PATH  ·  or DEMO_POOL_PATH to try it out",
+            "pool = load_gold(POOL_PATH)     # or DEMO_POOL_PATH to try it out first",
             "",
             "from collections import Counter",
             'print(len(pool), "items")',
@@ -349,11 +395,33 @@ cells = [
          "**What `sample_by_document` refuses to do.** Look at the check it opens with. "
          "On a track whose items are loose sentences there are no documents to stratify "
          "by, so it stops and says so rather than inventing an answer."]),
-    embed(pipeline.reid, pipeline._report_draw, pipeline.sample_pool,
-          pipeline.sample_random, pipeline.sample_by_document, pipeline.label_set,
-          imports=["import random"],
-          why="# Read straight out of scripts/pipeline.py — this IS the code that runs."),
-    step(
+    md("Each strategy arrives in a cell of its own, so you can read them one at a "
+       "time. **None of these cells print anything** — they only give the functions "
+       "their names. The step below is where one gets called.",
+       "",
+       "`reid` (which renumbers the drawn items 1, 2, 3 …) and `_report_draw` (which "
+       "prints the per-label counts you will see) are imported rather than shown: they "
+       "are bookkeeping, and neither is a method you have to defend."),
+    *source_cells(
+        [(pipeline.sample_pool,
+          "**`sample_pool` — balanced across labels.** Step 1 sorts the pool into one "
+          "bucket per label; step 2 takes up to `n_per_class` from each. A label with "
+          "fewer than that gives all it has, which is why a rare class comes back short "
+          "— that is data, not a bug."),
+         (pipeline.sample_random,
+          "**`sample_random` — the corpus as it is.** No balancing at all, so the draw "
+          "keeps the pool's own imbalance. Realistic, and unkind to rare labels."),
+         (pipeline.sample_by_document,
+          "**`sample_by_document` — whole passages** (`cars50` and `raamove` only). "
+          "Look at the check it opens with: on a track whose items are loose sentences "
+          "there are no documents to stratify by, so it stops and says so rather than "
+          "inventing an answer."),
+         (pipeline.label_set,
+          "**`label_set`** just reports which labels are present, sorted. You will use "
+          "it in the next cell.")],
+        imports=["import random",
+                 "from pipeline import reid, _report_draw"]),
+    *step(
         2, "Draw your sample — and say why that way",
         "commit to a sampling strategy, and to the sentence that defends it.",
         ["sample_pool(pool, N_PER_CLASS, SEED)              balanced across labels",
@@ -369,21 +437,45 @@ cells = [
                "            and look at the difference — that difference is the argument.",
                "Note      : if it WARNS that you took most of the pool, you are almost",
                "            certainly still pointed at DEMO_POOL_PATH."],
+        signpost="Now we draw the sample. The cell runs as written, using the balanced "
+                 "strategy; the work is deciding whether that is the one your study "
+                 "wants, and being able to say why.",
         starter=[
-            "# ── Delete the two you are NOT using. ────────────────────────────────",
-            "sampled = sample_pool(pool, N_PER_CLASS, SEED)",
-            "sampled = sample_random(pool, ____, SEED)                  # how many in total?",
-            "sampled = sample_by_document(pool, ____, ____, SEED)       # how many docs? how many from each?",
-            "",
-            "LABELS = label_set(sampled)",
-            'print("labels:", LABELS)',
-            "",
-            "# ── Why this one, in a sentence. It is report section 1, and PLAN.md ──",
-            "# ── asks for it. Write it now, while the reason is still in your head. ─",
+            "# Balanced is the DEFAULT, not the recommendation. Change this one word to",
+            "# try another view of the corpus, and compare the counts each one prints.",
             "#",
-            "#   >>> We sampled ____ because ____",
-            "#",
+            "# It is written as a choice rather than three lines you comment two of out,",
+            "# because with two live lines the SECOND one silently wins.",
+            'STRATEGY = "balanced"     # "balanced" · "random" · "by_document"',
+            "",
+            'if STRATEGY == "balanced":',
+            "    sampled = sample_pool(pool, N_PER_CLASS, SEED)",
+            'elif STRATEGY == "random":',
+            "    sampled = sample_random(pool, 40, SEED)",
+            'elif STRATEGY == "by_document":',
+            "    # cars50 · raamove ONLY — the other tracks have no documents to",
+            "    # stratify by, and this will stop and tell you so.",
+            "    sampled = sample_by_document(pool, 10, 4, SEED)",
+            "else:",
+            '    raise ValueError(',
+            '        "STRATEGY has to be balanced, random or by_document, and it says "',
+            '        + repr(STRATEGY) + ". Fix the line above and run this cell again.")',
         ]),
+    lead("Now we note which labels came out of that draw. `LABELS` is used again in "
+         "step 4 below, and in notebook 03."),
+    code("LABELS = label_set(sampled)",
+         'print("labels:", LABELS)'),
+    md("### Now write down why you drew it that way",
+       "",
+       "Not in the notebook — in `PLAN.md` §5, in a sentence. It is report section 1, "
+       "and the Q&A may well ask you to defend it, so write it while the reason is "
+       "still in your head.",
+       "",
+       "The shape of the answer (another track's, so it is not yours to copy):",
+       "",
+       "> We sampled by document, 10 documents × 4 sentences, because a move label "
+       "describes a sentence's job *within* its abstract, and 40 loose sentences from "
+       "40 different papers would have thrown that away."),
     md(
         "### Sanity-check what you drew",
         "",
@@ -396,7 +488,7 @@ cells = [
         "3. **Is there pool left over?** `build_fewshot` in notebook 04 draws its "
         "examples from items you did *not* sample. If the sample is most of the pool, "
         "there is nothing uncontaminated left to draw from."),
-    step(
+    *step(
         3, "Check the draw",
         "confirm the counts, the spread across documents, and the leftover pool.",
         ["len(pool) · len(sampled)  ·  Counter(item[\"label\"] for item in sampled)"],
@@ -405,17 +497,39 @@ cells = [
         extra=["Ask       : does the shortfall on any label match the smallest class in",
                "            the pool counts from step 1?"],
         starter=[
-            "from collections import Counter",
+            "# Count how many sampled items carry each label, one item at a time.",
+            "counts = {}",
+            "for item in sampled:",
+            '    label = item["label"]',
+            "    if label not in counts:",
+            "        counts[label] = 0",
+            "    counts[label] = counts[label] + 1",
             "",
-            'print("pool:", len(pool), "· sampled:", len(sampled),',
-            '      "· left over:", len(pool) - len(sampled))',
-            'print(Counter(item["label"] for item in ____))      # sampled',
-            "",
-            "# On cars50 / raamove only — how many distinct texts did your 40 come from?",
-            'if "doc_id" in sampled[0]:',
-            '    docs = {item["doc_id"] for item in sampled}',
-            '    print("drawn from", len(docs), "distinct documents")',
+            'print("pool:", len(pool))',
+            'print("sampled:", len(sampled))',
+            'print("left over for few-shot examples:", len(pool) - len(sampled))',
+            'print("per label:", counts)',
         ]),
+    md("### How many distinct texts is this? — `cars50` · `raamove` only",
+       "",
+       "Now we count the documents your sentences came from. Skip this cell on the "
+       "other tracks: their items are loose sentences with no document attached, so "
+       "there is nothing to count.",
+       "",
+       "Forty sentences from four introductions is a much narrower claim than forty "
+       "from forty, and the difference belongs in your limitations section."),
+    code("# `doc_id` is one of the extra fields the move tracks carry. Collect the",
+         "# distinct ones, one item at a time.",
+         "documents = []",
+         "for item in sampled:",
+         '    doc_id = item.get("doc_id")',
+         "    if doc_id is not None and doc_id not in documents:",
+         "        documents.append(doc_id)",
+         "",
+         "if documents:",
+         '    print("drawn from", len(documents), "distinct documents")',
+         "else:",
+         '    print("this track carries no doc_id — nothing to count here")'),
     md(
         "## Save the sample — it is what notebook 03 comes back to",
         "",
@@ -461,7 +575,7 @@ cells = [
         "second coder will open the link and be told they need access. Pass "
         "`remember=SHEET_PATH` too, and the link is written to a file instead of living "
         "in this cell's output, where a runtime reset can lose it."),
-    step(
+    *step(
         4, "Create the sheet",
         "make a blind annotation sheet, shared with your group, one row per item.",
         ["create_annotation_sheet(title, items, labels,",
@@ -478,8 +592,8 @@ cells = [
             'title = TRACK + " · " + GROUP + " · " + RUN + " annotation"',
             "",
             "url = create_annotation_sheet(title, sampled, LABELS,",
-            "                              share_with=____,      # MEMBERS",
-            "                              remember=____)        # SHEET_PATH",
+            "                              share_with=MEMBERS,   # your group, from config.yaml",
+            "                              remember=SHEET_PATH)  # writes the link to a file",
             "print(url)",
         ]),
     md(
@@ -526,7 +640,7 @@ cells_03 = [
         "03", "03_annotate", "Agreement, adjudication → *your* gold set",
         "The part no model can do for you, and the part the Q&A will ask about.",
         "`data/gold/<track>_<group>_sample.json` and the sheet (both from 02)",
-        "`data/gold/<track>_<group>_gold.json`",
+        "`data/gold/<track>_<group>_gold.json`, and its `_dev.json` / `_test.json` split",
         ["**Come here when both coders have finished.** Notebook 02 drew the sample and "
          "made the sheet; this one turns two people's labels into one gold set.",
          "",
@@ -537,13 +651,17 @@ cells_03 = [
          "What comes out is *your* gold set — and the disagreements tell you which label "
          "boundaries are genuinely fuzzy. That is what lets you say, later, whether a "
          "model's miss is the **model's** fault or the **scheme's**. Nothing else in the "
-         "project can tell you that, and notebook 05 asks you for it directly."]),
+         "project can tell you that, and notebook 05 asks you for it directly.",
+         "",
+         "It ends by drawing one more line: which of your annotated items you are allowed "
+         "to *look at* while you write prompts, and which are held back for the number you "
+         "report. One sheet, one adjudication, then a split — it costs no extra coding."]),
     md(*SETUP_MD),
     setup_cell([
         "",
         "# The Google Sheets round trip is plumbing, so it is imported. The judgment it",
         "# exists to support is not in any of these files.",
-        "from pipeline import load_gold, label_set, save_json",
+        "from pipeline import load_gold, label_set, save_json, split_dev_test",
         "from annotate import (remembered_sheet, load_coder_sheets, to_canonical,",
         "                      annotator_agreement, disagreements,",
         "                      compare_to_published)",
@@ -570,11 +688,17 @@ cells_03 = [
         "# These still carry the PUBLISHED label. Ignore it for now — you compare",
         "# against it in step 4, once your own labels are settled.",
         ""),
+    md(
+        "## Then — the annotation sheet, found again",
+        "",
+        "Now we look up the sheet notebook 02 created, from the small file it wrote the "
+        "link to. That file is why the link is not lost: whoever runs this notebook need "
+        "not be the person who ran notebook 02, and need not still have that cell's "
+        "output on screen.",
+        "",
+        "If this prints *none saved yet*, notebook 02's sheet step has not been run — or "
+        "was run by somebody whose copy of the folder is not this one."),
     code(
-        "# The sheet notebook 02 created, read back from the file it wrote. This is why "
-        "it",
-        "# wrote one: whoever runs this notebook need not be the person who ran",
-        "# and need not still have that cell's output on screen.",
         "SHEET_ID = remembered_sheet(SHEET_PATH)",
         "",
         "# Working on a sheet someone made before this file existed? Paste its URL (or",
@@ -607,7 +731,7 @@ cells_03 = [
         "a runtime reset. A κ around .8 is strong; around .4 means the scheme, not the "
         "annotators, is doing something wrong. Either is a reportable finding. A low κ "
         "you can explain beats a high one you cannot."),
-    step(
+    *step(
         1, "Measure agreement",
         "how often did you agree, and on which labels did you not?",
         ["load_coder_sheets(SHEET_ID, CODERS)  ->  rows   (one column per coder)",
@@ -629,12 +753,22 @@ cells_03 = [
             "# Who annotated. One name per tab in the sheet.",
             'CODERS = ["CoderA", "CoderB"]        # add "CoderC" if a third person joined',
             "",
-            "rows = load_coder_sheets(SHEET_ID, ____)         # CODERS",
+            "rows = load_coder_sheets(SHEET_ID, CODERS)       # one read per tab, merged by ID",
             "",
             "annotator_agreement(rows, coders=CODERS)         # prints agreement and κ",
-            "disagreed = disagreements(rows, coders=CODERS)",
-            "disagreed",
         ]),
+    md("### Now the rows you have to talk about",
+       "",
+       "`disagreements` hands back a table of the rows your coders labelled "
+       "differently. That is your adjudication list for step 2.",
+       "",
+       "The last line of the cell is just the name `disagreed`, with no `print`. In a "
+       "notebook, the value of the last line of a cell is displayed automatically — and "
+       "for a table that display is much easier to read than `print` would give you. "
+       "Add a line after it and the table stops appearing, which is the one thing to "
+       "watch out for."),
+    code("disagreed = disagreements(rows, coders=CODERS)",
+         "disagreed"),
     md(
         "## Step 2 — Adjudicate",
         "",
@@ -648,7 +782,7 @@ cells_03 = [
         "Then re-read the sheet and canonicalise it. `to_canonical` reports blanks and "
         "invalid labels rather than silently dropping them; fix them in the sheet and "
         "re-run until it says **0 blank, 0 invalid**."),
-    step(
+    *step(
         2, "Adjudicate, then canonicalise",
         "agree a Final label for every row, then turn the sheet into gold.",
         ["load_coder_sheets(SHEET_ID, CODERS)  ->  rows   (re-read after editing)",
@@ -660,7 +794,7 @@ cells_03 = [
             "# Re-read: `rows` from step 1 was fetched before you filled in Final.",
             "rows = load_coder_sheets(SHEET_ID, CODERS)",
             "",
-            "gold = to_canonical(rows, LABELS, source=____)      # sampled",
+            "gold = to_canonical(rows, LABELS, source=sampled)   # re-attaches what the sheet drops",
         ],
         extra=["Careful   : re-read the sheet first. `rows` from step 1 is a snapshot",
                "            from before you filled in Final.",
@@ -689,7 +823,7 @@ cells_03 = [
         "",
         "This table is report section 1, and it is the one that most often produces a "
         "sentence worth saying out loud in the Q&A."),
-    step(
+    *step(
         3, "Compare against the published labels",
         "see where your gold set and the corpus disagree, and work out why.",
         ["compare_to_published(gold, sampled)  ->  a table of the rows that differ"],
@@ -697,7 +831,7 @@ cells_03 = [
         "differences",
         source="scripts/annotate.py · compare_to_published",
         starter=[
-            "differences = compare_to_published(gold, ____)      # sampled — not pool",
+            "differences = compare_to_published(gold, sampled)   # sampled, not pool: same 40 items",
             "differences",
         ],
         extra=["Careful   : compare against `sampled`, not `pool`. Sampling renumbers",
@@ -718,6 +852,105 @@ cells_03 = [
         "# into Google Drive it is already saved across sessions; if not, download it.",
         ""),
     md(
+        "## Step 4 — Draw the line: dev and test",
+        "",
+        "In notebook 04 you will change your prompt because of what you saw it get wrong. "
+        "That is the work. But a score measured on the same items you kept adjusting "
+        "against stops being a measure of how good your prompt is, and becomes a measure "
+        "of **how long you kept adjusting**. It only ever goes up.",
+        "",
+        "So the line gets drawn now, before anything has been run against these items:",
+        "",
+        "| | what it is for |",
+        "|---|---|",
+        "| **dev** | the items you may look at. Iterate here, as many rounds as you like. |",
+        "| **test** | opened once, in the last step of notebook 04. Whatever it says is "
+        "what you report. |",
+        "",
+        "Both halves came out of the same sheet and the same adjudication, so the split "
+        "costs you no extra annotation. What it costs is items you are allowed to learn "
+        "from — which is why the ratio is a real decision and `PLAN.md` §6 asks you to "
+        "defend the one you made. A bigger dev gives steadier feedback while you iterate "
+        "and leaves a smaller test, so the number you finally report bounces more; a "
+        "smaller dev means prompt decisions made on very few items, which is how you tune "
+        "to noise and then watch the gain evaporate.",
+        "",
+        "This also replaces the old advice to keep `n_per_class` at 2 while iterating. "
+        "**dev is the fast set now** — a dozen or so items is about a minute per round, "
+        "and your sample stays at full size throughout.",
+        "",
+        "The split is stratified by label, so both halves keep every label wherever the "
+        "data allows. Where it does not — a label with a single surviving item — that "
+        "item goes to **test**, and the function says so. That asymmetry is deliberate: a "
+        "label missing from test drops out of the macro average without announcing "
+        "itself, while a label missing from dev only costs you feedback."),
+    read_me_md(
+        "splits a gold set in two",
+        ["the rounding rule for `dev_fraction` is written out rather than left to "
+         "`round()` — Python rounds 0.5 down and 1.5 up, and neither is something you "
+         "want to have to explain in the Q&A",
+         "the rare-class clamp, and which side it favours",
+         "the ids are **not** renumbered. Notebook 05 asks which of the model's errors "
+         "are also the rows your two coders argued about, and that join runs on these "
+         "ids"]),
+    *source_cells(
+        [(pipeline.split_dev_test,
+          "**`split_dev_test`** draws the line. This is the whole of the discipline: "
+          "the bookkeeping that decides whether the number in your report means "
+          "anything. `_split_by_label`, which it calls to do the per-label work, is "
+          "imported rather than shown.")],
+        imports=["import random",
+                 "",
+                 "# The bookkeeping split_dev_test leans on: the per-label draw, the",
+                 "# whole-document variant, the config check and the counts it prints.",
+                 "from pipeline import (_split_by_label, _split_by_document,",
+                 "                      _check_split_spec, _report_split)"]),
+    *step(
+        4, "Split dev / test",
+        "draw the line once, before anything has been run against these items.",
+        ["split_dev_test(gold, dev_per_class=..., dev_fraction=..., seed=SEED)  ->  dev, test",
+         "DEV_PER_CLASS · DEV_FRACTION · SEED   (all from config.yaml)",
+         "save_json(items, path, what=...)"],
+        "New here — nothing in Days 1–3 had a set worth holding back.",
+        "dev · test",
+        source="scripts/pipeline.py · split_dev_test",
+        extra=["Careful   : run this ONCE, and before you open notebook 04. Re-splitting",
+               "            after you have iterated on dev means the 'held-out' items",
+               "            have already been seen — by you, if not by the model.",
+               "Note      : which of dev_per_class / dev_fraction is set lives in",
+               "            config.yaml, and you set exactly one. A balanced draw",
+               "            (sample_pool) suits dev_per_class; an uneven one",
+               "            (sample_random) suits dev_fraction, because a fixed 3 per",
+               "            class would eat a small class whole.",
+               "Note      : read the per-label counts it prints. A label that lands in",
+               "            dev but not in test cannot appear in the score you report,",
+               "            and it warns you about exactly that."],
+        signpost="Now we draw the line: which of your gold items you are allowed to "
+                 "look at while iterating, and which you are not. Nothing is saved "
+                 "yet — read the counts it prints first.",
+        starter=[
+            "# Exactly one of DEV_PER_CLASS and DEV_FRACTION is set in config.yaml; the",
+            "# other is None. Both are passed, and the function uses whichever it got.",
+            "#",
+            "# Drew your sample with sample_by_document? Add by_document=True inside the",
+            "# brackets below, so that no passage has some of its sentences in dev and",
+            "# the rest in test.",
+            "dev, test = split_dev_test(gold,",
+            "                           dev_per_class=DEV_PER_CLASS,",
+            "                           dev_fraction=DEV_FRACTION,",
+            "                           seed=SEED)",
+        ]),
+    md("### Now save both halves",
+       "",
+       "Read the per-label counts the split just printed **before** you run this. A "
+       "label that lands in dev but not in test cannot appear in the score you report, "
+       "and this is the last easy moment to change `dev_per_class` in `config.yaml` and "
+       "draw the line again.",
+       "",
+       "Once you are happy, save. Notebook 04 opens `dev`; notebook 05 opens `test`."),
+    code('save_json(dev,  DEV_PATH,  what="dev items")',
+         'save_json(test, TEST_PATH, what="test items")'),
+    md(
         "---",
         "",
         "## 🛑 The `PLAN.md` gate",
@@ -729,7 +962,8 @@ cells_03 = [
         "",
         "Check, out loud, that these three agree: the label set in `PLAN.md`, the labels "
         "`label_set` actually returned above, and the labels your prompt file names. And "
-        "that `PLAN.md` records **which sampling strategy you chose, and why**."),
+        "that `PLAN.md` records **which sampling strategy you chose, and why**, and "
+        "**§6: which split spec you set, the sizes it produced, and why that ratio**."),
 ]
 
 # ==================================================================================
@@ -737,30 +971,52 @@ cells_03 = [
 # ==================================================================================
 cells_04 = [
     title_cell(
-        "03", "03_prompt", "Baseline, read the errors, iterate, freeze",
+        "04", "04_prompt", "Baseline, read the errors, iterate, freeze",
         "Write the plainest prompt that could work, then improve it for reasons you can "
         "state.",
-        "`data/gold/<track>_<group>_gold.json` (from 02) · the pool (from 01)",
-        "`outputs/<track>_<group>_predictions.json` · `..._rounds.json`",
+        "`data/gold/<track>_<group>_dev.json` (from 03) · the pool (from 01)",
+        "`outputs/<track>_<group>_predictions.json` · `..._rounds.json` · "
+        "`..._test_log.jsonl`",
         ["Everything from here on is measured against **your** gold set, not the "
          "corpus's labels. That is the point of the last two notebooks.",
          "",
+         "Steps 1–3 work on your **dev** half. The test half is not opened until step 4, "
+         "and then only once.",
+         "",
          "> **Free-tier pacing.** The backend waits a few seconds between calls and "
-         "retries on rate-limit errors, so a full run takes minutes and may print "
-         "`(rate limited - waiting Ns then retrying)`. That is normal. Keep "
-         "`N_PER_CLASS` small (2) while you iterate — then do **one** final run at full "
-         "size."]),
+         "retries on rate-limit errors, so a run takes minutes and may print "
+         "`(rate limited - waiting Ns then retrying)`. That is normal — and it is why "
+         "you iterate on dev: a dozen or so items is about a minute per round, so you "
+         "get enough rounds to actually learn something. Your sample stays at full size "
+         "throughout; there is no longer a small-while-you-iterate phase.",
+         "",
+         "> **On the size of this study.** One call per item, four-and-a-bit seconds "
+         "apart, no batching: forty items is minutes and four hundred is most of an "
+         "afternoon of a quota you share with everyone else on the course. A study that "
+         "could support a claim about a corpus needs hundreds of items per class. This "
+         "one cannot, and that is a limitation to state in report §5 rather than write "
+         "around. What transfers is the method — the split, the freezing, the audit "
+         "trail — not the number."]),
     md(*SETUP_MD),
     setup_cell([
         "",
         "# Files in, files out, and the connection to the model: all plumbing, all",
         "# imported. Asking the model and scoring the answers is what this notebook",
         "# is FOR, so that code is in the notebook, two cells below.",
-        "from pipeline import (load_gold, load_prompt, save_json,",
-        "                      save_predictions, load_predictions, setup)",
-        "",
-        "setup()                     # connect to the model and say which backend we got",
+        "from pipeline import (load_gold, label_set, load_prompt, save_json,",
+        "                      load_predictions, setup, save_test_run,",
+        "                      record_test_scoring)",
     ]),
+    md(
+        "## Connect to the model",
+        "",
+        "Now we open the connection this notebook will send every prompt through. It "
+        "gets a cell of its own because it does something the plumbing cell above does "
+        "not: it reaches out to a service, and what it prints back is worth reading.",
+        "",
+        "Safe to run more than once — after the first time it hands back the connection "
+        "it already made."),
+    code("setup()"),
     md(
         "> **Check the backend line it just printed.** You want:",
         ">",
@@ -774,23 +1030,45 @@ cells_04 = [
         "give different answers and your numbers will not be reproducible. It must not "
         "be your final run."),
     CONFIG_MD,
-    step(
-        1, "Load your gold set and your pool",
-        "the answers you score against, and the spare items few-shot draws from.",
-        ["load_gold(GOLD_PATH)  ·  load_gold(POOL_PATH)",
+    md("## Step 1 — Open the three files this notebook works from",
+       "",
+       "Now we load the dev half (what you may look at), the pool (where few-shot "
+       "examples come from) and the **full** gold set.",
+       "",
+       "That third one looks redundant and is not. `build_fewshot` excludes your gold "
+       "items from the examples it picks — by *text*, since sampling renumbered the "
+       "ids. Hand it only `dev` and it can pick a **test** item as a worked example, "
+       "which puts the answer to a held-out item straight into the prompt that produces "
+       "your headline number. So the full gold set is loaded as an exclusion list, and "
+       "scored against never.",
+       "",
+       "`TEST_PATH` is not opened here. It is opened once, in step 4."),
+    *step(
+        1, "Load your dev set and your pool",
+        "the half you may look at, and the spare items few-shot draws from.",
+        ["load_gold(DEV_PATH)  ·  load_gold(POOL_PATH)  ·  load_gold(GOLD_PATH)",
          "label_set(items)  ->  the sorted list of labels present",
-         "GOLD_PATH · POOL_PATH   (from config.yaml)"],
-        "Day 3 setup — the same call, twice.",
-        "gold · pool · LABELS",
+         "DEV_PATH · POOL_PATH · GOLD_PATH   (from config.yaml)"],
+        "Day 3 setup — the same call, three times.",
+        "dev · pool · gold · LABELS",
         source="scripts/pipeline.py · load_gold",
-        extra=["Note      : LABELS comes from your GOLD set, not the pool. If a label",
-               "            never survived adjudication, it is not in your study."],
+        extra=["Note      : TEST_PATH is not opened here. It is opened once, in step 4.",
+               "Careful   : the third line looks redundant and is not. `build_fewshot`",
+               "            excludes your gold items from the examples it picks — by",
+               "            TEXT, since sampling renumbered the ids. Hand it only `dev`",
+               "            and it can pick a TEST item as a worked example, which puts",
+               "            the answer to a held-out item straight into the prompt that",
+               "            produces your headline number. So the full gold set is",
+               "            loaded as an exclusion list, and scored against never.",
+               "Note      : LABELS comes from the full gold set, so a label that happens",
+               "            to be thin in dev does not quietly shrink your label list."],
         starter=[
-            "gold = load_gold(____)          # GOLD_PATH — your own labels, from notebook 03",
-            "pool = load_gold(____)          # POOL_PATH — the spares few-shot draws from",
-            "LABELS = label_set(____)        # gold, not pool",
+            "dev  = load_gold(DEV_PATH)      # what you iterate against, from notebook 03",
+            "pool = load_gold(POOL_PATH)     # the spares few-shot examples are drawn from",
+            "gold = load_gold(GOLD_PATH)     # ALL of it — as an EXCLUSION list, see above",
+            "LABELS = label_set(gold)        # gold, not pool: what you actually adjudicated",
             "",
-            'print(len(gold), "gold ·", len(pool), "pool ·", LABELS)',
+            'print(len(dev), "dev ·", len(pool), "pool ·", LABELS)',
         ]),
     read_me_md(
         "These three functions are the measurement itself. `run_prompt` is the loop that "
@@ -805,13 +1083,23 @@ cells_04 = [
          "**`build_fewshot` skips anything in your gold set**, matching by text rather "
          "than by id (sampling renumbered the ids). Without that, you would be testing "
          "the model on answers you had just shown it."]),
-    embed(pipeline.extract_label, pipeline.run_prompt, pipeline.build_fewshot,
-          imports=["import random, re",
-                   "",
-                   "# The two helpers these lean on: `label_set` you have met, and",
-                   "# `_default_backend` is the connection `setup()` opened above.",
-                   "from pipeline import label_set, _default_backend"],
-          why="# Read straight out of scripts/pipeline.py — this IS the code that runs."),
+    *source_cells(
+        [(pipeline.extract_label,
+          "**`extract_label` is doing more than it looks.** The model answers in prose; "
+          "this is what decides that *\"This looks like Move 2 to me\"* means `Move 2`. "
+          "It searches for label names, keeps the longest match, and falls back to "
+          "`\"??\"`. Every `??` in your run is a reply it could not read."),
+         (pipeline.run_prompt,
+          "**`run_prompt` is the loop**: one API call per item, the reply passed through "
+          "`extract_label`. The pacing and retrying happen inside `_default_backend`, "
+          "which is the connection `setup()` opened — that part is plumbing."),
+         (pipeline.build_fewshot,
+          "**`build_fewshot` puts worked examples in front of the model**, drawn from "
+          "the pool and skipping anything in your gold set — matched by text, because "
+          "sampling renumbered the ids. Without that skip you would be testing the "
+          "model on answers you had just shown it.")],
+        imports=["import random, re",
+                 "from pipeline import label_set, _default_backend"]),
     read_me_md(
         "And this is the scoring. `evaluate` prints per-class precision/recall/F1, "
         "Cohen's κ, and the confusion matrix — and **returns the macro-F1 as a number**, "
@@ -825,13 +1113,18 @@ cells_04 = [
          "a scale, and pass `labels=LABELS_ORDER` so it knows what that scale is.",
          "**`show_errors` is the one you will actually iterate on.** F1 tells you "
          "*whether* a round helped; only the errors tell you *what to change next*."]),
-    embed(metrics.evaluate, metrics.show_errors,
-          imports=["import pandas as pd",
-                   "from sklearn.metrics import (classification_report, "
-                   "confusion_matrix,",
-                   "                             cohen_kappa_score, f1_score)",
-                   "from pipeline import plot_confusion_matrix"],
-          why="# Read straight out of scripts/metrics.py — this IS the code that runs."),
+    *source_cells(
+        [(metrics.evaluate,
+          "**`evaluate`** prints per-class precision/recall/F1, Cohen's κ and the "
+          "confusion matrix — and **returns the macro-F1 as a number**, which is what "
+          "lets you collect one per round."),
+         (metrics.show_errors,
+          "**`show_errors`** is the one you will actually iterate on. F1 tells you "
+          "*whether* a round helped; only the errors tell you *what to change next*.")],
+        imports=["import pandas as pd",
+                 "from sklearn.metrics import (classification_report, confusion_matrix,",
+                 "                             cohen_kappa_score, f1_score)",
+                 "from pipeline import plot_confusion_matrix, label_set"]),
     md(
         "## Step 2 — The baseline (round 0)",
         "",
@@ -854,13 +1147,13 @@ cells_04 = [
         "",
         "Sentence: {text}",
         "```"),
-    step(
+    *step(
         2, "Baseline prompt (round 0) — and read what it got wrong",
         "get one honest number to beat, and the errors that tell you what to fix.",
         ["load_prompt(PROMPT_FILE)  ->  PROMPT",
-         "run_prompt(PROMPT, gold)  ->  predictions",
-         "evaluate(gold, predictions, ordered=..., labels=LABELS_ORDER)  ->  macro-F1",
-         "show_errors(gold, predictions)  ->  the items it got wrong",
+         "run_prompt(PROMPT, dev)  ->  predictions",
+         "evaluate(dev, predictions, ordered=..., labels=LABELS_ORDER)  ->  macro-F1",
+         "show_errors(dev, predictions)  ->  the items it got wrong",
          "PROMPT_FILE   (config.yaml: prompts/<track>.txt)"],
         "Day 3 Part A — the same two lines, plus the error table.",
         "f1_by_round · pred0",
@@ -872,25 +1165,43 @@ cells_04 = [
                "Note      : do not skip the last line. The errors are the ONLY thing that",
                "            tells you what to change; F1 only tells you afterwards",
                "            whether the change worked.",
-               "Careful   : keep N_PER_CLASS small for this. Full size is minutes of",
-               "            pure waiting per round on the free tier."],
+               "Note      : every number in this step and the next is a DEV number. It is",
+               "            your steering wheel, not your result."],
         starter=[
-            "# One entry per round from here on. Notebook 04 turns it into your table.",
+            "# One entry per round from here on. Notebook 05 turns it into your table.",
             "f1_by_round = {}",
             "",
-            "PROMPT = load_prompt(____)               # PROMPT_FILE",
+            "PROMPT = load_prompt(PROMPT_FILE)        # the starting prompt for your track",
             "print(PROMPT)",
-            "",
-            "pred0 = run_prompt(PROMPT, gold)",
-            'f1_by_round["round0 baseline"] = evaluate(gold, pred0,',
-            "                                          ordered=____,   # True only if your"
-            " labels are a SCALE",
-            "                                          labels=LABELS_ORDER)",
-            "",
-            "# Now look at what it actually got wrong. This is the cell that decides",
-            "# your next round.",
-            "show_errors(gold, pred0)",
         ]),
+    md("### Now send it to the model",
+       "",
+       "This is the slow cell: one API call per dev item, paced a few seconds apart to "
+       "stay inside the free tier. Forty items takes a couple of minutes.",
+       "",
+       "It is on its own **deliberately**. Scoring and reading the errors are separate "
+       "cells below, so that looking at your results again costs you nothing. If they "
+       "shared a cell with this one, every re-read would re-run every call and spend "
+       "your group's quota a second time."),
+    code("pred0 = run_prompt(PROMPT, dev)"),
+    md("### Now score it",
+       "",
+       "`evaluate` prints the table and the matrix, and hands back the macro-F1, which "
+       "we store under a name we choose.",
+       "",
+       "`ordered=False` is the safe default. Change it to `True` if — and only if — "
+       "your labels sit on a **scale** (A1 < A2 < … < C2, Low < Mid < High), where a "
+       "near miss is a smaller error than a far one. Move 1 / Move 2 / Move 3 are *not* "
+       "a scale: they are three different jobs, not three amounts."),
+    code('f1_by_round["round0 baseline (dev)"] = evaluate(dev, pred0,',
+         "                                               ordered=False,",
+         "                                               labels=LABELS_ORDER)"),
+    md("### Now read what it got wrong",
+       "",
+       "Do not skip this. The errors are the only thing that tells you *what to change*; "
+       "F1 only tells you afterwards whether the change worked. This is the cell that "
+       "decides your next round."),
+    code("show_errors(dev, pred0)"),
     md(
         "## Step 3 — Iterate, driven by the errors",
         "",
@@ -928,11 +1239,11 @@ cells_04 = [
         "`build_fewshot` draws examples from the pool while avoiding anything in your "
         "gold set — otherwise you would be testing the model on answers you had just "
         "shown it."),
-    step(
+    *step(
         3, "Iterate — 2–3 rounds, each one justified by the errors",
         "change one thing per round, for a reason you can point at in the error table.",
         ["build_fewshot(PROMPT, pool, gold)  ->  a new prompt with examples",
-         "run_prompt(...)  ·  evaluate(...)  ·  show_errors(...)   (as in step 2)"],
+         "run_prompt(PROMPT, dev)  ·  evaluate(dev, ...)  ·  show_errors(dev, ...)"],
         "Day 3 iterations 1–2. build_fewshot replaces typing the examples by hand.",
         "PROMPT (your best one) · f1_by_round",
         source="the cells above · scripts/pipeline.py · build_fewshot",
@@ -941,75 +1252,159 @@ cells_04 = [
                "Ask       : did the confusion matrix change SHAPE, or did everything",
                "            shift a little? Those need different next moves."],
         starter=[
-            "# ONE round. Copy this whole block for round 2, and again for round 3.",
-            "",
-            "# ── What did you see in the LAST round's errors, and what are you",
-            "#    changing because of it? One line each, before you run anything. ──",
+            "# Either add examples to the prompt you already have …",
             "#",
-            "#   I saw   >>> ",
-            "#   So I    >>> ",
-            "#   I expect>>> ",
+            "# `gold`, not `dev`: it is the list of items NOT to use as examples, and",
+            "# that has to include the test half, or the answers leak into the prompt.",
+            "#",
+            "# Note the NEW NAME on the left. Writing `PROMPT = build_fewshot(PROMPT, ...)`",
+            "# would add examples to the prompt that already has them every time you",
+            "# re-ran this cell, silently, and you would not see it in the numbers.",
+            "PROMPT_v1 = build_fewshot(PROMPT, pool, gold)",
             "",
-            "# Either add examples to the prompt you have …",
-            "PROMPT = build_fewshot(PROMPT, pool, gold)",
-            "# … or write a new prompt file (see the %%writefile example above) and",
-            "# load that instead:",
-            '# PROMPT = load_prompt("../prompts/____.txt")',
+            "# … or write a new prompt file (see the %%writefile example above) and load",
+            "# that instead:",
+            '# PROMPT_v1 = load_prompt(ROOT / "prompts" / "my_prompt_v1.txt")',
             "",
-            "pred1 = run_prompt(PROMPT, gold)",
-            'f1_by_round["round1 ____"] = evaluate(gold, pred1,      # name the CHANGE',
-            "                                      ordered=____, labels=LABELS_ORDER)",
-            "",
-            "# Read these before you design round 2.",
-            "show_errors(gold, pred1)",
+            "print(PROMPT_v1)",
         ]),
+    md("### Now run this round",
+       "",
+       "Again on its own, and again for the same reason: one API call per dev item, so "
+       "a re-run costs your group real quota."),
+    code("pred1 = run_prompt(PROMPT_v1, dev)"),
+    md("### Now score it, and read the new errors",
+       "",
+       "Name the key for what you **changed**, not which round it was. In the report, "
+       "*\"round1 four examples per label\"* is an argument; *\"round1\"* is a row "
+       "number.",
+       "",
+       "Keep `ordered` the same as the baseline, or the two rounds are not comparable."),
+    code('f1_by_round["round1 four examples per label (dev)"] = evaluate(',
+         "    dev, pred1, ordered=False, labels=LABELS_ORDER)"),
+    md("Now the errors again — these are what design round 2."),
+    code("show_errors(dev, pred1)"),
+    md("### Then do it again",
+       "",
+       "For round 2, copy the **three cells above** — change the prompt, run it, score "
+       "it — and rename `PROMPT_v1` / `pred1` to `PROMPT_v2` / `pred2` as you go, along "
+       "with the key in `f1_by_round`. Reusing a name is how a round silently scores "
+       "the round before it and reports an identical F1.",
+       "",
+       "Whichever version wins on dev is the one you carry into step 4."),
     md(
-        "## Step 4 — Freeze",
+        "## Step 4 — The held-out run",
         "",
-        "A hosted model is only *best-effort* reproducible, even at `temperature=0`. So "
-        "once your best prompt is settled:",
+        "This is the first time all week that `TEST_PATH` gets opened. Your prompt is "
+        "settled, you run it once against items it has never been tuned against, and "
+        "**whatever comes out is what you report.**",
         "",
-        "1. Raise `n_per_class` in `config.yaml` to full size — and re-run notebooks 02 and "
-        "03 if that changes your sample. (If it does, you have more annotating to do. "
-        "This is why you decide the size **before** you annotate.)",
-        "2. Run the model **once**, on your best prompt.",
-        "3. `save_json` the predictions to a file.",
+        "Expect it to be lower than your best dev round. That is the normal result, not a "
+        "failure and not a sign you did something wrong: the gap is roughly how much of "
+        "your improvement was tuning to those particular dev items rather than to the "
+        "task. Reporting the gap is a stronger finding than reporting a high number, and "
+        "notebook 05 asks you for it.",
         "",
-        "Every number you report from here on comes out of that file. That is what makes "
-        "your F1 hold still, and what lets anyone else re-run your analysis on exactly "
-        "the outputs you saw.",
+        "A hosted model is only *best-effort* reproducible even at `temperature=0`, so "
+        "the run is frozen to a file and every number in notebook 05 comes out of that "
+        "file rather than out of this session's memory.",
+        "",
+        "**Nothing here stops you running it twice.** Stopping you would be the wrong "
+        "design — a genuine mistake at four o'clock on the last day needs a way forward. "
+        "So instead: nothing is overwritten (a second run lands in "
+        "`..._predictions_attempt2.json`), and every scoring appends a line to a log that "
+        "goes into your submission. A second attempt is allowed. It is just not invisible, "
+        "and §5 of your report has to account for it.",
         "",
         "**One person runs this.** It is the run you will be defending."),
-    step(
-        4, "The final run, frozen to a file",
-        "one full-size run on your best prompt, saved so the numbers stop moving.",
-        ["run_prompt(PROMPT, gold)  ->  predictions",
-         "save_predictions(predictions, PRED_PATH)  ·  load_predictions(PRED_PATH)",
-         "save_json(f1_by_round, ROUNDS_PATH, what=\"rounds\")"],
+    *step(
+        4, "The final run — on the held-out test set",
+        "one run on items you have never looked at, frozen so the numbers stop moving.",
+        ["load_gold(TEST_PATH)  ->  test        (opened here and nowhere else)",
+         "run_prompt(PROMPT, test)  ->  predictions",
+         "save_test_run(predictions, PRED_PATH)  ->  path, attempt",
+         "record_test_scoring(TESTLOG_PATH, ...)   ·   save_json(f1_by_round, ROUNDS_PATH)"],
         "Day 2 S6 loaded a frozen file we made; now you make your own.",
-        "pred_final",
-        source="scripts/pipeline.py · save_predictions, load_predictions, save_json",
+        "test · pred_final",
+        source="scripts/pipeline.py · save_test_run, record_test_scoring",
         starter=[
-            "predictions = run_prompt(____, gold)          # PROMPT — your best one",
-            "save_predictions(predictions, PRED_PATH)",
+            "test = load_gold(TEST_PATH)      # the first time this file is opened all week",
             "",
-            "# Report from the FILE, not from the variable: this is the check that the",
-            "# file you will quote is the file you think it is.",
-            "pred_final = load_predictions(PRED_PATH)",
+            "# The prompt that won on dev. Change this to PROMPT_v2, or whichever round",
+            "# came out best — it is the one you are about to be judged on.",
+            "FINAL_PROMPT = PROMPT_v1",
             "",
-            "# The rounds table exists only in this session's memory until now.",
-            'save_json(f1_by_round, ROUNDS_PATH, what="rounds")',
+            "# Your best DEV round, noted BEFORE the test row joins the table. The gap",
+            "# between this and what you are about to get is a finding in its own right.",
+            "best_dev = max(f1_by_round.values())",
+            'print("best dev round:", round(best_dev, 3))',
         ],
-        extra=["Freeze    : save, then load it straight back and use THAT from now on.",
+        signpost="",
+        extra=["Once      : the test set is opened here, scored here, and not touched",
+               "            again. Steps 2–3 never load it.",
+               "Freeze    : save, then load it straight back and use THAT from now on.",
                "            Reading it back is not superstition — it is the check that",
                "            the file you will report from is the file you think it is.",
-               "Careful   : save f1_by_round too. Notebook 04 needs it, and it is the",
+               "Note      : the test row goes in LAST, so the rounds table in your report",
+               "            reads as the dev trail with the held-out score at the bottom.",
+               "Careful   : `note=` is not decoration. A second attempt with the SAME",
+               "            prompt is a re-roll of the dice; a second attempt with a",
+               "            DIFFERENT one is a prompt tuned after seeing the held-out",
+               "            set. The log fingerprints the prompt either way, so say",
+               "            which it was.",
+               "Careful   : save f1_by_round too. Notebook 05 needs it, and it is the",
                "            one thing here that exists only in this session's memory."]),
+    md(
+        "### Now the run itself",
+        "",
+        "**One cell, one call, and it is the one you will be defending.** It is on its "
+        "own so that nothing else in this notebook can fail *after* it and leave you "
+        "re-running it — every re-run is another line in the log and another attempt "
+        "number to account for in report §5.",
+        "",
+        "It saves immediately, before anything is scored. `save_test_run` never "
+        "overwrites: a second run lands in `..._predictions_attempt2.json` beside the "
+        "first, and both stay."),
+    code("predictions = run_prompt(FINAL_PROMPT, test)",
+         "pred_path, attempt = save_test_run(predictions, PRED_PATH)",
+         'print("frozen to", pred_path.name, "· attempt", attempt)'),
+    md(
+        "### Now score it — from the file",
+        "",
+        "We read the predictions straight back off disk and score *those*. That is not "
+        "superstition: it is the check that the file you will quote in your report is "
+        "the file you think it is."),
+    code("pred_final = load_predictions(pred_path)",
+         'f1_by_round["FINAL test (held out)"] = evaluate(',
+         "    test, pred_final, ordered=False, labels=LABELS_ORDER)"),
+    md(
+        "### Now write the audit trail",
+        "",
+        "One line appended to a log that travels in your submission bundle: the score, "
+        "which attempt it was, and a fingerprint of the prompt that produced it.",
+        "",
+        "`note=` is not decoration. A second attempt with the **same** prompt is a "
+        "re-roll of the dice; a second attempt with a **different** one is a prompt "
+        "tuned after seeing the held-out set. The log fingerprints the prompt either "
+        "way, so say which it was."),
+    code("record_test_scoring(TESTLOG_PATH,",
+         '                    macro_f1=f1_by_round["FINAL test (held out)"],',
+         "                    attempt=attempt, pred_path=pred_path,",
+         "                    prompt=FINAL_PROMPT, prompt_file=PROMPT_FILE,",
+         "                    gold_items=test, predictions=pred_final,",
+         "                    dev_f1=best_dev,",
+         '                    note="")     # ← if this is not attempt 1, say WHY here'),
+    md(
+        "### Finally, save the rounds table",
+        "",
+        "It has existed only in this session's memory until now, and notebook 05 needs "
+        "it to print your iteration table."),
+    code('save_json(f1_by_round, ROUNDS_PATH, what="rounds")'),
     md(
         "---",
         "",
-        "**Next:** open `05_report.ipynb`. It loads the two files you just wrote and "
-        "nothing else — so from here on, your numbers cannot move."),
+        "**Next:** open `05_report.ipynb`. It loads the files you just wrote and nothing "
+        "else — so from here on, your numbers cannot move."),
 ]
 
 # ==================================================================================
@@ -1017,48 +1412,87 @@ cells_04 = [
 # ==================================================================================
 cells_05 = [
     title_cell(
-        "04", "04_report", "Error analysis and export",
+        "05", "05_report", "Error analysis and export",
         "Show an item the model got wrong, and say whose fault it was.",
-        "the gold set (02) · the frozen predictions and rounds (03)",
-        "`outputs/` — the predictions CSV, the report scaffold, a copy of your gold set",
+        "the dev/test split (03) · the frozen predictions, rounds and test log (04)",
+        "`outputs/` — the predictions CSV, the report scaffold, a copy of your test set",
         ["This is the highest-value part of the whole project, and the one the Q&A will "
          "definitely go to. A low F1 with a clear account of *why* is worth more than a "
-         "high one without."]),
+         "high one without.",
+         "",
+         "Everything scored here is the **held-out test set**. The per-round table from "
+         "notebook 04 is your dev trail — how you got to the prompt — and the two are "
+         "different claims."]),
     md(*SETUP_MD),
     setup_cell([
         "",
         "# Loading files is plumbing. The scoring, the error table and the triage are",
         "# the analysis this notebook is about, so they are in the notebook, below.",
         "from pipeline import (load_gold, load_predictions, load_json, save_json,",
-        "                      export_results)",
+        "                      export_results, read_test_log)",
         "from annotate import remembered_sheet, load_coder_sheets, disagreements",
     ]),
     CONFIG_MD,
-    step(
+    md("## Step 1 — Open the frozen run",
+       "",
+       "Now we load the four files notebook 04 left behind: the held-out test set, the "
+       "dev half (only so the report can say how big it was), the predictions file, and "
+       "the per-round table.",
+       "",
+       "**Nothing in this notebook calls the model.** If a number here differs from "
+       "what notebook 04 printed, you are loading a different file — not watching the "
+       "model change its mind."),
+    *step(
         1, "Load the frozen run",
-        "the gold set, the predictions file, and the per-round table.",
-        ["load_gold(GOLD_PATH)  ->  gold",
+        "the test set, the predictions file, and the per-round table.",
+        ["load_gold(TEST_PATH)  ->  test        (what everything here is scored on)",
+         "load_gold(DEV_PATH)  ->  dev          (only to say how big it was)",
          "load_predictions(PRED_PATH)  ->  pred_final",
          "load_json(ROUNDS_PATH, what=\"rounds\")  ->  f1_by_round"],
         "Day 2 S6 — loading a frozen predictions file is exactly what you did there.",
-        "gold · pred_final · f1_by_round",
+        "test · dev · pred_final · f1_by_round",
         source="scripts/pipeline.py · load_gold, load_predictions, load_json",
         extra=["Note      : nothing in this notebook calls the model. If a number here",
                "            differs from notebook 04, you are loading a different file —",
-               "            not watching the model change its mind."],
+               "            not watching the model change its mind.",
+               "Careful   : the last line must print the SAME two counts. If there are",
+               "            more predictions than test items, you froze a run on dev —",
+               "            go back to step 4 of notebook 04."],
         starter=[
-            "gold = load_gold(____)                 # GOLD_PATH",
-            "pred_final = load_predictions(____)    # PRED_PATH",
-            'f1_by_round = load_json(____, what="rounds")      # ROUNDS_PATH',
+            "test = load_gold(TEST_PATH)     # the held-out half — everything below is this",
+            "dev  = load_gold(DEV_PATH)      # only so the report can say how big it was",
+            "pred_final = load_predictions(PRED_PATH)",
+            'f1_by_round = load_json(ROUNDS_PATH, what="rounds",',
+            '                        made_by="notebook 04_prompt")',
             "",
-            'print(len(gold), "gold ·", len(pred_final), "predictions")',
-            "f1_by_round",
+            'print(len(dev), "dev ·", len(test), "test ·", len(pred_final), "predictions")',
         ]),
+    md("Now the table of rounds, as notebook 04 left it.",
+       "",
+       "The cell is just the name `f1_by_round`, with no `print`. In a notebook the "
+       "value of a cell's last line is displayed automatically, and for a table that is "
+       "easier to read than `print` would give you."),
+    code("f1_by_round"),
+    md(
+        "### Your test log",
+        "",
+        "How many times the held-out set was scored. **One row is what we expect.** More "
+        "than one is allowed — that is why this file exists rather than a lock — but "
+        "whichever row your headline comes from, report §5 has to account for the others.",
+        "",
+        "Look at `prompt_sha1`. Two rows with the *same* fingerprint are the same prompt "
+        "run twice, which is a re-roll of the dice and tells you something useful about "
+        "how stochastic the model is. Two rows with *different* fingerprints are a prompt "
+        "that changed after you had seen the held-out set — a different thing entirely, "
+        "and one you have to say out loud."),
+    code(
+        "read_test_log(TESTLOG_PATH)",
+        ""),
     read_me_md(
-        "The functions the rest of this notebook is made of. `evaluate` and "
-        "`show_errors` are the same ones you ran in 03. `errors_on_disagreed` and "
-        "`triage_counts` are new, and they are what turns a list of mistakes into an "
-        "argument.",
+        "The two new functions the rest of this notebook is made of. `evaluate` and "
+        "`show_errors` are the same ones you read in notebook 04, so they are imported "
+        "here rather than shown again. `errors_on_disagreed` and `triage_counts` are "
+        "what turn a list of mistakes into an argument.",
         ["**`show_errors` keeps only the rows where gold and prediction differ**, and "
          "returns them as a `DataFrame` — a table, which is why Colab draws it nicely "
          "and why you can filter it with `errors[errors.gold == \"…\"]` below.",
@@ -1068,29 +1502,51 @@ cells_05 = [
          "**Nothing here calls the model.** Every function takes lists you already "
          "loaded. That is what \"frozen\" means: from here on your numbers can only "
          "change if you load a different file."]),
-    embed(metrics.evaluate, metrics.show_errors, metrics.errors_on_disagreed,
-          metrics.triage_counts,
-          imports=["import pandas as pd",
-                   "from sklearn.metrics import (classification_report, "
-                   "confusion_matrix,",
-                   "                             cohen_kappa_score, f1_score)",
-                   "from pipeline import (plot_confusion_matrix, label_set,",
-                   "                      triage_category, TRIAGE_CATEGORIES)"],
-          why="# Read straight out of scripts/metrics.py — this IS the code that runs."),
-    step(
+    *source_cells(
+        [(metrics.errors_on_disagreed,
+          "**`errors_on_disagreed` does one join**, on the item id. Look at how little "
+          "there is to it — the whole force of that number comes from the fact that you "
+          "built both tables yourselves, from the same forty items."),
+         (metrics.triage_counts,
+          "**`triage_counts`** counts your judgments by category, and tells you how much "
+          "of the error set you have actually been through. \"We looked at 3 of 40\" and "
+          "\"we looked at all 12\" are different claims.")],
+        imports=["import pandas as pd",
+                 "from metrics import evaluate, show_errors",
+                 "from pipeline import triage_category, TRIAGE_CATEGORIES"]),
+    md(
+        "## Step 2 — The headline number",
+        "",
+        "**This one is the result.** It is measured on items your prompt was never tuned "
+        "against, which is what makes it worth quoting; the per-round table above is the "
+        "*story of how you got here*, and belongs in report §2 rather than §3.",
+        "",
+        "Compare it to your best dev round. If test came out lower, that is the ordinary "
+        "outcome and the gap is itself a finding — roughly, how much of your improvement "
+        "was tuning to those particular dev items rather than to the task. Say what you "
+        "make of it in one sentence. And keep the sample size in view while you do: a few "
+        "points either way on twenty-odd items is noise, so read a small gap as \"we "
+        "cannot tell these apart\" rather than as a result."),
+    *step(
         2, "Score the frozen run",
         "the headline numbers, from the file rather than from a live run.",
-        ["evaluate(gold, pred_final, ordered=..., labels=LABELS_ORDER)  ->  macro-F1"],
+        ["evaluate(test, pred_final, ordered=..., labels=LABELS_ORDER)  ->  macro-F1"],
         "Day 2 S6 Part B · Day 3 — the identical call.",
         "macro_f1 — the numbers for report section 3",
         source="the cell just above · scripts/metrics.py · evaluate",
         starter=[
-            "macro_f1 = evaluate(gold, pred_final,",
-            "                    ordered=____,        # True only if your labels are a SCALE",
+            "# Use the SAME `ordered` you used in notebook 04. If you switch it here,",
+            "# the headline number stops matching the table you reported the rounds in.",
+            "macro_f1 = evaluate(test, pred_final,",
+            "                    ordered=False,       # True only if your labels are a SCALE",
             "                    labels=LABELS_ORDER)",
-            'print("macro-F1:", round(macro_f1, 3))',
+            'print("macro-F1 on the held-out test set:", round(macro_f1, 3))',
         ],
-        extra=["Note      : evaluate prints per-class P/R/F1 and kappa as well as the",
+        extra=["Ask       : how far below your best DEV round did this land? That",
+               "            distance is roughly how much of your improvement was tuning",
+               "            to those particular dev items. A few points on a test set",
+               "            this size is noise; a large gap is a finding.",
+               "Note      : evaluate prints per-class P/R/F1 and kappa as well as the",
                "            macro average. \"Which class is it worst at\" is a more useful",
                "            sentence than \"F1 = .62\" — read the table, not just the",
                "            headline.",
@@ -1122,10 +1578,10 @@ cells_05 = [
         "The difference between `scheme` and `wording` is worth being careful about: one "
         "of them is fixable by prompting and the other is not, and confusing them is how "
         "groups spend three rounds on a problem no prompt can reach."),
-    step(
+    *step(
         3, "The errors, and where they land",
         "get the misses, and see how many fall on items your own coders split on.",
-        ["show_errors(gold, pred_final)  ->  a table of the items it got wrong",
+        ["show_errors(test, pred_final)  ->  a table of the items it got wrong",
          "errors_on_disagreed(errors, disagreed)  ->  the overlapping ids",
          "load_coder_sheets(SHEET_ID, CODERS) · disagreements(...)   (as in 03)"],
         "Day 3, \"where is your best prompt still wrong?\" — identical call.",
@@ -1137,24 +1593,61 @@ cells_05 = [
                "            overlap is just as reportable, and means something else.",
                "Careful   : re-reading the sheet needs the same coder names you used in",
                "            notebook 03. Skip these lines if the sheet is gone — the",
-               "            triage below still works without it."],
+               "            triage below still works without it.",
+               "Note      : `disagreed` covers the WHOLE sheet, both halves, while",
+               "            `errors` only covers the test half — so the overlap is",
+               "            smaller than it would have been without a split. Nothing is",
+               "            broken. The split kept every item's original id precisely so",
+               "            that this join still lines up."],
         starter=[
-            "errors = show_errors(gold, pred_final)",
+            "errors = show_errors(test, pred_final)",
             "errors.head(15)",
-            "",
-            "# `errors` is a table. To look at one label's misses, keep the rows whose",
-            "# gold column equals it — put in one of YOUR labels, spelled as LABELS has",
-            "# been printing them:",
-            'errors[errors.gold == "____"]',
-            "",
-            "# Now the cross-reference: your coders' disagreements, back from the sheet.",
-            'CODERS = ["CoderA", "CoderB"]        # the same names you used in 03',
-            "SHEET_ID = remembered_sheet(SHEET_PATH)",
-            "rows = load_coder_sheets(SHEET_ID, CODERS)",
-            "disagreed = disagreements(rows, coders=CODERS)",
-            "",
-            "overlap = errors_on_disagreed(errors, disagreed)",
         ]),
+    md("### Now look at one label's misses at a time",
+       "",
+       "`errors` is a table, and `errors[errors.gold == \"…\"]` keeps only the rows "
+       "whose `gold` column equals what you put in the quotes. Start with the class "
+       "`evaluate` scored worst.",
+       "",
+       "The cell picks that class for you, but the choice worth making is *which* label "
+       "— replace the first line with e.g. `LOOK_AT = \"Move 2\"` and re-run it as often "
+       "as you like."),
+    code("# The label with the most misses. Counting them out, one row at a time.",
+         "miss_counts = {}",
+         'for label in errors["gold"]:',
+         "    if label not in miss_counts:",
+         "        miss_counts[label] = 0",
+         "    miss_counts[label] = miss_counts[label] + 1",
+         "",
+         "LOOK_AT = max(miss_counts, key=miss_counts.get)   # <- or type a label yourself",
+         'print("looking at:", LOOK_AT, "·", miss_counts)',
+         "",
+         'errors[errors["gold"] == LOOK_AT]'),
+    md("### Now the cross-reference — where did YOUR coders disagree?",
+       "",
+       "This cell goes back to the Google Sheet, so it may ask you to sign in again, "
+       "and it needs the same coder names you used in notebook 03.",
+       "",
+       "**Skip this cell and the next if the sheet is gone.** The triage in step 4 "
+       "still works without them."),
+    code('CODERS = ["CoderA", "CoderB"]        # the same names you used in 03',
+         "SHEET_ID = remembered_sheet(SHEET_PATH)",
+         "rows = load_coder_sheets(SHEET_ID, CODERS)",
+         "disagreed = disagreements(rows, coders=CODERS)"),
+    md("### Now the number this whole project has been building towards",
+       "",
+       "How many of the model's errors land on the very items your two coders could not "
+       "agree on either. If they cluster there, what you have measured is a fuzzy "
+       "boundary in your annotation scheme rather than a stupid model — and that is a "
+       "better finding than a clean F1.",
+       "",
+       "Write it down **either way**: a low overlap is just as reportable, and means "
+       "something else. Note too that `disagreed` covers the whole sheet while `errors` "
+       "covers only the test half, so the overlap is smaller than it would have been "
+       "without a split. Nothing is broken — the split kept every item's original id "
+       "precisely so this join still lines up."),
+    code("overlap = errors_on_disagreed(errors, disagreed)",
+         'print("ids to read again before you blame the model:", overlap)'),
     md(
         "## Step 4 — Triage: say what each error is *caused by*",
         "",
@@ -1182,7 +1675,7 @@ cells_05 = [
         "are our scheme's\"* is a finding rather than an impression. And every `wording` "
         "line is a concrete next prompt round, which is what to say when someone asks "
         "what you would do with another week."),
-    step(
+    *step(
         4, "Triage the errors",
         "attribute each miss, from the four categories, with a reason.",
         ["TRIAGE_CATEGORIES  ->  model · scheme · wording · ambiguous",
@@ -1196,19 +1689,26 @@ cells_05 = [
                "Ask       : do your `scheme` ids overlap with `overlap` from step 3? If",
                "            they do, say so — your own coders are the evidence."],
         starter=[
+            "# One line per error you have discussed: the id from the `errors` table",
+            "# above, then one of the four category words, then WHY you say so.",
+            "# It runs empty — and tells you how many you still owe — so add your own",
+            "# and re-run as you work through them, out loud, together.",
             "TRIAGE = {",
-            '    ____: "____ — ____",       # id: category — why you say so',
-            '    ____: "____ — ____",',
-            '    ____: "____ — ____",',
+            "    # 7: \"scheme — Move 1/Move 2 boundary; our coders split on this one too\",",
             "}",
             "",
             "triage_counts(TRIAGE, errors)",
-            'save_json(TRIAGE, TRIAGE_PATH, what="triaged errors")',
         ]),
+    md("### Now save your triage",
+       "",
+       "Once the counts above read the way you want them to. Step 5 reads this file "
+       "straight into report §4, so your reasons end up in the report rather than in "
+       "somebody's notes."),
+    code('save_json(TRIAGE, TRIAGE_PATH, what="triaged errors")'),
     md(
         "## Step 5 — Export",
         "",
-        "Writes your gold set, a per-item predictions CSV, and a one-page report "
+        "Writes your test set, a per-item predictions CSV, and a one-page report "
         "scaffold with the five required sections, all stamped with your group name.",
         "",
         "The scaffold fills in what it can compute — labels, counts, the F1-per-round "
@@ -1217,19 +1717,23 @@ cells_05 = [
         "the pattern in your `scheme` errors, and limitations that apply to **your** run "
         "rather than the generic three. A section left as the placeholder scores zero, "
         "so this is the start of the writing, not the end."),
-    step(
+    *step(
         5, "Export",
         "write the gold set, the predictions CSV, and the report scaffold.",
-        ["export_results(TRACK, gold, pred_final, f1_by_round, OUT_DIR, group=GROUP,",
-         "               run=RUN, triage=TRIAGE)"],
+        ["export_results(TRACK, test, pred_final, f1_by_round, OUT_DIR, group=GROUP,",
+         "               run=RUN, triage=TRIAGE, dev=dev)"],
         "new — but it only writes down what you already have.",
         "three files in ../outputs/",
         source="scripts/pipeline.py · export_results",
         extra=["Note      : pass triage=TRIAGE and section 4 becomes your analysis. Leave",
-               "            it off and section 4 is a placeholder asking you for it."],
+               "            it off and section 4 is a placeholder asking you for it.",
+               "Note      : pass dev=dev and the report says which half is which — how",
+               "            many items you tuned on, how many you reported on, and that",
+               "            the rounds table is a dev trail with one test row at the",
+               "            bottom. From the numbers alone a reader cannot tell."],
         starter=[
-            "export_results(TRACK, gold, pred_final, f1_by_round, OUT_DIR,",
-            "               group=GROUP, run=RUN, triage=TRIAGE)",
+            "export_results(TRACK, test, pred_final, f1_by_round, OUT_DIR,",
+            "               group=GROUP, run=RUN, triage=TRIAGE, dev=dev)",
         ]),
     md(
         "---",
