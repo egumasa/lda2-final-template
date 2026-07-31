@@ -62,15 +62,29 @@ RUN = _setting("run")
 SEED = _setting("seed")
 N_PER_CLASS = _setting("n_per_class")
 
-# The dev/test split. Exactly one of these is set; the other stays commented out in the
-# YAML and reads as None here. Which one you set is itself a decision — see config.yaml.
-DEV_PER_CLASS = settings.get("dev_per_class")
-DEV_FRACTION = settings.get("dev_fraction")
+# How big the dev half is. ONE setting, and its type says which of the two ways you
+# meant: a whole number is items per label (dev: 3), a decimal is a proportion of each
+# label (dev: 0.35). This used to be two keys, dev_per_class and dev_fraction, of which
+# you had to set exactly one — two names, a validator and two call arguments for a
+# single decision.
+DEV = _setting("dev")
 
 # Left empty in the YAML, these read as None. Downstream code expects a list of members
 # and expects None to mean "no label order given", so hand it what it expects.
 MEMBERS = _setting("members") or []
 LABELS_ORDER = _setting("labels_order") or None
+
+# Who labels. These are the annotation sheet's coder column headers, and notebooks 03
+# and 05 both need them to match — a mismatch used to mean the join in 05 came back
+# empty with nothing to say why, because the names were typed separately in each
+# notebook. One setting, read by both.
+CODERS = _setting("coders") or ["CoderA", "CoderB"]
+if len(CODERS) < 2:
+    raise ValueError(
+        "config.yaml lists " + str(len(CODERS)) + " coder(s) under `coders:`. Double "
+        "coding needs at least two: agreement between one person and themselves is not "
+        "a number, and notebook 03 has nothing to adjudicate.\n"
+        "Then re-run the SETUP cell at the top of this notebook.")
 
 
 # ----------------------------------------------------------------------------------
@@ -81,50 +95,49 @@ LABELS_ORDER = _setting("labels_order") or None
 # neither means notebook 03 cannot draw the line between the items you may look at and
 # the items you report on, which is the one thing that makes your final number honest.
 _SPLIT_HELP = (
-    "Set EXACTLY ONE of these in config.yaml, and leave the other commented out:\n"
-    "    dev_per_class: 3      # a fixed number of dev items per label\n"
-    "    dev_fraction:  0.35   # a proportion of each label's items\n"
+    "Set `dev:` in config.yaml to one of these:\n"
+    "    dev: 3       a whole number — that many dev items per label\n"
+    "    dev: 0.35    a decimal between 0 and 1 — that proportion of each label\n"
     "Then re-run the SETUP cell at the top of this notebook."
 )
 
-if DEV_PER_CLASS is not None and DEV_FRACTION is not None:
+if DEV is None:
     raise ValueError(
-        "config.yaml sets BOTH dev_per_class (" + str(DEV_PER_CLASS) + ") and "
-        "dev_fraction (" + str(DEV_FRACTION) + "), so the split is ambiguous.\n"
-        + _SPLIT_HELP
-    )
-
-if DEV_PER_CLASS is None and DEV_FRACTION is None:
-    raise ValueError(
-        "config.yaml sets neither dev_per_class nor dev_fraction, so there is no "
-        "dev/test split.\n"
+        "config.yaml has `dev:` with nothing after it, so there is no dev/test split.\n"
         "The split is what separates the items you tune your prompt on from the items "
         "you report a score on. Without it, the number in your report is the number you "
         "tuned until it went up.\n"
         + _SPLIT_HELP
     )
 
-if DEV_FRACTION is not None and not (0 < DEV_FRACTION < 1):
+# bool before int: in Python `True` IS an int, and `dev: yes` in YAML arrives here as
+# True, which would otherwise be read as "1 dev item per label" without complaining.
+if isinstance(DEV, bool) or not isinstance(DEV, (int, float)):
     raise ValueError(
-        "config.yaml has dev_fraction: " + str(DEV_FRACTION) + ", which is not a "
-        "proportion. It has to be strictly between 0 and 1 — 0.35 means about a third of "
-        "each label goes to dev and the rest is held out.\n"
-        + _SPLIT_HELP
+        "config.yaml has dev: " + str(DEV) + ", which is neither a count nor a "
+        "proportion.\n" + _SPLIT_HELP
     )
 
-if DEV_PER_CLASS is not None:
-    if not isinstance(DEV_PER_CLASS, int) or isinstance(DEV_PER_CLASS, bool) \
-            or DEV_PER_CLASS < 1:
+if isinstance(DEV, float):
+    if not 0 < DEV < 1:
         raise ValueError(
-            "config.yaml has dev_per_class: " + str(DEV_PER_CLASS) + ", which has to be "
-            "a whole number of items, at least 1.\n" + _SPLIT_HELP
+            "config.yaml has dev: " + str(DEV) + ". A decimal is read as a proportion, "
+            "so it has to be strictly between 0 and 1 — 0.35 means about a third of each "
+            "label goes to dev and the rest is held out. For a fixed count per label, "
+            "write it without a decimal point.\n" + _SPLIT_HELP
         )
-    if DEV_PER_CLASS >= N_PER_CLASS:
+else:
+    if DEV < 1:
         raise ValueError(
-            "config.yaml has dev_per_class: " + str(DEV_PER_CLASS) + " and n_per_class: "
-            + str(N_PER_CLASS) + ". A dev set of " + str(DEV_PER_CLASS) + " per class out "
-            "of a sample of " + str(N_PER_CLASS) + " per class leaves nothing to test on.\n"
-            "Either lower dev_per_class, or raise n_per_class and redraw in notebook 02.\n"
+            "config.yaml has dev: " + str(DEV) + ", which leaves no dev set at all.\n"
+            + _SPLIT_HELP
+        )
+    if DEV >= N_PER_CLASS:
+        raise ValueError(
+            "config.yaml has dev: " + str(DEV) + " and n_per_class: " + str(N_PER_CLASS)
+            + ". A dev set of " + str(DEV) + " per class out of a sample of "
+            + str(N_PER_CLASS) + " per class leaves nothing to test on.\n"
+            "Either lower dev, or raise n_per_class and redraw in notebook 02.\n"
             "Then re-run the SETUP cell at the top of this notebook."
         )
 
@@ -185,6 +198,12 @@ GOLD_PATH = ROOT / "data" / "gold" / (STEM + "_gold.json")             # 03 writ
 DEV_PATH = ROOT / "data" / "gold" / (STEM + "_dev.json")               # 03 writes
 TEST_PATH = ROOT / "data" / "gold" / (STEM + "_test.json")             # 03 writes
 
+# The rows your coders labelled differently. Notebook 03 has them already, so it writes
+# them down; notebook 05 reads the file instead of signing back in to the Google Sheet
+# and re-deriving the same table. It also means step 3 of notebook 05 still works after
+# the sheet has been deleted or its owner has left.
+DISAGREED_PATH = ROOT / "data" / "gold" / (STEM + "_disagreed.json")   # 03 writes
+
 PRED_PATH = ROOT / "outputs" / (STEM + "_predictions.json")            # 04 writes:
 #                                                          the frozen run on TEST. The
 #   dev rounds are not saved at all — they exist to be thrown away.
@@ -218,10 +237,11 @@ def describe():
           "· n_per_class", N_PER_CLASS)
     # Two per-class counts in one config file are easy to mix up, so print the split as
     # a sentence rather than as a second bare number.
-    if DEV_PER_CLASS is not None:
-        print("split: dev_per_class", DEV_PER_CLASS, "per label · test gets the rest")
+    if isinstance(DEV, float):
+        print("split: dev", DEV, "of each label · test gets the rest")
     else:
-        print("split: dev_fraction", DEV_FRACTION, "of each label · test gets the rest")
+        print("split: dev", DEV, "per label · test gets the rest")
+    print("coders:", ", ".join(CODERS))
     print("labels order:", LABELS_ORDER)
     # Where the files go. Say it every time: it is the one setting nobody edits and
     # everybody depends on, and "which folder am I actually in" is the question behind

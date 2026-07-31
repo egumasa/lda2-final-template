@@ -77,10 +77,10 @@ this is the part a script could not have done for you, and the part the Q&A goes
 Everything you sample gets double-coded in one sheet, and the split happens after that. So it
 costs you no extra annotation. What it costs is items you are allowed to look at.
 
-- Which spec, and the number (set exactly one in `config.yaml`; the other stays commented out):
-  - [ ] `dev_per_class:` ___ — a fixed count per label. Suits a balanced draw (`sample_pool`),
-    where every class has the same number to give.
-  - [ ] `dev_fraction:` ___ — a proportion of each label. Suits an uneven draw
+- `dev:` ___ in `config.yaml`. How you write the number says which you meant:
+  - [ ] a **whole number** (`dev: 3`) — that many items per label. Suits a balanced draw
+    (`sample_pool`), where every class has the same number to give.
+  - [ ] a **decimal** (`dev: 0.35`) — that proportion of each label. Suits an uneven draw
     (`sample_random`), where a fixed 3-per-class would eat a small class whole.
 - Expected sizes: ___ dev / ___ test
 - Split by document? (`cars50` · `raamove`, and only if you drew that way): yes / no
@@ -99,6 +99,9 @@ costs you no extra annotation. What it costs is items you are allowed to look at
 > one line in that log, report §5 has to say which happened and why.
 
 ## 7. QC
+
+Set the coder names in `config.yaml` under `coders:` — notebooks 03 and 05 both read them
+from there, so they cannot drift apart. Write who is who here.
 
 - CoderA:
 - CoderB:

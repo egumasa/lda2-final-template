@@ -82,7 +82,7 @@ earns its keep.
 
 ## Layout
 
-- `config.yaml` — **the only file students edit** in the plumbing. Seven settings.
+- `config.yaml` — **the only file students edit** in the plumbing. Eight settings.
 - `config.py` — reads `config.yaml` and derives every path. Students never edit it, and
   never type a file path in a notebook; the file notebook 02 writes is by construction the
   file notebook 03 opens.

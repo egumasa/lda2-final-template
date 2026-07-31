@@ -43,8 +43,10 @@ from pipeline import (
     load_predictions,
     read_test_log,
     record_test_scoring,
+    freeze_test_run,
     reid,
     run_prompt,
+    sample,
     sample_pool,
     save_json,
     save_predictions,
@@ -176,6 +178,24 @@ def main():
             "sample_pool must renumber ids from 1"
     check("sample_pool(pool, n, seed) and sample_pool(pool, n)", sampling)
 
+    def sample_dispatches():
+        # Every strategy sized from the SAME n_per_class. Before this existed the
+        # notebook hard-coded 40 items for "random" and 10x4 for "by_document", so
+        # choosing either made n_per_class in config.yaml quietly dead.
+        assert sample(pool, "balanced", 3, 42) == sample_pool(pool, 3, 42), \
+            "sample(pool, 'balanced', n, seed) must be sample_pool(pool, n, seed)"
+        drawn = sample(pool, "random", 3, 42)
+        assert len(drawn) == 3 * len(label_set(pool)), \
+            "a random draw must total n_per_class x the number of labels"
+        try:
+            sample(pool, "blanced", 3, 42)      # a typo, not a strategy
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("sample must refuse a strategy name it does not know")
+    check("sample(pool, strategy, n_per_class, seed) sizes all strategies alike",
+          sample_dispatches)
+
     def fewshot():
         sampled = sample_pool(pool, 3, 42)
         short = build_fewshot(PROMPT, pool, sampled)
@@ -192,34 +212,36 @@ def main():
     print("\nThe dev/test split, and the audit trail on the held-out run")
 
     def split_partitions():
-        dev, test = split_dev_test(gold, dev_per_class=1)
+        dev, test = split_dev_test(gold, 1)
         dev_ids = [item["id"] for item in dev]
         test_ids = [item["id"] for item in test]
         assert len(set(dev_ids) & set(test_ids)) == 0, "dev and test must not overlap"
         assert sorted(dev_ids + test_ids) == sorted(item["id"] for item in gold), \
             "every gold item must land on exactly one side of the line"
-    check("split_dev_test(gold, dev_per_class=n) partitions the gold set", split_partitions)
+    check("split_dev_test(gold, n) partitions the gold set", split_partitions)
 
     def split_fraction():
-        dev, test = split_dev_test(gold, dev_fraction=0.5)
+        dev, test = split_dev_test(gold, 0.5)
         assert len(dev) > 0 and len(test) > 0, "both halves must be non-empty"
         assert len(dev) + len(test) == len(gold)
-    check("split_dev_test(gold, dev_fraction=f) partitions the gold set", split_fraction)
+    check("split_dev_test(gold, f) partitions the gold set", split_fraction)
 
-    def split_spec_is_exclusive():
-        for bad_call in (lambda: split_dev_test(gold),
-                         lambda: split_dev_test(gold, dev_per_class=1, dev_fraction=0.3)):
+    def split_size_is_read_by_type():
+        # A whole number is a per-label COUNT, a decimal is a PROPORTION. The type is
+        # the only thing that says which, so anything that is neither has to be refused
+        # rather than guessed at - including True, which Python counts as an int.
+        for bad in (None, True, "3", 0, 1.5, -1):
             try:
-                bad_call()
+                split_dev_test(gold, bad)
             except ValueError:
                 continue
-            raise AssertionError("exactly one of dev_per_class / dev_fraction is required")
-    check("split_dev_test rejects both specs, and neither", split_spec_is_exclusive)
+            raise AssertionError("split_dev_test accepted dev=" + repr(bad))
+    check("split_dev_test refuses a dev size it cannot read", split_size_is_read_by_type)
 
     def split_is_seeded():
-        a = split_dev_test(gold, dev_per_class=1, seed=42)
-        b = split_dev_test(gold, dev_per_class=1)          # seed defaulted
-        c = split_dev_test(gold, dev_per_class=1, seed=7)
+        a = split_dev_test(gold, 1, seed=42)
+        b = split_dev_test(gold, 1)          # seed defaulted
+        c = split_dev_test(gold, 1, seed=7)
         assert a == b, "the default seed must be the documented one (42)"
         assert a != c, "a different seed must give a different split"
     check("split_dev_test(gold, ..., seed) is reproducible", split_is_seeded)
@@ -229,7 +251,7 @@ def main():
         # that here would renumber the gold ids. Notebook 05 joins the model's errors
         # against the ids in the annotation sheet, and that join would silently start
         # comparing unrelated rows.
-        dev, test = split_dev_test(gold, dev_per_class=1)
+        dev, test = split_dev_test(gold, 1)
         by_id = {}
         for item in gold:
             by_id[item["id"]] = item["text"]
@@ -242,7 +264,7 @@ def main():
         # A label with a single item cannot appear on both sides. It has to be the one
         # that survives in TEST, or it drops out of the reported macro average unseen.
         thin = make_gold(1)[:1] + make_gold(3)[1:]
-        dev, test = split_dev_test(thin, dev_per_class=2)
+        dev, test = split_dev_test(thin, 2)
         test_labels = set(item["label"] for item in test)
         for label in label_set(thin):
             assert label in test_labels, \
@@ -255,7 +277,7 @@ def main():
             with_doc = dict(item)
             with_doc["doc_id"] = "doc" + str(index % 4)
             docs.append(with_doc)
-        dev, test = split_dev_test(docs, dev_fraction=0.4, by_document=True)
+        dev, test = split_dev_test(docs, 0.4, by_document=True)
         dev_docs = set(item["doc_id"] for item in dev)
         test_docs = set(item["doc_id"] for item in test)
         assert len(dev_docs & test_docs) == 0, \
@@ -267,7 +289,7 @@ def main():
         # putting the answer to a held-out item into the prompt that produces the
         # headline number. Notebook 04 passes the full gold set for exactly this reason.
         sampled = sample_pool(pool, 3, 42)
-        dev, test = split_dev_test(sampled, dev_per_class=1)
+        dev, test = split_dev_test(sampled, 1)
         example_block = build_fewshot(PROMPT, pool, sampled).split(
             "Now classify this one.")[0]
         for item in test:
@@ -299,13 +321,50 @@ def main():
             "the same prompt must fingerprint the same both times"
     check("record_test_scoring appends, read_test_log reads it back", test_log_appends)
 
+    def freeze_does_all_five():
+        # THE REGRESSION THIS GUARDS: this was four notebook cells, and a group that
+        # stopped after the second one had a predictions file with no log line beside
+        # it and a rounds table that never reached notebook 05. All five steps happen
+        # or none do.
+        out = work_dir / "freeze"
+        pred_path = out / "predictions.json"
+        log_path = out / "test_log.jsonl"
+        rounds_path = out / "rounds.json"
+        f1_by_round = {"round0 baseline (dev)": 0.4}
+
+        macro_f1 = freeze_test_run(
+            PROMPT, gold, f1_by_round, pred_path, log_path, rounds_path,
+            "prompts/track.txt", dev_f1=0.4, note="",
+            generate_text=lambda prompt: gold[0]["label"])
+
+        assert pred_path.exists(), "the predictions must be frozen to disk"
+        assert rounds_path.exists(), "the rounds table must be saved for notebook 05"
+        log = read_test_log(log_path)
+        assert len(log) == 1, "exactly one line per held-out scoring"
+        assert log["macro_f1"][0] == macro_f1, \
+            "the logged score must be the score it returned"
+        # Added LAST, so the report table reads dev rounds then the held-out score.
+        assert list(f1_by_round)[-1] == "FINAL test (held out)"
+        assert f1_by_round["FINAL test (held out)"] == macro_f1
+
+        # A second call is allowed and must be visible, not silent.
+        freeze_test_run(
+            PROMPT, gold, f1_by_round, pred_path, log_path, rounds_path,
+            "prompts/track.txt", note="ran it again",
+            generate_text=lambda prompt: gold[0]["label"])
+        assert len(read_test_log(log_path)) == 2, "a second attempt must be logged too"
+        assert pred_path.exists() and (out / "predictions_attempt2.json").exists(), \
+            "attempt 1's predictions must survive attempt 2"
+    check("freeze_test_run runs, freezes, re-reads, scores, logs and saves the rounds",
+          freeze_does_all_five)
+
     def export_both_forms():
         # The form that existed before the split - it must keep working untouched.
         written = export_results("track", gold, predictions, {"round0": 0.5},
                                  work_dir / "export_plain", group="g", run="v1")
         assert written["gold"].name.endswith("_gold.json")
         # And the split-aware form, which reports the test half and names it as such.
-        dev, test = split_dev_test(gold, dev_per_class=1)
+        dev, test = split_dev_test(gold, 1)
         test_predictions = predictions[:len(test)]
         with_dev = export_results("track", test, test_predictions, {"round0": 0.5},
                                   work_dir / "export_split", group="g", run="v1",

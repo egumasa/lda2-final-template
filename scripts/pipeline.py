@@ -578,6 +578,54 @@ def record_test_scoring(log_path, macro_f1, attempt, pred_path, prompt, prompt_f
     return record
 
 
+# The held-out run, end to end. Running the final prompt, freezing the predictions,
+# reading them back, scoring them, logging the attempt and saving the rounds table used
+# to be four notebook cells and three function names, for what is one decision: this
+# prompt, on the test set, once. Four cells is also four chances to stop halfway and
+# leave the log disagreeing with the predictions file.
+#
+# The paths are passed in rather than read from config.yaml, so that this file stays
+# runnable on its own - _check_call_forms.py exercises it against synthetic data.
+def freeze_test_run(prompt, test, f1_by_round, pred_path, log_path, rounds_path,
+                    prompt_file, dev_f1=None, note="", ordered=False, labels=None,
+                    key="FINAL test (held out)", generate_text=None):
+    """Run `prompt` on the held-out set, freeze it, score it, and log the attempt.
+
+    Returns the macro-F1. `f1_by_round` is updated in place, with the test score added
+    LAST so the table reads as the dev rounds in order with the held-out score at the
+    bottom, and then written to `rounds_path` for notebook 05.
+
+    `note` is not decoration. A second attempt with the SAME prompt is that prompt run
+    twice; a second attempt with a DIFFERENT one is a prompt tuned after seeing the
+    held-out set. Say which it was.
+    """
+    from metrics import evaluate      # imported here: metrics imports this module
+
+    predictions = run_prompt(prompt, test, labels=labels, generate_text=generate_text)
+    written_path, attempt = save_test_run(predictions, pred_path)
+    print("Froze to", Path(written_path).name, "· attempt", attempt)
+
+    # Scored from the file, not from the list still in memory. This is the one check
+    # that the file you will quote in your report is the file you think it is.
+    print("")
+    print("Reading", Path(written_path).name, "back off disk, and scoring that...")
+    pred_final = load_predictions(written_path)
+
+    macro_f1 = evaluate(test, pred_final, ordered=ordered, labels=labels)
+    f1_by_round[key] = macro_f1
+
+    record_test_scoring(log_path, macro_f1=macro_f1, attempt=attempt,
+                        pred_path=written_path, prompt=prompt, prompt_file=prompt_file,
+                        gold_items=test, predictions=pred_final, dev_f1=dev_f1,
+                        round_key=key, note=note)
+
+    # The rounds table has existed only in this session's memory until now, and
+    # notebook 05 needs it. Overwrite: re-running this cell means re-running the whole
+    # held-out scoring, and the table has to match the log it was written beside.
+    save_json(f1_by_round, rounds_path, what="rounds", overwrite=True)
+    return macro_f1
+
+
 # ----------------------------------------------------------------------------------
 # Handing work from one notebook to the next
 # ----------------------------------------------------------------------------------
@@ -625,6 +673,37 @@ def reid(items):
         renumbered.append(new_item)
         next_id = next_id + 1
     return renumbered
+
+
+# The three samplers, behind one name. Notebook 02 used to spell this out as an
+# if/elif over three calls, which meant three hard-coded sizes (40 items, 10 documents,
+# 4 sentences each) that had nothing to do with n_per_class in config.yaml - so
+# choosing "random" or "by_document" silently made that setting dead. Here every
+# strategy is sized from the same setting, and the choice stays one word.
+def sample(pool, strategy, n_per_class, seed=42, n_per_doc=4):
+    """Draw a sample using one of the three strategies, all sized from n_per_class.
+
+        "balanced"      up to n_per_class items of EACH label
+        "random"        the same TOTAL, drawn without regard to label
+        "by_document"   whole passages, enough of them to reach that total
+                        (cars50 and raamove only - other tracks have no documents)
+    """
+    n_labels = len(label_set(pool))
+    n_total = n_per_class * n_labels
+
+    if strategy == "balanced":
+        return sample_pool(pool, n_per_class, seed)
+    if strategy == "random":
+        return sample_random(pool, n_total, seed)
+    if strategy == "by_document":
+        # Enough documents to reach the same total, rounded up so the draw is never
+        # smaller than the other two strategies would have given.
+        n_docs = max(1, -(-n_total // n_per_doc))
+        return sample_by_document(pool, n_docs, n_per_doc, seed)
+
+    raise ValueError(
+        "strategy has to be balanced, random or by_document, and it says "
+        + repr(strategy) + ". Fix the line above and run this cell again.")
 
 
 def sample_pool(pool, n_per_class, seed=42):
@@ -806,14 +885,13 @@ def label_set(gold):
 #
 # The line is drawn after annotation, so it costs no extra coding - both halves were
 # double-coded in the same sheet. What it costs is items you are allowed to learn from.
-def split_dev_test(gold, dev_per_class=None, dev_fraction=None, seed=42,
-                   by_document=False):
+def split_dev_test(gold, dev, seed=42, by_document=False):
     """Split an adjudicated gold set into (dev, test).
 
-    Two ways to say how big dev should be, and you set exactly one:
+    `dev` says how big the dev half is, and how you write it says which you meant:
 
-        dev_per_class=3      a fixed number of dev items per label
-        dev_fraction=0.35    a proportion of each label's items
+        dev=3        a whole number — that many dev items per label
+        dev=0.35     a decimal between 0 and 1 — that proportion of each label's items
 
     Both stratify by label, so every label is represented on both sides of the line
     wherever the data allows it. The same seed always gives the same split.
@@ -821,7 +899,7 @@ def split_dev_test(gold, dev_per_class=None, dev_fraction=None, seed=42,
     Set by_document=True if you drew your sample with sample_by_document, so that no
     passage has some of its sentences in dev and the rest in test.
     """
-    _check_split_spec(dev_per_class, dev_fraction)
+    dev_per_class, dev_fraction = _read_dev_size(dev)
 
     if by_document:
         dev, test = _split_by_document(gold, dev_per_class, dev_fraction, seed)
@@ -832,27 +910,39 @@ def split_dev_test(gold, dev_per_class=None, dev_fraction=None, seed=42,
     return dev, test
 
 
-def _check_split_spec(dev_per_class, dev_fraction):
-    """Exactly one of the two ways of sizing dev - not both, not neither."""
-    how_many_given = 0
-    if dev_per_class is not None:
-        how_many_given = how_many_given + 1
-    if dev_fraction is not None:
-        how_many_given = how_many_given + 1
-    if how_many_given == 1:
-        return None
-    if how_many_given == 2:
-        problem = ("Both dev_per_class and dev_fraction were given, so the size of the "
-                   "dev set is ambiguous.")
-    else:
-        problem = "Neither dev_per_class nor dev_fraction was given, so there is no split."
-    raise ValueError(
-        problem + "\n"
-        "Set EXACTLY ONE of them in config.yaml, and leave the other commented out:\n"
-        "    dev_per_class: 3      # a fixed number of dev items per label\n"
-        "    dev_fraction:  0.35   # a proportion of each label's items\n"
-        "Then re-run the SETUP cell at the top of this notebook."
-    )
+def _read_dev_size(dev):
+    """Read one `dev` setting as (dev_per_class, dev_fraction) - exactly one of them set.
+
+    A count and a proportion are one decision, so config.yaml holds one key and the way
+    the number is written says which was meant: 3 is three items per label, 0.35 is a
+    third of each label. The two names survive below this line only because the split
+    functions need to tell the cases apart.
+    """
+    # bool before int: True is an int in Python, and `dev: yes` in YAML would otherwise
+    # be read as "1 dev item per label" without complaining.
+    if isinstance(dev, bool) or not isinstance(dev, (int, float)):
+        raise ValueError(
+            "dev=" + repr(dev) + " is neither a count nor a proportion.\n"
+            + _DEV_HELP)
+    if isinstance(dev, float):
+        if not 0 < dev < 1:
+            raise ValueError(
+                "dev=" + str(dev) + ". A decimal is read as a proportion of each label, "
+                "so it has to be strictly between 0 and 1. For a fixed count per label, "
+                "write it without a decimal point.\n" + _DEV_HELP)
+        return None, dev
+    if dev < 1:
+        raise ValueError(
+            "dev=" + str(dev) + " leaves no dev set at all.\n" + _DEV_HELP)
+    return dev, None
+
+
+_DEV_HELP = (
+    "Set `dev:` in config.yaml to one of these:\n"
+    "    dev: 3       a whole number - that many dev items per label\n"
+    "    dev: 0.35    a decimal between 0 and 1 - that proportion of each label\n"
+    "Then re-run the SETUP cell at the top of this notebook."
+)
 
 
 def _dev_target(bucket_size, dev_per_class, dev_fraction):

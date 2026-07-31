@@ -198,6 +198,12 @@ def errors_on_disagreed(errors, disagreed):
               "model's errors against.")
         return []
 
+    # Notebook 03 saves this table to a file and notebook 05 loads it back, which makes
+    # it a plain list of dicts by the time it arrives here rather than the DataFrame
+    # `disagreements` handed back. Accept either.
+    if not isinstance(disagreed, pd.DataFrame):
+        disagreed = pd.DataFrame(list(disagreed))
+
     error_ids = []
     for value in errors["id"]:
         error_ids.append(int(value))

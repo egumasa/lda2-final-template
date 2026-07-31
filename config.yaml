@@ -1,6 +1,6 @@
 # config.yaml — the one file you edit before running the notebooks.
 #
-# Seven settings. Every notebook reads this file, so you set them ONCE, as a group,
+# Eight settings. Every notebook reads this file, so you set them ONCE, as a group,
 # and notebooks 01-05 all agree with each other: same track, same seed, same file
 # names. That is the point of a shared file — five copies of a seed is five chances
 # for the sample in notebook 03 not to be the sample notebook 02 drew.
@@ -28,7 +28,7 @@
 
 
 # ----------------------------------------------------------------------------------
-# YOU EDIT — these seven
+# YOU EDIT — these eight
 # ----------------------------------------------------------------------------------
 
 # Which corpus and annotation scheme. It comes from your PLAN.md.
@@ -67,13 +67,13 @@ n_per_class: 10
 # opened until the last cell of notebook 04, is scored once, and is the number your
 # report leads with.
 #
-# Set EXACTLY ONE of the two. Leave the other commented out.
+# How the number is written says which of the two ways you meant:
 #
-#   dev_per_class: 3      a fixed number of dev items per label. Suits a balanced draw
-#                         (sample_pool), where every class has the same number to give.
-#   dev_fraction: 0.35    a proportion of each label. Suits an uneven draw
-#                         (sample_random), where a fixed 3-per-class would eat a small
-#                         class whole.
+#   dev: 3       a WHOLE NUMBER — that many dev items per label. Suits a balanced draw
+#                (sample_pool), where every class has the same number to give.
+#   dev: 0.35    a DECIMAL between 0 and 1 — that proportion of each label. Suits an
+#                uneven draw (sample_random), where a fixed 3-per-class would eat a
+#                small class whole.
 #
 # About 15 dev / 25 test out of 40 is the shape we expect. There is no right ratio at
 # this size, only one you can defend: a bigger dev gives steadier feedback while you
@@ -81,8 +81,17 @@ n_per_class: 10
 # smaller dev means prompt decisions made on very few items, which is how you tune to
 # noise and then watch the gain evaporate. PLAN.md section 6 asks you to write down
 # which way you went and why.
-dev_per_class: 3
-# dev_fraction: 0.35
+dev: 3
+
+# Who labels, and what their columns in the annotation sheet are called. Notebook 03
+# creates one tab per name, and notebook 05 uses the same names to find the rows your
+# coders disagreed about — so they are set here once rather than typed into two
+# notebooks that then have to match.
+# Two is the normal case. Three or more works: a row needs adjudicating when they do
+# not all agree.
+coders:
+  - CoderA
+  - CoderB
 
 # The Google accounts of everyone in your group. Notebook 03 gives each of them edit
 # access to the annotation sheet it creates. Leave this empty and the sheet lives in
