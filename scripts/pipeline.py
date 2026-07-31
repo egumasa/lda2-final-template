@@ -489,13 +489,24 @@ def run_prompt(prompt, gold, labels=None, generate_text=None):
     if generate_text is None:
         generate_text = _default_backend()
 
+    # A prompt that asks for {context} on a track whose items have none would quietly
+    # send the model an empty passage, once per item, and report a number as if it had
+    # tested something. Say so instead.
+    if "{context}" in prompt and not any(item.get("context") for item in gold):
+        print("WARNING: this prompt uses {context}, but none of these items carry one. "
+              "Only the rhetorical-move tracks (cars50, raamove) do. The model is about "
+              "to be shown an empty passage " + str(len(gold)) + " times.")
+
     predictions = []
     total = len(gold)
     position = 0
     for item in gold:
         position = position + 1
-        # Put this item's sentence into the prompt where {text} is.
-        filled_prompt = prompt.format(text=item["text"])
+        # Put this item's sentence into the prompt where {text} is - and its passage
+        # where {context} is, on the tracks that carry one. A prompt that does not
+        # mention {context} simply ignores it.
+        filled_prompt = prompt.format(text=item["text"],
+                                      context=item.get("context", ""))
         reply = generate_text(filled_prompt)
         predicted_label = extract_label(reply, labels)
         predictions.append(predicted_label)

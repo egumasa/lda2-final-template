@@ -232,10 +232,14 @@ cells = [
     md(
         "### Before you sample — decide `N_PER_CLASS`",
         "",
-        "You wrote a `MIN_PER_CLASS` at the end of notebook 01: the size of your "
-        "smallest class. That is a hard ceiling. Ask for more and `sample_pool` gives "
-        "you everything the rare class has and moves on — your sample is then *not* "
-        "balanced, and it will not say so twice.",
+        "Look at the counts you just printed and find your **smallest class**. That is "
+        "a hard ceiling: a balanced sample cannot draw more from a class than the class "
+        "has. Ask for more and `sample_pool` gives you everything the rare class has "
+        "and moves on — your sample is then *not* balanced, and it will not say so "
+        "twice.",
+        "",
+        "If the rarest class is thin, say so in `PLAN.md`. Merging it away or living "
+        "with fewer items are both defensible; not noticing is not.",
         "",
         "The other ceiling is time. Every item is one API call in notebook 04, at a few "
         "seconds each, times the number of rounds — and every item is also a row two of "
@@ -272,7 +276,7 @@ cells = [
         "Day 4 Part A — the same counts you printed there.",
         "nothing to name — this is a check, not a stage",
         extra=["Ask       : how many items per label did you get, and does the shortfall",
-               "            match the rare class you spotted in notebook 01?"]),
+               "            match the smallest class in the pool counts from step 1?"]),
     handoff_md(
         "sample", "data/gold/<track>_<group>_sample.json", "03_annotate",
         "The cell below writes the sample to a file. Notebook 03 opens that file to "
@@ -337,6 +341,13 @@ cells_03 = [
         "independently, without seeing each other's column or the corpus's answer — "
         "that is what makes the agreement number mean anything. Decide who is CoderA "
         "and who is CoderB before you start, and do not look across.",
+        "",
+        "**On `cars50` and `raamove`** the sheet gets one extra column, `Context`: the "
+        "passage each sentence came from, with the sentence you are labelling marked "
+        "`>>>`. Read it. A move is a rhetorical function *within* a passage, and if the "
+        "sentence alone is too thin for the model to judge, it is just as thin for the "
+        "two of you — and your labels are the answer key everything else gets measured "
+        "against.",
         "",
         "The first time you run this, Colab asks for permission to use your Google "
         "account. That is `gspread` authorising against your own Drive."),
@@ -413,13 +424,17 @@ cells_03 = [
         4, "Adjudicate, then canonicalise",
         "agree a Final label for every row, then turn the sheet into gold.",
         ["load_annotation_sheet(sheet_id, worksheet)  ->  rows   (re-read after editing)",
-         "to_canonical(rows, LABELS)  ->  gold"],
+         "to_canonical(rows, LABELS, source=sampled)  ->  gold"],
         "Day 2 S5 step F — identical calls.",
         "gold",
         extra=["Careful   : re-read the sheet first. `rows` from step 3 is a snapshot",
                "            from before you filled in Final.",
                "Note      : keep going until it prints 0 blank and 0 invalid. A blank",
-               "            row is an item silently missing from your study."]),
+               "            row is an item silently missing from your study.",
+               "Note      : pass source=sampled. Gold is rebuilt from the SHEET, which",
+               "            holds only the id, the text and your label — anything else",
+               "            the item carried (on cars50/raamove, its passage) is put",
+               "            back from `sampled` by id. Harmless on the other tracks."]),
     md(
         "## Step 5 — Where do you differ from the published labels?",
         "",

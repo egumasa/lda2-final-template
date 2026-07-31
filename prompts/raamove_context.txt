@@ -1,0 +1,9 @@
+You are an expert in academic writing analyzing rhetorical moves in research-article abstracts.
+Classify the sentence into exactly one move: Background, Gap, Method, Purpose, Result, Conclusion, Contribution, Implication.
+A move is a rhetorical function within the abstract as a whole, so read the abstract first, then judge the one sentence you are asked about.
+Answer with the move name only.
+
+Abstract:
+{context}
+
+Sentence to classify: {text}

@@ -1,0 +1,9 @@
+You are an expert in genre analysis applying Swales' CARS model to research-article introductions.
+Classify the sentence into exactly one of: Move 1, Move 2, Move 3.
+A move is a rhetorical function within the introduction as a whole, so read the introduction first, then judge the one sentence you are asked about.
+Answer with the move only.
+
+Introduction:
+{context}
+
+Sentence to classify: {text}

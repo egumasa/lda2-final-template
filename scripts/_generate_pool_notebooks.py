@@ -111,11 +111,16 @@ def embed(*objects, imports=()):
     return "\n\n".join(blocks)
 
 
-def blank(title, goal, produces, hints, notes=()):
+def blank(title, goal, produces, hints, notes=(), starter=None):
     """A blank cell: what to write, what it must be called, and what it is FOR.
 
     Never blank something without saying what the next cell expects to find - a
     student stuck on a NAME has learned nothing about annotation.
+
+    `starter` is a skeleton to leave in the cell instead of an empty line. Use it where
+    the DECISION is what goes in the gaps and the surrounding structure is just typing -
+    a beginner retyping eight dict keys from scratch is being tested on dict syntax,
+    which is not what any of these cells are for.
     """
     rule = "─" * max(4, 60 - len(title))
     lines = ["# ✏️ " + title + " " + rule,
@@ -126,7 +131,12 @@ def blank(title, goal, produces, hints, notes=()):
     for note in notes:
         lines.append("# " + note)
     lines.append("")
-    lines.append("# ✏️ your code here")
+    if starter:
+        lines.append("# ✏️ replace each ... below")
+        for line in starter:
+            lines.append(line)
+    else:
+        lines.append("# ✏️ your code here")
     lines.append("")
     return code(*lines)
 
@@ -139,7 +149,12 @@ SCHEMA_NOTE = (
     "```\n\n"
     "The *raw* data, though, looks different every time. **That difference is the "
     "lesson** — half of building a gold standard is getting messy real data into a "
-    "clean, consistent shape."
+    "clean, consistent shape.\n\n"
+    "Those three keys are required on every track. Two tracks add more: `cars50` and "
+    "`raamove` ask what a sentence *does in a passage*, which is not always decidable "
+    "from the sentence on its own, so their items also carry `doc_id`, `sent_index`, "
+    "`n_sents` and `context`. Extra keys are safe everywhere — nothing in the pipeline "
+    "checks for keys it does not need."
 )
 
 GENERATED_NOTE = (
@@ -191,22 +206,41 @@ def inspect_cell():
         "",
         'print("total items:", len(rows))',
         'print("label counts:", dict(Counter(item["label"] for item in rows)))',
-        "rows[:3]        # peek at the first three reshaped items")
+        'print("fields per item:", list(rows[0]))',
+        "",
+        "# Peek at the first three. `context`, where a track has one, is trimmed: it is",
+        "# the whole passage and would bury everything else in this output.",
+        "for item in rows[:3]:",
+        "    preview = dict(item)",
+        '    if preview.get("context"):',
+        '        preview["context"] = preview["context"][:70] + " …"',
+        "    print(preview)")
 
 
-def balance_blank(hint):
-    """Step 4b is blank on every track: read your own counts and react to them."""
-    return blank(
-        "Step 4b · React to the balance",
-        "decide what the counts you just printed mean for your study.",
-        "MIN_PER_CLASS (an int)",
-        ["MIN_PER_CLASS = <the size of your SMALLEST class>",
-         "that is the ceiling on N_PER_CLASS in config.py — a balanced",
-         "sample cannot draw more from a class than the class has"],
-        notes=["Note      : " + hint,
-               "Note      : if the rarest class is tiny, say so in PLAN.md. Merging it",
-               "            away or living with fewer items are both defensible;",
-               "            not noticing is not."])
+def parser_note(heading, intro, structure, api_steps, demo=None):
+    """Teach the library this track's raw format needs, before the reshaping code.
+
+    Every track hands you a different format, and the reshaping function further down
+    reads it with whatever stdlib module fits. That module is the one genuinely new
+    thing on the page, so it gets named and mapped BEFORE the code that uses it -
+    otherwise the function below reads as magic.
+
+    `structure` is a bulleted map of the format; `api_steps` is a numbered list of the
+    calls the function makes. `demo` (a list of source lines) adds a runnable cell -
+    give it only when the track's Step 2 cell does not already exercise the library.
+    """
+    lines = ["### " + heading, "", intro, ""]
+    for item in structure:
+        lines.append(item)
+    lines.append("")
+    lines.append("The reshaping function below uses exactly these:")
+    lines.append("")
+    for index, item in enumerate(api_steps):
+        lines.append(str(index + 1) + ". " + item)
+    cells = [md(*lines)]
+    if demo:
+        cells.append(code(*demo))
+    return cells
 
 
 def save_cell(track, note=""):
@@ -295,6 +329,29 @@ save("01_build_pool_cefr.ipynb", [
          'with open(RAW_DIR + "/CEFR-SP_Wikiauto_dev.txt", encoding="utf-8") as f:',
          "    for _ in range(5):",
          "        print(repr(next(f)))"),
+    *parser_note(
+        "Reading tab-separated text with `str.split`",
+        "No library needed for this one — a TSV line is just a string with tabs in it, "
+        "and `str.split(\"\\t\")` cuts it into a list. That is why the cell above printed "
+        "with `repr()`: a tab looks like ordinary spacing on screen, but `repr` shows it "
+        "as `\\t`, so you can count the fields and see there are exactly three.",
+        ["**The fields, in order:**",
+         "",
+         "* `parts[0]` — the sentence text",
+         "* `parts[1]` — annotator **A**'s level, as a digit `\"1\"`…`\"6\"`",
+         "* `parts[2]` — annotator **B**'s level, same encoding"],
+        ["`path.read_text().splitlines()` — the whole file as a list of lines.",
+         "`line.split(\"\\t\")` — one line into its three fields.",
+         "`len(parts) < 3` — a malformed line is skipped rather than crashing the run.",
+         "`parts[1] == parts[2]` — the agreement filter. This is the decision that "
+         "makes this the on-ramp track: sentences the two annotators disagreed about "
+         "are thrown away, so every surviving label is unambiguous."],
+        demo=['line = open(RAW_DIR + "/CEFR-SP_Wikiauto_dev.txt", encoding="utf-8").readline()',
+              "",
+              'parts = line.split("\\t")',
+              'print("fields:", len(parts))',
+              'for name, value in zip(("text", "annotator A", "annotator B"), parts):',
+              '    print(" ", name + ":", repr(value.strip()))']),
     md("## Step 3 — Reshape into the canonical schema",
        "",
        "Three decisions are baked into this track, and the first is yours to write:",
@@ -334,8 +391,6 @@ save("01_build_pool_cefr.ipynb", [
        "Look at the counts before you trust anything downstream. This corpus is "
        "**heavily imbalanced** — B1 and B2 dominate, and A1/C2 are scarce."),
     inspect_cell(),
-    balance_blank("the agreement filter costs you rows unevenly — the levels "
-                  "annotators argue about lose the most."),
     md("## Step 5 — Save it"),
     save_cell("cefr"),
     handoff("cefr"),
@@ -359,10 +414,14 @@ save("01_build_pool_raamove.ipynb", [
     md("## Step 2 — Look at the raw format",
        "",
        "This one is **JSON**, split into two files by discipline "
-       "(`Intelligence.json`, `Engineering.json`). Each record has a `text` and a "
-       "three-letter move code in `labels`.",
+       "(`Intelligence.json`, `Engineering.json`). Each record has a `text`, a "
+       "three-letter move code in `labels`, and an `idx` — the number of the abstract "
+       "the sentence came from.",
        "",
-       "**Read the codes the cell below prints** — you are about to name every one."),
+       "**Read the codes the cell below prints** — you are about to name every one. "
+       "Then look at the `idx` values: the file is one long list of sentences, but the "
+       "sentences of an abstract sit together, in order. That is the only reason the "
+       "abstracts can be put back together at all."),
     code('RAW_DIR = "RAAMove"',
          "",
          "import json",
@@ -371,7 +430,33 @@ save("01_build_pool_raamove.ipynb", [
          'data = json.loads(open(RAW_DIR + "/Intelligence.json", encoding="utf-8").read())',
          'print("records:", len(data))',
          'print("codes:", Counter(record["labels"] for record in data))',
+         'print("abstracts:", len({record["idx"] for record in data}))',
          "data[:3]"),
+    *parser_note(
+        "Reading JSON with `json.loads`",
+        "`json.loads(text)` turns a JSON string into ordinary Python objects — a JSON "
+        "array becomes a `list`, a JSON object becomes a `dict`. Nothing else is "
+        "needed: once it is loaded you index it exactly like any other list of dicts, "
+        "which is what the cell above did.",
+        ["**One record looks like this:**",
+         "",
+         "```json",
+         "{\"idx\": 0, \"text\": \"Recent work has shown ...\", \"labels\": \"BAC\"}",
+         "```",
+         "",
+         "* `record[\"text\"]` — the sentence from the abstract",
+         "* `record[\"labels\"]` — the move, as a three-letter code (singular value, "
+         "despite the plural key)",
+         "* `record[\"idx\"]` — which abstract it came from. **Careful:** `idx` starts "
+         "again at 0 in the second file, so it is not on its own a unique id."],
+        ["`path.read_text()` then `json.loads(...)` — the file as a list of records.",
+         "`record[\"labels\"]` — the raw code, e.g. `BAC`.",
+         "`RAAMOVE_LABELS[code]` — your dict, turning that code into the move name your "
+         "prompt will use.",
+         "`record[\"idx\"]` — used to group the flat list back into abstracts, so each "
+         "sentence can carry the one it came from. See step 3.",
+         "The two discipline files are read into one pool — an assumption, not a fact. "
+         "See the note in step 3."]),
     md("## Step 3 — Reshape into the canonical schema",
        "",
        "Two decisions:",
@@ -385,19 +470,54 @@ save("01_build_pool_raamove.ipynb", [
        "treating a move as a rhetorical function rather than a discipline-specific one. "
        "That *is* an assumption. It is in the code rather than in a ✏️ cell only "
        "because unpicking it makes a better extension than a starting point: comparing "
-       "Intelligence against Engineering separately would be a real finding."),
+       "Intelligence against Engineering separately would be a real finding.",
+       "",
+       "### Each sentence keeps its abstract",
+       "",
+       "A move is not a property of a sentence. *\"We used a mixed-effects model\"* is a "
+       "`Method`; *\"the mixed-effects model showed no effect\"* is a `Result`; and "
+       "plenty of real sentences sit between the two and are settled only by what came "
+       "before them. So the code below does not throw the abstract away. It reads each "
+       "file **twice** — once to group the flat list of sentences back into abstracts "
+       "using `idx`, once to emit the items — and every item comes out carrying four "
+       "extra fields on top of the canonical three:",
+       "",
+       "| field | what it is |",
+       "|---|---|",
+       "| `doc_id` | which abstract, e.g. `Intelligence-0` |",
+       "| `sent_index` | where in it, counting from 0 |",
+       "| `n_sents` | how many sentences the abstract has |",
+       "| `context` | the abstract itself, one sentence per line |",
+       "",
+       "Those fields travel with the item all the way: notebook 03 shows the abstract "
+       "to your two coders, and notebook 04 can put it in the prompt. Whether you "
+       "*use* it is a decision for `PLAN.md` — `prompts/raamove.txt` shows the model "
+       "the sentence alone, `prompts/raamove_context.txt` shows it the abstract first, "
+       "and running both is one of the cleanest experiments this track offers."),
     blank(
         "Step 3a · Name the moves",
-        "map each three-letter code to the move name your prompt will use.",
+        "fill in the move name your prompt will use for each three-letter code.",
         "RAAMOVE_LABELS (a dict)",
-        ['RAAMOVE_LABELS = {"BAC": "Background", ...}',
-         "one entry per code you saw in step 2"],
-        notes=["Careful   : a code you leave out is NOT dropped — it is kept as the raw",
-               "            code, so it shows up as a stray label like \"CTN\" in step 4.",
-               "            That is your check that you got them all.",
-               "Note      : eight classes is a lot. If you plan to merge any (Result +",
-               "            Conclusion, say), decide it HERE and say so in PLAN.md — not",
-               "            after you have seen the model do badly on them."]),
+        ['the eight codes are given — you write the eight names',
+         'RAAMOVE_LABELS = {"BAC": "Background", "GAP": ..., ...}'],
+        notes=["Note      : the names are not cosmetic. They are the wording your prompt",
+               "            uses, your coders read on the sheet, and your confusion matrix",
+               "            is labelled with. \"Gap\" and \"Establishing a niche\" name the",
+               "            same category and will not get you the same predictions.",
+               "Note      : eight classes is a lot. To MERGE two, give them the same name",
+               "            — {\"RST\": \"Finding\", \"CLN\": \"Finding\"} makes one class of",
+               "            two. Decide that HERE and say so in PLAN.md, not after you",
+               "            have seen the model do badly on them."],
+        starter=['RAAMOVE_LABELS = {',
+                 '    "BAC": ...,      # e.g. "Background" — the wording your prompt will use',
+                 '    "GAP": ...,',
+                 '    "MTD": ...,',
+                 '    "PUR": ...,',
+                 '    "RST": ...,',
+                 '    "CLN": ...,',
+                 '    "CTN": ...,',
+                 '    "IMP": ...,',
+                 '}']),
     md("The function below reads the `RAAMOVE_LABELS` you just defined."),
     code(embed(reshape.reid, reshape.reshape_raamove,
                imports=["import json", "from pathlib import Path"])),
@@ -407,8 +527,6 @@ save("01_build_pool_raamove.ipynb", [
        "Very imbalanced: `Method` is the biggest class by far, and `Implication` has "
        "only a couple of dozen sentences."),
     inspect_cell(),
-    balance_blank("with eight classes and a rare tail, the smallest class decides "
-                  "everything — 7 per class is about the most this pool supports."),
     md("## Step 5 — Save it"),
     save_cell("raamove"),
     handoff("raamove"),
@@ -456,6 +574,45 @@ save("01_build_pool_cars50.ipynb", [
        "<sentence><sentenceID/><text/><step>1b</step></sentence>",
        "```"),
     code('print(open(sorted(RAW_DIR.glob("*.xml"))[0], encoding="utf-8").read()[:900])'),
+    *parser_note(
+        "Reading XML with `ElementTree`",
+        "XML is nested, so unlike a TSV or a CSV you cannot get at a field by position. "
+        "Python's built-in `xml.etree.ElementTree` parses the file into a tree of "
+        "elements you then navigate by tag name.",
+        ["**The nesting, outermost first:**",
+         "",
+         "* `<biology_intro>` — the root element, one per file",
+         "* `<fulltext>` — the introduction itself",
+         "* `<paragraph>` — one or more per introduction",
+         "* `<sentence>` — one or more per paragraph, each carrying:",
+         "  * `<sentenceID>` — an identifier",
+         "  * `<text>` — the sentence",
+         "  * `<step>` — the rhetorical step code, e.g. `1b`"],
+        ["`ET.parse(path)` — read one file into a tree.",
+         "`tree.iter(\"sentence\")` — every `<sentence>` at **any** depth, so you never "
+         "have to walk the paragraphs yourself. It yields them in document order, "
+         "which is what lets each sentence keep its place in the introduction.",
+         "`element.find(\"text\")` — the first child with that tag, or `None` if it is "
+         "missing. That `None` is why the reshaping code checks before using it.",
+         "`element.text` — the string inside a tag. It is `None` for an empty tag, "
+         "hence the `(… or \"\")` guard before `.strip()`.",
+         "`path.stem` — the filename without `.xml`, e.g. `text001`. That is the "
+         "document id. **Not** `<sentenceID>`: those are padded three different ways, "
+         "mix two widths inside `text038.xml`, and `t025s020` appears twice in "
+         "`text025.xml`. Position comes from counting, not from reading an id."],
+        demo=["import xml.etree.ElementTree as ET",
+              "",
+              'first_file = sorted(RAW_DIR.glob("*.xml"))[0]',
+              "tree = ET.parse(first_file)",
+              "",
+              'print("reading", first_file.name, "\\n")',
+              'for i, sentence in enumerate(tree.iter("sentence")):',
+              "    if i >= 3:                       # just the first three, to keep the output short",
+              "        break",
+              '    for tag in ("sentenceID", "text", "step"):',
+              "        child = sentence.find(tag)",
+              '        print(" ", tag + ":", child.text.strip() if child is not None and child.text else "MISSING")',
+              '    print()']),
     md("## Step 3 — Reshape into the canonical schema",
        "",
        "The parsing is written for you, and it gives you **both granularities at once**:",
@@ -464,7 +621,10 @@ save("01_build_pool_cars50.ipynb", [
        "- the whole code `1b` is the **Step** → 11 classes.",
        "",
        "Sentences with no code, or a code that does not start with a move digit, are "
-       "dropped either way.",
+       "dropped either way. In *this* corpus that guard never actually fires — all 1297 "
+       "sentences are coded — so do not write \"we dropped N malformed sentences\" in "
+       "your report without checking the number first. The guard is there because the "
+       "next corpus you meet will need it.",
        "",
        "✏️ **Which one you study is the decision**, and on this track it is the whole "
        "shape of the project. Three classes with a few hundred items each is a fair task "
@@ -476,7 +636,35 @@ save("01_build_pool_cars50.ipynb", [
        "Neither is the safe answer. The 11-class version makes a better project **if** "
        "you have the time to annotate it properly and the nerve to report a low F1 with "
        "a good explanation. Decide now, write it in `PLAN.md`, and do not switch after "
-       "you have seen the numbers."),
+       "you have seen the numbers.",
+       "",
+       "### Each sentence keeps its introduction",
+       "",
+       "The difficulty note at the top of this notebook says judging a move needs more "
+       "context than a single sentence gives you. So the code below does not throw the "
+       "introduction away. It reads each file **twice** — once to collect the whole "
+       "introduction in order, once to emit the items — and every item comes out "
+       "carrying four extra fields on top of the canonical three:",
+       "",
+       "| field | what it is |",
+       "|---|---|",
+       "| `doc_id` | which introduction, e.g. `text001` |",
+       "| `sent_index` | where in it, counting from 0 |",
+       "| `n_sents` | how many sentences the introduction has |",
+       "| `context` | the introduction itself, one sentence per line |",
+       "",
+       "One detail worth arguing about: `context` keeps **every** sentence that has "
+       "text, including the ones dropped for having no usable code. They belong there "
+       "because a reader saw them — filtering them out would hand the model a doctored "
+       "introduction that never existed. Both granularities get identical fields; it is "
+       "the same sentence in the same passage, just labelled two ways.",
+       "",
+       "Those fields travel with the item all the way: notebook 03 shows the "
+       "introduction to your two coders, and notebook 04 can put it in the prompt. "
+       "`prompts/cars50.txt` shows the model the sentence alone, "
+       "`prompts/cars50_context.txt` shows it the introduction first. These are 26 "
+       "sentences on average and up to 47, so the context condition is noticeably "
+       "slower to run — worth knowing before you start it at 4pm."),
     code(embed(reshape.reid, reshape.reshape_cars50,
                imports=["import xml.etree.ElementTree as ET",
                         "from pathlib import Path"])),
@@ -499,8 +687,6 @@ save("01_build_pool_cars50.ipynb", [
                "            \"1b\")."]),
     md("## Step 4 — Check the label balance"),
     inspect_cell(),
-    balance_blank("if you chose steps, look at how thin the rare ones are before you "
-                  "commit."),
     md("## Step 5 — Save it"),
     save_cell("cars50",
               "If you chose steps, save as cars50_step_pool.json and point config.py "
@@ -555,6 +741,27 @@ save("01_build_pool_l2_errors.ipynb", [
          'print(len(codes), "distinct codes:")',
          "for code, n in codes.most_common():",
          '    print("   ", code, n)'),
+    *parser_note(
+        "Reading CSV with `csv.DictReader`",
+        "`csv.DictReader` reads a CSV using its header row, so each row arrives as a "
+        "dict keyed by column name — `row[\"Sentence\"]` rather than `row[3]`. That is "
+        "what the cell above used to print `fieldnames` and count the codes.",
+        ["**The columns that matter:**",
+         "",
+         "* `Sentence` — the text",
+         "* `Human_ErrorCategories` — the human annotation, and your gold. One sentence "
+         "can carry **several comma-separated codes**, or the single marker `NO_ERROR`.",
+         "* `AEA_ErrorCategories` — the published tool's own prediction, which is what "
+         "lets this track compare an LLM against an existing system as well as against "
+         "humans"],
+        ["`open(..., encoding=\"utf-8-sig\")` — this file ships with a byte-order mark. "
+         "Without `-sig` it gets glued to the first column name and every lookup on it "
+         "fails.",
+         "`csv.DictReader(handle)` — iterate rows as `{column: value}` dicts.",
+         "`(row.get(col) or \"\").strip()` — `.get` survives a missing column and the "
+         "`or \"\"` survives an empty cell, which would otherwise be `None`.",
+         "`human_field.split(\",\")` — one sentence's codes into a list, which "
+         "`_l2_coarse_label` then maps through **your** `L2_COARSE` grouping."]),
     md("## Step 3 — Reshape into the canonical schema",
        "",
        "Two decisions, and the first is the biggest single judgment call in any of the "
@@ -612,8 +819,6 @@ save("01_build_pool_l2_errors.ipynb", [
        "detection count, which keeps everything. The gap is your mixed-category "
        "sentences, and it is a direct consequence of the grouping you wrote in 3a."),
     inspect_cell(),
-    balance_blank("if the gap between the two counts is large, your grouping is "
-                  "cutting deeply — say so in limitations, or regroup."),
     md("## Step 5 — Save it"),
     save_cell("l2_errors",
               "For the binary version, save as l2_error_detection_pool.json and point "
@@ -673,6 +878,25 @@ save("01_build_pool_icnale.ipynb", [
          'print(len(scores), "scores · min", scores[0], "· max", scores[-1])',
          "for q in (10, 25, 33, 50, 67, 75, 90):",
          '    print("   ", str(q) + "th percentile:", scores[int(len(scores) * q / 100)])'),
+    *parser_note(
+        "Reading CSV with `csv.DictReader`",
+        "`csv.DictReader` reads a CSV using its header row, so each row arrives as a "
+        "dict keyed by column name — `row[\"score\"]` rather than `row[1]`. That is what "
+        "the cell above used to collect the scores.",
+        ["**The two columns that matter:**",
+         "",
+         "* `text` — the essay",
+         "* `score` — the holistic score. **It arrives as a string**, even when it looks "
+         "like a number, so it has to be converted before it can be compared to a "
+         "boundary."],
+        ["`open(..., encoding=\"utf-8-sig\")` — strips the byte-order mark this file "
+         "ships with, which would otherwise be glued to the first column name.",
+         "`csv.DictReader(handle)` — iterate rows as `{column: value}` dicts.",
+         "`float(raw_score)` inside a `try` — a non-numeric cell is counted and skipped "
+         "rather than crashing the run. The function prints how many it skipped; if that "
+         "number is not small, look at the file before trusting the rest.",
+         "`score < low_below` / `score < mid_below` — the two cut-offs you are about to "
+         "choose. Everything else in the function is fixed; this is the whole decision."]),
     md("## Step 3 — Reshape into the canonical schema",
        "",
        "One decision, and it is entirely yours: ✏️ **where do the band boundaries go?**",
@@ -708,9 +932,6 @@ save("01_build_pool_icnale.ipynb", [
                "            reason. Do not re-cut after seeing your F1."]),
     md("## Step 4 — Check the label balance"),
     inspect_cell(),
-    balance_blank("these counts are a direct function of the two numbers you just "
-                  "chose — if you do not like them, change the cuts NOW, not after "
-                  "step 5."),
     md("## Step 5 — Save it",
        "",
        "⚠️ Keep this file **out of git** and **out of your submission bundle**. "
