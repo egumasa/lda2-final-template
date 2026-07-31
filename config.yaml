@@ -1,6 +1,6 @@
 # config.yaml — the one file you edit before running the notebooks.
 #
-# Six settings. Every notebook reads this file, so you set them ONCE, as a group,
+# Seven settings. Every notebook reads this file, so you set them ONCE, as a group,
 # and notebooks 01-05 all agree with each other: same track, same seed, same file
 # names. That is the point of a shared file — five copies of a seed is five chances
 # for the sample in notebook 03 not to be the sample notebook 02 drew.
@@ -17,7 +17,10 @@
 #     data/pools/<track>_pool.json                       <- notebook 01 writes
 #     data/gold/<track>_<group>_<run>_sample.json        <- notebook 02 writes
 #     data/gold/<track>_<group>_<run>_gold.json          <- notebook 03 writes
+#     data/gold/<track>_<group>_<run>_dev.json           <- notebook 03 writes
+#     data/gold/<track>_<group>_<run>_test.json          <- notebook 03 writes
 #     outputs/<track>_<group>_<run>_predictions.json     <- notebook 04 writes
+#     outputs/<track>_<group>_<run>_test_log.jsonl       <- notebook 04 appends
 #     prompts/<track>.txt                                <- notebook 04 reads
 #
 # So `track: cars50` + `group: kimura` + `run: v1` means notebook 03 writes
@@ -25,7 +28,7 @@
 
 
 # ----------------------------------------------------------------------------------
-# YOU EDIT — these six
+# YOU EDIT — these seven
 # ----------------------------------------------------------------------------------
 
 # Which corpus and annotation scheme. It comes from your PLAN.md.
@@ -49,12 +52,37 @@ run: v1
 # sample it came from. Notebook 05 reports this number.
 seed: 42
 
-# How many items per label to sample.
-#   2      while you are still fixing prompts — keeps every run fast
-#   10-15  for the final run (about 40 items total)
+# How many items per label to sample. This is your FINAL size from the start — there is
+# no "keep it small while I fix prompts" phase any more, because the dev set below is
+# that phase. 10-15 per label (about 40 items) is the target.
 # A rare label returns fewer than you asked for. That is the data, not a bug, and it
 # belongs in your limitations.
-n_per_class: 2
+n_per_class: 10
+
+# How the annotated items get split into a DEV half and a TEST half.
+#
+# Everything you sample gets double-coded in ONE sheet (notebook 03). The split happens
+# after that, so it costs no extra annotation — what it costs is items you are allowed
+# to look at. You tune your prompt against dev, as many rounds as you like. Test is not
+# opened until the last cell of notebook 04, is scored once, and is the number your
+# report leads with.
+#
+# Set EXACTLY ONE of the two. Leave the other commented out.
+#
+#   dev_per_class: 3      a fixed number of dev items per label. Suits a balanced draw
+#                         (sample_pool), where every class has the same number to give.
+#   dev_fraction: 0.35    a proportion of each label. Suits an uneven draw
+#                         (sample_random), where a fixed 3-per-class would eat a small
+#                         class whole.
+#
+# About 15 dev / 25 test out of 40 is the shape we expect. There is no right ratio at
+# this size, only one you can defend: a bigger dev gives steadier feedback while you
+# iterate and leaves a smaller test, so the number you finally report bounces more; a
+# smaller dev means prompt decisions made on very few items, which is how you tune to
+# noise and then watch the gain evaporate. PLAN.md section 6 asks you to write down
+# which way you went and why.
+dev_per_class: 3
+# dev_fraction: 0.35
 
 # The Google accounts of everyone in your group. Notebook 03 gives each of them edit
 # access to the annotation sheet it creates. Leave this empty and the sheet lives in

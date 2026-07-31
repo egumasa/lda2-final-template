@@ -124,9 +124,10 @@ def setup_lines(extra_imports=(), workdir=None):
         "# Named one by one rather than with `import *`, so that every name a cell",
         "# below uses can be traced back to the file it came from — config.yaml for",
         "# these, scripts/ for the rest.",
-        "from config import (TRACK, GROUP, RUN, SEED, N_PER_CLASS, MEMBERS,",
-        "                    LABELS_ORDER, ROOT, OUT_DIR, POOL_PATH, DEMO_POOL_PATH,",
-        "                    SAMPLE_PATH, GOLD_PATH, PRED_PATH, ROUNDS_PATH,",
+        "from config import (TRACK, GROUP, RUN, SEED, N_PER_CLASS, DEV_PER_CLASS,",
+        "                    DEV_FRACTION, MEMBERS, LABELS_ORDER, ROOT, OUT_DIR,",
+        "                    POOL_PATH, DEMO_POOL_PATH, SAMPLE_PATH, GOLD_PATH,",
+        "                    DEV_PATH, TEST_PATH, PRED_PATH, ROUNDS_PATH, TESTLOG_PATH,",
         "                    PROMPT_FILE, SHEET_PATH, TRIAGE_PATH, describe)",
     ]
     lines = lines + list(extra_imports)

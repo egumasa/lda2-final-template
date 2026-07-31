@@ -63,14 +63,48 @@ this is the part a script could not have done for you, and the part the Q&A goes
 - Expected total items:
 - On `cars50`/`raamove`: how many distinct documents do you expect your items to come
   from? Neighbouring sentences in one passage are not independent observations:
+- If you ticked `sample_by_document`, your split has to be by document too — see §6.
 
-## 6. QC
+> **About the size of this study.** A result that could support a claim about a corpus needs
+> hundreds of items per class. Forty in total is what four-and-a-bit seconds per API call and
+> five days buy you, and it is not enough to tell a five-point difference from noise. That is
+> a limitation to *state* in report §5, not to write around. What this project is really
+> rehearsing is the method — a scheme you can defend, a gold set two people built, a number
+> measured on items you never tuned against.
+
+## 6. The dev / test split — and why that ratio
+
+Everything you sample gets double-coded in one sheet, and the split happens after that. So it
+costs you no extra annotation. What it costs is items you are allowed to look at.
+
+- Which spec, and the number (set exactly one in `config.yaml`; the other stays commented out):
+  - [ ] `dev_per_class:` ___ — a fixed count per label. Suits a balanced draw (`sample_pool`),
+    where every class has the same number to give.
+  - [ ] `dev_fraction:` ___ — a proportion of each label. Suits an uneven draw
+    (`sample_random`), where a fixed 3-per-class would eat a small class whole.
+- Expected sizes: ___ dev / ___ test
+- Split by document? (`cars50` · `raamove`, and only if you drew that way): yes / no
+- Because:
+
+> There is no right ratio at this size, only one you can defend. A **bigger dev** gives steadier
+> feedback while you iterate and leaves a smaller test, so the number you finally report bounces
+> more. A **smaller dev** means prompt decisions made on very few items, which is how you tune to
+> noise and then watch the gain evaporate on the held-out half.
+>
+> You may score the test set more than once. Nothing stops you, deliberately — a real mistake on
+> the last afternoon needs a way forward. But every scoring appends a line to
+> `outputs/..._test_log.jsonl`, that file is part of your submission, and it fingerprints the
+> prompt each time. A second run with the *same* prompt is that prompt run twice; a second run
+> with a *different* one is a prompt tuned after seeing the held-out set. If there is more than
+> one line in that log, report §5 has to say which happened and why.
+
+## 7. QC
 
 - CoderA:
 - CoderB:
 - Adjudicator:
 
-## 7. Prompt plan
+## 8. Prompt plan
 
 Your baseline idea:
 
@@ -89,9 +123,9 @@ with the names your group actually used.
 |---|---|---|---|
 | 01 build pool | the raw corpus + your ✏️ decisions | `data/pools/<track>_pool.json` | |
 | 02 sample     | the pool + your sampling choice     | `data/gold/…_sample.json`, and the sheet | |
-| 03 annotate   | the filled-in sheet + your adjudication | `data/gold/…_gold.json`     | |
-| 04 prompt     | the gold set, the pool, your prompt  | `outputs/…_predictions.json`   | |
-| 05 report     | the gold set + the frozen run        | `outputs/…_report.md`          | |
+| 03 annotate   | the filled-in sheet + your adjudication | `data/gold/…_gold.json`, and its `…_dev.json` / `…_test.json` split | |
+| 04 prompt     | the **dev** half, the pool, your prompt | `outputs/…_predictions.json` (on **test**), `…_test_log.jsonl` | |
+| 05 report     | the **test** half + the frozen run   | `outputs/…_report.md`          | |
 
 Every one of those files lives in your group's shared Drive folder, and every notebook
 finds it through `config.yaml` — so there is nothing to email, paste or re-upload between
@@ -108,7 +142,9 @@ the thing being measured by it.
 
 ---
 
-**The rule:** no group calls the model until the instructor has read this file. Notebooks 01–03
+**The rule:** no group calls the model until the instructor has read this file — including §6,
+because a split agreed after you have seen how the prompt does on those items is not a split.
+Notebooks 01–03
 need no model at all, so there is plenty to get on with while you wait. `PLAN.md` travels in your
 submission bundle as evidence the gate was passed — a final run made before sign-off is not
 accepted as the final run.
