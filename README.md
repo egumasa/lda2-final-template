@@ -53,40 +53,44 @@ lda2-final-template/
 You edit **`config.yaml`**, the **✏️ cells** in the notebooks, and your **prompt file**.
 Nothing in `scripts/`.
 
-## The notebooks are skeletons, on purpose
+## What is left to you, and why
 
-Each notebook ships with all of its prose, its plumbing, and — for every blank — a header
-saying what it is for, what is available to write it with, and **what to call the thing
-you produce**, because the next cell expects that name.
-
-**No cell is empty.** Each one comes with the shape of the code already typed, and `____`
-where the decision goes:
+**Every cell is complete and runs as written.** There are no blanks to fill in. Each ✏️
+cell arrives with a real, defensible value already in it, a short header saying what the
+cell does and what it names for later cells, and a markdown cell above it explaining what
+the choice is and what turns on it:
 
 ```python
-# ── Delete the two you are NOT using. ────────────────────────────────
-sampled = sample_pool(pool, N_PER_CLASS, SEED)
-sampled = sample_random(pool, ____, SEED)                  # how many in total?
-sampled = sample_by_document(pool, ____, ____, SEED)       # how many docs? how many from each?
+# ══ STEP 2 · Draw your sample ═════════════════════════════════════════════
+# Draws the sample using whichever of the three strategies you name, and prints
+# how many items landed under each label.
+# Creates: sampled
+
+# ✏️ this runs as written — the work is deciding whether it should
+
+STRATEGY = "balanced"     # "balanced" · "random" · "by_document"
 ```
 
-The left-hand side is given because it is the name the next cell needs and a typo in it
-costs you an afternoon. Anything the tutorials have not taught you is typed out in full.
-What is left is the **decision** — which strategy, which labels, which of your errors is
-the scheme's fault — and, next to it, the line of prose that defends it. `____` is not
-valid Python, so if you skip one it stops in that cell rather than three cells later.
+A blank standing in for an argument would test whether you can copy a word out of the
+comment beside it, which is not a decision. What is left to you is the **decision itself**
+— which strategy, which labels, where a scale gets cut, which of your errors is the
+scheme's fault — and the sentence that defends it. **Leaving a value alone is a choice
+too**, and it needs the same defence as changing it.
 
-Two kinds of blank, and they are asking for different things:
+`Creates:` is there because the next cell expects that exact name, and a typo in it costs
+you an afternoon.
+
+Two kinds of decision, asking for different things:
 
 - **In 01**, the ✏️ cells are the *reshaping decisions*: what each label is called, which
   annotations to trust, how fine-grained the scheme is, where a numeric scale gets cut.
   The download and the parsing are written for you; nobody learns anything from retyping
   a `User-Agent` header. `PLAN.md` asks you to justify what you chose.
-- **In 02–05**, the blanks are the *research decisions*: how to draw the sample and why,
-  what to change in the prompt and what the errors told you to change, and which of the
-  model's mistakes are your scheme's fault rather than the model's. Every call has the
-  **same form it had in Days 1–3**, and each blank names where you used it before. If
-  something you typed in the tutorials does not work here, that is a bug in this
-  template, not in your memory of it — please say so.
+- **In 02–05**, they are the *research decisions*: how to draw the sample and why, what to
+  change in the prompt and what the errors told you to change, and which of the model's
+  mistakes are your scheme's fault rather than the model's. Every call has the **same form
+  it had in Days 1–3**. If something you typed in the tutorials does not work here, that
+  is a bug in this template, not in your memory of it — please say so.
 
 ### The code that does the work is in the notebook, not hidden
 

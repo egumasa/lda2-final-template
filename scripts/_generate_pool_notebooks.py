@@ -142,13 +142,19 @@ def source_cells(described, imports=()):
     return cells
 
 
-def blank(signpost, title, goal, produces, hints, notes=(), starter=None):
+def blank(signpost, title, does, produces, hints=(), notes=(), starter=None):
     """A decision cell, with a markdown signpost above it. Returns BOTH cells.
 
-    What to write, what it must be called, and what it is FOR.
+    The header says what the cell does and what it names for later cells. Everything
+    else - why the decision matters, what turns on it, what to watch out for - goes in
+    the signpost above, where it can be written as sentences.
 
-    Never blank something without saying what the next cell expects to find - a
-    student stuck on a NAME has learned nothing about annotation.
+    Never leave a cell without saying what the next one expects to find - a student
+    stuck on a NAME has learned nothing about annotation.
+
+    `hints` is not a function list. It shows the SHAPE of the thing being edited (a
+    dict of code-to-category, a pair of band boundaries), which the code alone does not
+    make obvious. Drop it wherever the starter already shows the shape.
 
     `starter` ships COMPLETE and runnable - every argument filled in with a real,
     defensible value. There are no blanks to fill.
@@ -163,11 +169,12 @@ def blank(signpost, title, goal, produces, hints, notes=(), starter=None):
     it. Changing nothing is a choice too, and one you still have to justify.
     """
     rule = "─" * max(4, 60 - len(title))
-    lines = ["# ✏️ " + title + " " + rule,
-             "# Goal      : " + goal]
+    lines = ["# ✏️ " + title + " " + rule]
+    lines.extend("# " + line for line in does)
     for index, hint in enumerate(hints):
-        lines.append(("# Example   : " if index == 0 else "#             ") + hint)
-    lines.append("# Produce   : " + produces + "      ← later cells use this name")
+        lines.append(("# Looks like: " if index == 0 else "#             ") + hint)
+    if produces:
+        lines.append("# Creates: " + produces)
     for note in notes:
         lines.append("# " + note)
     lines.append("")
@@ -527,20 +534,22 @@ save("01_build_pool_raamove.ipynb", [
        "the sentence alone, `prompts/raamove_context.txt` shows it the abstract first, "
        "and running both is one of the cleanest experiments this track offers."),
     *blank(
-        "## Step 3a — Name the moves\n\nNow we write the label set. The cell below already runs; the work is reading those eight names as a *scheme* and deciding whether they are the ones your coders should see.",
+        "## Step 3a — Name the moves\n\nNow we write the label set: one name per "
+        "three-letter code. The cell below already runs; the work is reading those "
+        "eight names as a *scheme* and deciding whether they are the ones your coders "
+        "should see.\n\n"
+        "The names are not cosmetic. They are the wording your prompt uses, what your "
+        "coders read on the sheet, and what your confusion matrix is labelled with. "
+        "`Gap` and `Establishing a niche` name the same category and will not get you "
+        "the same predictions.\n\n"
+        "Eight classes is a lot. To **merge** two, give them the same name — "
+        "`{\"RST\": \"Finding\", \"CLN\": \"Finding\"}` makes one class out of two. Decide "
+        "that here and record it in `PLAN.md`, not after you have seen the model do "
+        "badly on them.",
         "Step 3a · Name the moves",
-        "fill in the move name your prompt will use for each three-letter code.",
+        ["Sets the name your prompt, your sheet and your confusion matrix will use for",
+         "each of the eight three-letter codes."],
         "RAAMOVE_LABELS (a dict)",
-        ['the eight codes are given — you write the eight names',
-         'RAAMOVE_LABELS = {"BAC": "Background", "GAP": "Gap", ...}'],
-        notes=["Note      : the names are not cosmetic. They are the wording your prompt",
-               "            uses, your coders read on the sheet, and your confusion matrix",
-               "            is labelled with. \"Gap\" and \"Establishing a niche\" name the",
-               "            same category and will not get you the same predictions.",
-               "Note      : eight classes is a lot. To MERGE two, give them the same name",
-               "            — {\"RST\": \"Finding\", \"CLN\": \"Finding\"} makes one class of",
-               "            two. Decide that HERE and say so in PLAN.md, not after you",
-               "            have seen the model do badly on them."],
         starter=['# The corpus\'s own names, spelled out. They run as they are — but this',
                  '# wording goes into your prompt, onto your coders\' sheet and onto your',
                  '# confusion matrix, so read them as a scheme rather than as a given.',
@@ -793,17 +802,17 @@ save("01_build_pool_cars50.ipynb", [
          'print("move classes:", count_labels(move_rows))',
          'print("step classes:", count_labels(step_rows))'),
     *blank(
-        "## Step 3b — Choose your granularity\n\nNow we pick which of the two schemes your group will actually study, and give it the name `rows` that the rest of the notebook uses.",
+        "## Step 3b — Choose your granularity\n\nNow we pick which of the two schemes "
+        "your group will actually study — the 3 moves or the 11 steps — and give it the "
+        "name `rows` that the rest of the notebook uses.\n\n"
+        "It is one word to change. Spend the time on the argument instead: `PLAN.md` "
+        "asks you to justify the choice in a sentence.\n\n"
+        "**Whichever you pick**, the label names in your prompt and on your annotation "
+        "sheet have to match these exactly — `Move 1`, or `1b`.",
         "Step 3b · Choose your granularity",
-        "pick the version of the scheme your group will actually study.",
+        ["Names one of the two schemes as the one you will study, and prints how many",
+         "items it has."],
         "rows (a list) — either move_rows or step_rows",
-        ['GRANULARITY = "move"    # 3 classes',
-         'GRANULARITY = "step"    # 11 classes'],
-        notes=["Note      : one word. Spend the time on the ARGUMENT, not the typing —",
-               "            PLAN.md asks you to justify it in a sentence.",
-               "Careful   : whichever you pick, the label names in your prompt and your",
-               "            annotation sheet must match these exactly (\"Move 1\", or",
-               "            \"1b\")."],
         starter=['# Change this one word to "step" for the 11-class version.',
                  '# It is written as a choice rather than two lines you delete one of,',
                  '# because with two live lines the SECOND one silently wins — and you',
@@ -944,22 +953,23 @@ save("01_build_pool_l2_errors.ipynb", [
        "categories, so a *coarser* grouping keeps more data and a *finer* one keeps "
        "less. That trade-off is yours to make and to report."),
     *blank(
-        "## Step 3a — Group the error codes\n\nNow we collapse the published taxonomy into the handful of categories your group will annotate. This is the decision on this track.",
+        "## Step 3a — Group the error codes\n\nNow we collapse the published taxonomy "
+        "into the handful of categories your group will annotate: one line per code "
+        "from step 2 that you want to keep, with your category name on the right. "
+        "`NO_ERROR` is handled separately, so do not list it. This is the decision on "
+        "this track.\n\n"
+        "**A code you leave out is not an error — it is a dropped sentence.** Compare "
+        "your total in step 4 against the detection count to see how many.\n\n"
+        "The four category names in the cell are the cut this track was written around, "
+        "and they are only a starting point. Rename them, merge them, or use two "
+        "categories instead of four — what matters is that you can say why.\n\n"
+        "Put the grouping in `PLAN.md` as a table, with a one-line justification for "
+        "any code a reasonable person would file somewhere else. That table is report "
+        "section 1.",
         "Step 3a · Group the error codes",
-        "map each raw error code to the broader category you will actually study.",
+        ["Maps each raw error code you are keeping to the broader category you will",
+         "study, and prints how many codes and categories that leaves you with."],
         "L2_COARSE (a dict)",
-        ['L2_COARSE = {"ART": "Grammatical", "SP": "Mechanical", ...}',
-         "one entry per code from step 2 that you want to keep",
-         "(NO_ERROR is handled separately — do not list it)"],
-        notes=["Careful   : a code you omit is not an error — it is a DROPPED sentence.",
-               "            Compare your total in step 4 against the detection count.",
-               "Note      : the four category names below are the cut this track was",
-               "            written around, and they are only a starting point. Rename",
-               "            them, merge them, or use two categories instead of four —",
-               "            what matters is that you can say why.",
-               "Note      : put the grouping in PLAN.md as a table, with a one-line",
-               "            justification for any code a reasonable person would file",
-               "            somewhere else. That table is report section 1."],
         starter=[
             "# One line per code you are KEEPING. Scroll up to step 2 for the full list",
             "# with frequencies — the frequent codes are the ones worth arguing over.",
@@ -1004,15 +1014,16 @@ save("01_build_pool_l2_errors.ipynb", [
     code("category_rows, detection_rows = reshape_l2_errors(RAW_FILE)",
          'print("categories:", len(category_rows), " detection:", len(detection_rows))'),
     *blank(
-        "## Step 3c — Choose your task\n\nNow we pick which of the two tasks your group will study, and give it the name `rows` that the rest of the notebook uses.",
+        "## Step 3c — Choose your task\n\nNow we pick which of the two tasks your group "
+        "will study — the n-way categorisation from 3a, or the yes/no detection task — "
+        "and give it the name `rows` that the rest of the notebook uses.\n\n"
+        "Detection is a genuinely easier task and a smaller project. If you take it, "
+        "plan an extension: benchmarking against the published tool's own predictions "
+        "is right there in the CSV.",
         "Step 3c · Choose your task",
-        "the n-way categorisation, or the yes/no detection task.",
+        ["Names one of the two tasks as the one you will study, and prints how many",
+         "items it has."],
         "rows (a list) — either category_rows or detection_rows",
-        ['TASK = "category"     # your categories from 3a',
-         'TASK = "detection"    # Has error / No error'],
-        notes=["Note      : detection is a genuinely easier task and a smaller project.",
-               "            If you take it, plan an extension — benchmarking against the",
-               "            published tool's own predictions is right there in the CSV."],
         starter=['# Change this one word to "detection" for the yes/no version.',
                  '# It is written as a choice rather than two lines you delete one of,',
                  '# because with two live lines the SECOND one silently wins — and you',
@@ -1205,17 +1216,19 @@ save("01_build_pool_icnale.ipynb", [
           "calls it here — step 5 does, just before saving.")],
         imports=["import csv"]),
     *blank(
-        "## Step 3a — Cut the scale\n\nNow we turn each numeric score into one of three bands. The two boundaries are yours to choose, and the percentiles printed above are the evidence for choosing them.",
+        "## Step 3a — Cut the scale\n\nNow we turn each numeric score into one of three "
+        "bands. The two boundaries are yours to choose, and the percentiles printed "
+        "above are the evidence for choosing them.\n\n"
+        "The defaults, 4.0 and 7.0, are round numbers rather than a rubric — leaving "
+        "them is as much a decision as changing them, and you have to defend it either "
+        "way. Run it a couple of ways and look at step 4 each time: watching the counts "
+        "move as you shift a boundary is the point.\n\n"
+        "**Whatever you settle on goes in `PLAN.md`** as two numbers and a reason. Do "
+        "not re-cut the scale after you have seen your F1.",
         "Step 3a · Cut the scale",
-        "turn a numeric score into three bands, and be able to defend where.",
+        ["Turns each numeric score into a Low, Mid or High band, split at the two",
+         "boundaries you give it."],
         "rows (a list)",
-        ["rows = reshape_icnale(RAW_FILE, low_below=4.0, mid_below=7.0)",
-         "the defaults (4.0 / 7.0) are ROUND NUMBERS, not a rubric —",
-         "using them unchanged is a choice you would have to defend too"],
-        notes=["Note      : run it a couple of ways and look at step 4 each time. Seeing",
-               "            the counts move as you shift a boundary is the point.",
-               "Careful   : whatever you settle on goes in PLAN.md as two numbers and a",
-               "            reason. Do not re-cut after seeing your F1."],
         starter=["# A score below low_below is Low; below mid_below is Mid; the rest High.",
                  "#",
                  "# 4.0 and 7.0 are the defaults, and they are round numbers rather than",
