@@ -18,7 +18,7 @@ The split is deliberate:
 |---|---|---|
 | `pipeline.py` | Loading and saving, the connection to the model, `sample_pool`, `run_prompt`, `extract_label`, `build_fewshot`, `export_results` | To see how the sample is drawn, or what happens to the model's reply between "it answered" and "that counts as `Move 2`" |
 | `metrics.py` | `evaluate` (per-class P/R/F1, κ, confusion matrix), `agreement`, `show_errors` | To see exactly what your headline numbers are computed from |
-| `annotate.py` | The Google Sheets round trip used by notebook 03 | When the sheet does something surprising — who it was shared with, how blank rows are treated, how labels are matched back |
+| `annotate.py` | The Google Sheets round trip: a tab per coder, `Final` to adjudicate in, and the agreement statistics | When the sheet does something surprising — who it was shared with, how blank rows are treated, how labels are matched back — or to see how Fleiss' κ is computed for three or more coders |
 | `reshape.py` | Each corpus → the canonical `{id, text, label}` | Notebook 01 already shows you the part that applies to your track |
 | `download.py` | One fetch per track | Rarely. ICNALE is deliberately manual — the licence says ask first |
 | `prep_datasets.py` | `python scripts/prep_datasets.py <track>` — builds a pool with every decision already made | When you want the file and not the reasoning: rebuilding a pool you have already thought about, or `--demos` for the small stand-ins |

@@ -18,6 +18,7 @@ call form taught in Days 1-3 must run here unchanged. It needs no API key and ma
 no network calls -- the model is replaced by a stub.
 """
 
+import builtins
 import json
 import sys
 import tempfile
@@ -263,6 +264,63 @@ def main():
         check("create_annotation_sheet(title, items, labels) still needs only three",
               sheet_creation_stays_three_args)
 
+        def coder_tabs_merge_into_one_table():
+            # load_coder_sheets reads one TAB per coder and joins them by id. Stub the
+            # per-tab reader so this needs no network and no Google account: what is
+            # being checked is the JOIN, and that its output is the shape everything
+            # downstream already consumes.
+            import annotate
+            tabs = {
+                "CoderA": [{"ID": 1, "Text": "first", "Label": "A1", "Note": ""},
+                           {"ID": 2, "Text": "second", "Label": "A2", "Note": ""}],
+                "CoderB": [{"ID": 1, "Text": "first", "Label": "A1", "Note": ""},
+                           {"ID": 2, "Text": "second", "Label": "B1", "Note": "unsure"}],
+                "Final": [{"ID": 1, "Text": "first", "Final": "A1", "Note": ""},
+                          {"ID": 2, "Text": "second", "Final": "A2", "Note": "talked"}],
+            }
+            real_loader = annotate.load_annotation_sheet
+            annotate.load_annotation_sheet = lambda sheet_id, tab: tabs[tab]
+            try:
+                merged = annotate.load_coder_sheets("ignored", ["CoderA", "CoderB"])
+            finally:
+                annotate.load_annotation_sheet = real_loader
+
+            assert len(merged) == 2, "one row per item, not one per tab"
+            assert merged[0]["CoderA"] == "A1" and merged[0]["CoderB"] == "A1", \
+                "each coder's tab becomes a column named after that coder"
+            assert merged[1]["Final"] == "A2", "the Final tab supplies the Final column"
+            # The shape to_canonical and disagreements already expect.
+            gold = to_canonical(merged, labels)
+            assert len(gold) == 2, "merged rows must still canonicalise"
+            assert len(disagreements(merged)) == 1, "row 2 disagrees"
+        check("load_coder_sheets merges per-coder tabs into the usual row shape",
+              coder_tabs_merge_into_one_table)
+
+        def duplicated_tab_is_called_out():
+            # Adding a coder by duplicating a tab that is already filled in hands them
+            # somebody else's answers. Perfect agreement then reads as excellent
+            # reliability instead of as a photocopy, and nothing downstream can tell.
+            import annotate
+            same = []
+            for number in range(6):
+                same.append({"ID": number + 1, "Text": "t", "Label": "A1", "Note": ""})
+            tabs = {"CoderA": same, "CoderB": same, "Final": []}
+            real_loader = annotate.load_annotation_sheet
+            annotate.load_annotation_sheet = lambda sheet_id, tab: tabs[tab]
+            printed = []
+            real_print = builtins.print
+            builtins.print = lambda *args, **kwargs: printed.append(" ".join(
+                str(a) for a in args))
+            try:
+                annotate.load_coder_sheets("ignored", ["CoderA", "CoderB"])
+            finally:
+                annotate.load_annotation_sheet = real_loader
+                builtins.print = real_print
+            assert any("WARNING" in line for line in printed), \
+                "two identical coder columns must be called out, not passed through"
+        check("load_coder_sheets warns when one coder's tab is a copy of another",
+              duplicated_tab_is_called_out)
+
         def sheet_id_round_trip():
             # The sheet id is the one handoff that is not a data file. If this stops
             # round-tripping, notebook 03 step 3 silently gets "" and reads no sheet.
@@ -284,6 +342,70 @@ def main():
             table = disagreements(rows)
             assert len(table) == 1, "exactly one row disagrees"
         check("disagreements(rows) -> DataFrame", sheet_disagreements)
+
+        # ---- three or more coders -------------------------------------------------
+        # Each coder gets their own TAB, and how many there are is decided when the
+        # sheet is READ, not when it is made. Two coders must keep behaving exactly as
+        # before; three must not fall back to comparing only the first two.
+        three = [
+            {"ID": "1", "Text": "first", "CoderA": "A1", "CoderB": "A1",
+             "CoderC": "A1", "Final": "", "Note": ""},
+            {"ID": "2", "Text": "second", "CoderA": "A2", "CoderB": "B1",
+             "CoderC": "A2", "Final": "", "Note": ""},
+            {"ID": "3", "Text": "third", "CoderA": "B1", "CoderB": "B1",
+             "CoderC": "A1", "Final": "", "Note": ""},
+            {"ID": "4", "Text": "fourth", "CoderA": "A1", "CoderB": "",
+             "CoderC": "A1", "Final": "", "Note": ""},   # half-finished: must drop out
+        ]
+        names = ["CoderA", "CoderB", "CoderC"]
+
+        def agreement_with_three_coders():
+            result = annotator_agreement(three, coders=names)
+            assert result["n"] == 3, \
+                "the row one coder skipped must drop out, leaving 3"
+            assert "kappa" in result, "the 'kappa' key must survive for older code"
+            assert "fleiss_kappa" in result, "three coders get a Fleiss kappa"
+            assert len(result["pairwise_kappa"]) == 3, \
+                "three coders make three pairs"
+        check("annotator_agreement(rows, coders=[A, B, C]) -> Fleiss + pairwise",
+              agreement_with_three_coders)
+
+        def two_named_coders_behave_as_before():
+            named = annotator_agreement(rows, coders=["CoderA", "CoderB"])
+            plain = annotator_agreement(rows)
+            assert named["kappa"] == plain["kappa"], \
+                "naming the two coders must not change the number"
+        check("annotator_agreement(rows, coders=[A, B]) == annotator_agreement(rows)",
+              two_named_coders_behave_as_before)
+
+        def disagreements_with_three_coders():
+            table = disagreements(three, coders=names)
+            assert len(table) == 2, \
+                "rows 2 and 3 are not unanimous; row 4 is half-finished"
+        check("disagreements(rows, coders=[A, B, C]) -> not-unanimous rows",
+              disagreements_with_three_coders)
+
+        def fleiss_matches_the_published_example():
+            # Fleiss (1971): 10 subjects, 14 raters, 5 categories, kappa = 0.210.
+            from annotate import fleiss_kappa
+            counts = [[0, 0, 0, 0, 14], [0, 2, 6, 4, 2], [0, 0, 3, 5, 6],
+                      [0, 3, 9, 2, 0], [2, 2, 8, 1, 1], [7, 7, 0, 0, 0],
+                      [3, 2, 6, 3, 0], [2, 5, 3, 2, 2], [6, 5, 2, 1, 0],
+                      [0, 2, 2, 3, 7]]
+            raters = []
+            for _ in range(14):
+                raters.append([])
+            for row in counts:
+                seat = 0
+                for category in range(len(row)):
+                    for _ in range(row[category]):
+                        raters[seat].append(str(category))
+                        seat = seat + 1
+            kappa = fleiss_kappa(raters)
+            assert abs(kappa - 0.210) < 0.001, \
+                "Fleiss' kappa should be 0.210 on the published example, got " + str(kappa)
+        check("fleiss_kappa reproduces the published worked example",
+              fleiss_matches_the_published_example)
 
         def canonical_rejects_bad_labels():
             bad = [{"ID": "1", "Text": "first", "CoderA": "", "CoderB": "",

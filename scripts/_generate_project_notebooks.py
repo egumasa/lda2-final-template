@@ -489,9 +489,16 @@ cells = [
         "",
         "Open the sheet, and label every row. Rules of the exercise:",
         "",
-        "- **CoderA and CoderB work independently.** Different people, no discussion, "
-        "no peeking at the other column.",
-        "- **Leave `Final` empty** until you have both finished and talked.",
+        "- **Each coder works in their OWN tab** — `CoderA`, `CoderB`. Different "
+        "people, no discussion, and do not open a colleague's tab to see what they "
+        "put. The sheet cannot stop you; the κ you report is only worth something if "
+        "you do not.",
+        "- **Leave the `Final` tab alone** until everyone has finished and you have "
+        "talked.",
+        "- **A third coder?** Duplicate an EMPTY tab (right-click ▸ *Duplicate*) and "
+        "rename it `CoderC`. Copying a tab somebody has already filled in gives them "
+        "that person's answers, and notebook 03 will tell you so in a warning you "
+        "will not enjoy.",
         "- **Use `Note`** when you hesitate. The item you were unsure about is the item "
         "you will want to quote in your error analysis, and you will not remember which "
         "one it was.",
@@ -537,7 +544,7 @@ cells_03 = [
         "# The Google Sheets round trip is plumbing, so it is imported. The judgment it",
         "# exists to support is not in any of these files.",
         "from pipeline import load_gold, label_set, save_json",
-        "from annotate import (remembered_sheet, load_annotation_sheet, to_canonical,",
+        "from annotate import (remembered_sheet, load_coder_sheets, to_canonical,",
         "                      annotator_agreement, disagreements,",
         "                      compare_to_published)",
     ]),
@@ -574,17 +581,27 @@ cells_03 = [
         "# just the long id from it) here instead:",
         '# SHEET_ID = ""',
         "",
-        'ROUND = "round1"             # each re-annotation round gets its own tab',
-        "",
         'print("sheet:", SHEET_ID or "-- none saved yet: run notebook 02 --")',
         ""),
     md(
         "## Step 1 — Measure agreement",
         "",
-        "Two numbers and a matrix: raw percent agreement, Cohen's κ (agreement "
-        "corrected for what you would get by guessing), and an annotator-vs-annotator "
-        "confusion matrix whose off-diagonal cells show *which* label pairs the two of "
-        "you confuse.",
+        "Each coder has their **own tab**, so the first thing to do is line them up "
+        "side by side. `load_coder_sheets` reads one tab per name you give it and joins "
+        "them by item id into a single table — one column per coder, plus `Final`.",
+        "",
+        "> **Who annotated?** Change the list if your group is not two people. If a "
+        "third coder joined, duplicate an **empty** tab in the sheet (right-click ▸ "
+        "*Duplicate*), rename it `CoderC`, and add `\"CoderC\"` to the list. You did not "
+        "have to decide this when the sheet was made, and you do not have to rebuild "
+        "anything now.",
+        "",
+        "Then the numbers. With **two** coders: raw percent agreement, Cohen's κ "
+        "(agreement corrected for what you would get by guessing), and a "
+        "coder-vs-coder confusion matrix whose off-diagonal cells show *which* label "
+        "pairs you confuse. With **three or more**: Fleiss' κ for the group as a whole, "
+        "then Cohen's κ for every pair, then the matrix for the pair that agreed least — "
+        "which is usually where your scheme is leaking.",
         "",
         "**Write these down now** — they are report section 1, and they do not survive "
         "a runtime reset. A κ around .8 is strong; around .4 means the scheme, not the "
@@ -592,23 +609,30 @@ cells_03 = [
         "you can explain beats a high one you cannot."),
     step(
         1, "Measure agreement",
-        "how often did the two of you agree, and on which labels did you not?",
-        ["load_annotation_sheet(SHEET_ID, ROUND)  ->  rows",
-         "annotator_agreement(rows)  ·  disagreements(rows)",
-         "SHEET_ID · ROUND   (both set in the cell just above)"],
-        "Day 2 S5 steps D–E — identical calls.",
-        "rows · disagreed",
-        source="scripts/annotate.py · load_annotation_sheet, annotator_agreement",
-        extra=["Note      : run this once BOTH CoderA and CoderB columns are filled in.",
-               "            Half-finished rows are dropped from the comparison.",
+        "how often did you agree, and on which labels did you not?",
+        ["load_coder_sheets(SHEET_ID, CODERS)  ->  rows   (one column per coder)",
+         "annotator_agreement(rows, coders=CODERS)  ·  disagreements(rows, coders=CODERS)",
+         "SHEET_ID   (set in the cell just above)"],
+        "Day 2 S5 steps D–E — the same calls, now naming who annotated.",
+        "CODERS · rows · disagreed",
+        source="scripts/annotate.py · load_coder_sheets, annotator_agreement",
+        extra=["Note      : run this once EVERY coder's tab is filled in. Rows that not",
+               "            everyone labelled are dropped from the comparison.",
+               "Careful   : if it warns that two coders gave identical labels to every",
+               "            item, somebody duplicated a tab that was already filled in.",
+               "            That agreement is a copy, not a measurement — fix it before",
+               "            you report anything.",
                "Keep      : `disagreed` matters again in notebook 05 — the rows you",
                "            argued about are the ones to check your model's errors",
                "            against. Save the list, or write the ids down."],
         starter=[
-            "rows = load_annotation_sheet(SHEET_ID, ____)     # ROUND",
+            "# Who annotated. One name per tab in the sheet.",
+            'CODERS = ["CoderA", "CoderB"]        # add "CoderC" if a third person joined',
             "",
-            "annotator_agreement(rows)                        # prints % agreement and κ",
-            "disagreed = disagreements(rows)",
+            "rows = load_coder_sheets(SHEET_ID, ____)         # CODERS",
+            "",
+            "annotator_agreement(rows, coders=CODERS)         # prints agreement and κ",
+            "disagreed = disagreements(rows, coders=CODERS)",
             "disagreed",
         ]),
     md(
@@ -627,14 +651,14 @@ cells_03 = [
     step(
         2, "Adjudicate, then canonicalise",
         "agree a Final label for every row, then turn the sheet into gold.",
-        ["load_annotation_sheet(SHEET_ID, ROUND)  ->  rows   (re-read after editing)",
+        ["load_coder_sheets(SHEET_ID, CODERS)  ->  rows   (re-read after editing)",
          "to_canonical(rows, LABELS, source=sampled)  ->  gold"],
         "Day 2 S5 step F — identical calls.",
         "gold",
         source="scripts/annotate.py · to_canonical",
         starter=[
-            "# Re-read: `rows` from step 3 was fetched before you filled in Final.",
-            "rows = load_annotation_sheet(SHEET_ID, ROUND)",
+            "# Re-read: `rows` from step 1 was fetched before you filled in Final.",
+            "rows = load_coder_sheets(SHEET_ID, CODERS)",
             "",
             "gold = to_canonical(rows, LABELS, source=____)      # sampled",
         ],
@@ -1007,7 +1031,7 @@ cells_05 = [
         "# the analysis this notebook is about, so they are in the notebook, below.",
         "from pipeline import (load_gold, load_predictions, load_json, save_json,",
         "                      export_results)",
-        "from annotate import remembered_sheet, load_annotation_sheet, disagreements",
+        "from annotate import remembered_sheet, load_coder_sheets, disagreements",
     ]),
     CONFIG_MD,
     step(
@@ -1103,7 +1127,7 @@ cells_05 = [
         "get the misses, and see how many fall on items your own coders split on.",
         ["show_errors(gold, pred_final)  ->  a table of the items it got wrong",
          "errors_on_disagreed(errors, disagreed)  ->  the overlapping ids",
-         "load_annotation_sheet(SHEET_ID, ROUND) · disagreements(rows)   (as in 03)"],
+         "load_coder_sheets(SHEET_ID, CODERS) · disagreements(...)   (as in 03)"],
         "Day 3, \"where is your best prompt still wrong?\" — identical call.",
         "errors · disagreed",
         source="the cell above · scripts/metrics.py · show_errors, errors_on_disagreed",
@@ -1111,9 +1135,9 @@ cells_05 = [
                "            support — that the model fails where your SCHEME is fuzzy,",
                "            rather than at random. Write it down either way: a LOW",
                "            overlap is just as reportable, and means something else.",
-               "Careful   : re-reading the sheet needs the annotation round you used in",
-               "            notebook 03. Skip this pair of lines if the sheet is gone —",
-               "            the triage below still works without it."],
+               "Careful   : re-reading the sheet needs the same coder names you used in",
+               "            notebook 03. Skip these lines if the sheet is gone — the",
+               "            triage below still works without it."],
         starter=[
             "errors = show_errors(gold, pred_final)",
             "errors.head(15)",
@@ -1124,9 +1148,10 @@ cells_05 = [
             'errors[errors.gold == "____"]',
             "",
             "# Now the cross-reference: your coders' disagreements, back from the sheet.",
+            'CODERS = ["CoderA", "CoderB"]        # the same names you used in 03',
             "SHEET_ID = remembered_sheet(SHEET_PATH)",
-            'rows = load_annotation_sheet(SHEET_ID, "round1")',
-            "disagreed = disagreements(rows)",
+            "rows = load_coder_sheets(SHEET_ID, CODERS)",
+            "disagreed = disagreements(rows, coders=CODERS)",
             "",
             "overlap = errors_on_disagreed(errors, disagreed)",
         ]),
