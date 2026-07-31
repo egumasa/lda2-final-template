@@ -14,7 +14,7 @@ data were reshaped.
 
 | Folder | Contents | In git? |
 |---|---|---|
-| `gold/<track>_demo.json` | small balanced demo sets (60–72 items) so every track runs the moment you clone | ✅ committed |
+| `pools/<track>_demo_pool.json` | small balanced demo pools (60–72 items) so notebooks 02–05 run the moment you clone | ✅ committed |
 | `gold/<track>_<group>_gold.json` | **your** sampled + adjudicated gold set | ❌ yours, stays local |
 | `pools/<track>_pool.json` | the full-size pool you sample from (1,000–3,200 items) | ❌ build it yourself |
 | `raw/` | the original downloads the builder reshapes | ❌ build it yourself |

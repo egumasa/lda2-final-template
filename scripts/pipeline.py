@@ -260,24 +260,24 @@ def load_gold(url_or_path):
         raw_text = raw_bytes.decode("utf-8")
         gold = json.loads(raw_text)
     else:
-        # Only the small CEFR demo ships with the template; every other file is one
-        # you build or make yourself. If it is missing, say WHY and WHAT TO DO
-        # instead of a bare traceback.
+        # Only the small DEMO pools ship with the template; every other file is one
+        # you build or make yourself. If it is missing, say WHY and WHAT TO DO instead
+        # of a bare traceback.
         if not Path(url_or_path).exists():
             raise FileNotFoundError(
                 "File not found: " + str(url_or_path) + "\n"
-                "Only data/gold/cefr_demo.json ships with the template. To get the "
-                "others:\n"
-                "  * A full-size POOL to sample from - build it once with\n"
-                "        python scripts/prep_datasets.py <track>\n"
-                "    (or run the matching notebooks/download_<track>.ipynb). It lands "
-                "in data/pools/.\n"
-                "  * YOUR OWN gold set - that is what step 2 of the notebook writes, "
-                "after you\n"
-                "    have annotated and adjudicated it.\n"
-                "Check that POOL_PATH in the CONFIG cell points at a file that exists. "
-                "To just see the pipeline run end to end, set TRACK = 'cefr' and use "
-                "the demo file."
+                "Only data/pools/<track>_demo_pool.json ships with the template. The "
+                "rest you build:\n"
+                "  * A full-size POOL to sample from - notebook 01_build_pool_<track>, "
+                "or the\n"
+                "    shortcut `python scripts/prep_datasets.py <track>`. It lands in "
+                "data/pools/.\n"
+                "  * YOUR SAMPLE - notebook 02_sample writes it to data/gold/.\n"
+                "  * YOUR GOLD SET - notebook 03_annotate writes it, after you have "
+                "annotated\n"
+                "    and adjudicated. Nothing can make this one for you.\n"
+                "Check the paths in config.py. To just see the pipeline run, load "
+                "DEMO_POOL_PATH instead of POOL_PATH."
             )
         opened_file = open(url_or_path, encoding="utf-8")
         gold = json.loads(opened_file.read())
@@ -331,6 +331,32 @@ def load_predictions(url_or_path):
         opened_file.close()
     print("Loaded", len(predictions), "frozen predictions.")
     return predictions
+
+
+# ----------------------------------------------------------------------------------
+# Handing work from one notebook to the next
+# ----------------------------------------------------------------------------------
+# Notebooks 01-05 run in separate sessions, often on separate days and different
+# people's runtimes. Anything one of them produces and another needs has to go through
+# a FILE - a variable in someone else's Colab is not a handoff. These two do that for
+# any JSON-able thing: your sample, your gold set, your per-round F1 table.
+def save_json(data, path, what="items"):
+    """Write anything JSON-able to a file, making the folder if it is missing."""
+    output_path = Path(path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(
+        json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    print("Saved", len(data), what, "to", str(output_path))
+    return output_path
+
+
+def load_json(path, what="items"):
+    """Read back what save_json wrote."""
+    opened_file = open(path, encoding="utf-8")
+    data = json.loads(opened_file.read())
+    opened_file.close()
+    print("Loaded", len(data), what, "from", str(path))
+    return data
 
 
 # ----------------------------------------------------------------------------------
