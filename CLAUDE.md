@@ -59,17 +59,38 @@ earns its keep.
 
 ## Layout
 
-- `config.yaml` — **the only file students edit** in the plumbing. Six settings.
+- `config.yaml` — **the only file students edit** in the plumbing. Seven settings.
 - `config.py` — reads `config.yaml` and derives every path. Students never edit it, and
   never type a file path in a notebook; the file notebook 02 writes is by construction the
   file notebook 03 opens.
 - `notebooks/` — **generated. Do not hand-edit.** Edit `scripts/_generate_pool_notebooks.py`
   or `scripts/_generate_project_notebooks.py` and re-run. `scripts/_setup_cell.py` builds
-  the shared SETUP cell; `scripts/_check_call_forms.py` validates that the notebooks only
+  the shared SETUP cell; `scripts/_check_notebooks.py` asserts every
+  cell runs, fits a screen and has a lead-in; `scripts/_check_call_forms.py` validates that the notebooks only
   call functions in the forms they teach.
 - `scripts/pipeline.py`, `metrics.py`, `annotate.py` — the functions notebooks call.
 - `prompts/`, `data/pools/`, `data/gold/`, `outputs/` — one file per track, named from
   `config.yaml`.
+
+## One thing per cell, and say what it is first
+
+Two rules about the generated notebooks, both checked by `scripts/_check_notebooks.py`:
+
+- **A code cell does one nameable thing.** Not "load the pool and count the labels" —
+  two cells. Not four functions stacked in one embedded-source cell — four cells. The
+  only exemptions are the SETUP cell, which is honestly labelled as plumbing, and a cell
+  holding exactly one `def`, which cannot be split any further.
+- **Every code cell has a markdown cell above it that says what is about to happen**, in
+  the form *"Now we will do X"*, as its last and plainest sentence. The rationale can be
+  as long as it needs to be; the signpost goes at the bottom of it, next to the code.
+
+Two consequences worth stating outright, because they cost real money and real work:
+
+- **A cell that calls the model gets a cell to itself.** If scoring shares a cell with
+  `run_prompt`, then re-reading your results re-sends every item, and in step 4 of
+  notebook 04 it re-runs the audited held-out run.
+- **Never offer a choice as two live assignment lines** with "delete the one you are not
+  using". The second silently wins. Use a named choice and an explicit `if`.
 
 ## No audience labels
 

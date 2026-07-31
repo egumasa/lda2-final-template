@@ -25,6 +25,8 @@ The split is deliberate:
 | `make_submission.py` | Collects what you hand in | At the end, once |
 | `_generate_pool_notebooks.py`, `_generate_project_notebooks.py`, `_setup_cell.py` | Build the eight notebooks | Only if you are changing the template itself. Never hand-edit an `.ipynb` |
 | `_check_call_forms.py` | Asserts every call form taught on Days 1–3 still runs here unchanged | After changing any signature. Needs no API key and no network |
+| `_check_undefined_names.py` | Asserts every name a notebook cell uses was imported or defined by an earlier cell | After changing a SETUP cell's imports or adding a call to a step. Catches the `NameError` a student would hit on their first run |
+| `_check_notebooks.py` | Asserts every code cell is valid Python, fits on a screen, and has a markdown cell above it saying what it does | After regenerating. Catches a cell that would not run, and a generator change that quietly produced a wall of source |
 
 If a call you learned in the tutorials does not work in these notebooks, that is a bug
 here rather than a gap in your memory of it — please say so.

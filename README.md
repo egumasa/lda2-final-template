@@ -8,9 +8,10 @@ a small LLM-annotation study end to end, across five numbered notebooks:
 ```
 
 > **build** a pool from a real corpus → **choose how to sample** it and defend that →
-> **annotate and adjudicate** it yourselves → write a **baseline prompt** → **read what
-> it got wrong** and iterate on that over 2–3 rounds → **freeze** the predictions →
-> **triage the errors** → **export a one-page report**
+> **annotate and adjudicate** it yourselves → **split it into dev and test** → write a
+> **baseline prompt** → **read what it got wrong** and iterate on the *dev* half over 2–3
+> rounds → **freeze** one run on the *held-out* half → **triage the errors** →
+> **export a one-page report**
 
 The plumbing is written for you. What you supply is the judgment: which items, which
 labels, which prompt, and what the errors mean.
@@ -27,8 +28,9 @@ lda2-final-template/
 ├── notebooks/                      # YOUR five notebooks. Run them in order.
 │   ├── 01_build_pool_<track>.ipynb #   corpus → data/pools/<track>_pool.json
 │   ├── 02_sample.ipynb             #   pool → your sample → the annotation sheet
-│   ├── 03_annotate.ipynb           #   the filled-in sheet → YOUR gold standard
-│   ├── 04_prompt.ipynb             #   gold → iterate on errors → frozen predictions
+│   ├── 03_annotate.ipynb           #   the filled-in sheet → YOUR gold standard,
+│   │                               #   split into dev and test
+│   ├── 04_prompt.ipynb             #   dev → iterate on errors → one frozen run on test
 │   └── 05_report.ipynb             #   predictions → error analysis + report
 ├── scripts/                        # the code the notebooks call. You do NOT edit these —
 │                                   #   but see scripts/README.md for the parts to READ
@@ -41,10 +43,11 @@ lda2-final-template/
 ├── data/
 │   ├── pools/                      # the pools you build (git-ignored), full-size
 │   │                               #   plus optional small <track>_demo_pool.json
-│   ├── gold/                       # YOUR sample and YOUR gold set (git-ignored)
+│   ├── gold/                       # YOUR sample, YOUR gold set, and its dev/test
+│   │                               #   split (git-ignored)
 │   └── raw/                        # original downloads (git-ignored)
 ├── prompts/<track>.txt             # your prompt lives here, as a file you edit
-└── outputs/                        # predictions, report, figures
+└── outputs/                        # predictions, the test-scoring log, report, figures
 ```
 
 You edit **`config.yaml`**, the **✏️ cells** in the notebooks, and your **prompt file**.
@@ -177,9 +180,25 @@ temperature or seed, so your numbers will not be reproducible — fine for a qui
 not for your final run.
 
 Free tier: ~500 requests/day per key, ~15/minute. The backend paces itself and retries, so
-a full run takes minutes and may print `(rate limited - waiting Ns then retrying)` — that
-is normal. **Iterate at `N_PER_CLASS = 2`**, then do one final run at full size. If you
-run out, hand the driver role to another member; the files stay put in Drive.
+a run takes minutes and may print `(rate limited - waiting Ns then retrying)` — that is
+normal. **Iterate on your dev half**, which is a dozen or so items and about a minute per
+round; `n_per_class` stays at its final value throughout, and the one run on the held-out
+half happens at the end. If you run out of quota, hand the driver role to another member;
+the files stay put in Drive.
+
+### About the size of this study
+
+One API call per item, four-and-a-bit seconds apart, no batching. Forty items is a few
+minutes; four hundred is most of an afternoon of a quota shared across the course. So this
+template cannot produce a study that would support a claim about a corpus — that needs
+hundreds of items per class, and the confidence interval on a macro-F1 over twenty-odd
+held-out items is wide enough that a five-point difference means nothing.
+
+That is stated rather than worked around, and groups are asked to state it in report §5
+too. What the project is really rehearsing is the **method**: an annotation scheme you can
+defend, a gold set two people built and argued over, a line drawn between the items you
+tune on and the items you report on, a frozen run, and an audit trail. Those transfer to a
+study of any size. The number does not.
 
 ## The tracks
 
@@ -235,6 +254,10 @@ That builds `../lda2_project_groupA/` keeping the folder structure intact, and
 deliberately leaves out your `.env`, the big pools, and anything ICNALE-derived. Download
 it from Drive as a zip and turn it in on Google Classroom.
 
+Run it again after filling a gap and it will stop, because rebuilding the folder deletes
+everything in it — including your slides, if you dropped them in by hand. Add
+`--overwrite` when that is what you want.
+
 ## For maintainers
 
 All eight notebooks are **generated** — never hand-edit an `.ipynb`:
@@ -243,7 +266,12 @@ All eight notebooks are **generated** — never hand-edit an `.ipynb`:
 python scripts/_generate_pool_notebooks.py      # 01_build_pool_<track>.ipynb ×4
 python scripts/_generate_project_notebooks.py   # 02_sample … 05_report
 python scripts/_check_call_forms.py     # the contract test — run after ANY signature change
+python scripts/_check_notebooks.py      # every cell runs, fits a screen, and is introduced
 ```
+
+`_check_notebooks.py` asserts the three things that make a notebook followable: every code
+cell is valid Python, no cell is longer than a screen, and every cell has a markdown
+lead-in above it saying what is about to happen.
 
 `_check_call_forms.py` asserts that every call form taught in Days 1–3 still runs here
 unchanged. It needs no API key and no network. If it fails, fix the signature rather than
