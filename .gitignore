@@ -7,12 +7,12 @@ outputs/*
 !outputs/.gitkeep
 
 # ---------------------------------------------------------------------------
-# Data — four rules, in order of increasing specificity.
+# Data — three rules, in order of increasing specificity.
 # ---------------------------------------------------------------------------
-# 1. Builder inputs (data/raw/) and the full-size pools you build (data/pools/)
-#    are never committed: they are large, and most of them are not ours to
-#    redistribute. Rebuild any of them at any time with
-#        python scripts/prep_datasets.py <track>
+# 1. No pool data is committed. Builder inputs (data/raw/) and every pool you
+#    build (data/pools/, demo pools included) stay local: they are large, and
+#    most of them are not ours to redistribute. Build them with
+#        python scripts/prep_datasets.py <track> --demos
 #    or by running notebooks/01_build_pool_<track>.ipynb.
 data/raw/*
 !data/raw/.gitkeep
@@ -21,22 +21,14 @@ data/pools/*
 !data/pools/README.md
 !data/pools/LICENSE
 
-# 2. The small DEMO pools ARE committed, so notebooks 02-05 run the moment you
-#    clone, before anyone has built a real pool. They are small, and their licences
-#    allow redistribution with attribution - see data/SOURCES.md and
-#    data/pools/LICENSE.
-!data/pools/raamove_demo_pool.json
-!data/pools/cars50_demo_pool.json
-!data/pools/l2_errors_demo_pool.json
-
-# 3. data/gold/ is now entirely YOUR work - the sample notebook 02 draws and the
+# 2. data/gold/ is now entirely YOUR work - the sample notebook 02 draws and the
 #    adjudicated gold set notebook 03 writes. None of it is committed: it is yours,
 #    and it goes in the submission bundle rather than into git.
 data/gold/*
 !data/gold/.gitkeep
 !data/gold/README.md
 
-# 4. ICNALE GRA is research-use-only and must NOT be redistributed. This rule comes
+# 3. ICNALE GRA is research-use-only and must NOT be redistributed. This rule comes
 #    LAST so it overrides every exception above, whatever the file ends up called.
 #    It is scoped to data/ so that the ICNALE *prompt* and *pool-building notebook* —
 #    which are code, not data — can still be tracked.

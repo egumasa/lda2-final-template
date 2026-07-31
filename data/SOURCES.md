@@ -10,24 +10,27 @@ reshaped into this course's canonical schema:
 If you report results from any of them, **cite the original source** and note that the
 data were reshaped.
 
-## What is committed, and what you build
+## What you build
+
+**No data is committed.** Every file below is one you build or make yourself — the
+template ships code, not corpora.
 
 | Folder | Contents | In git? |
 |---|---|---|
-| `pools/<track>_demo_pool.json` | small balanced demo pools (60–72 items) so notebooks 02–05 run the moment you clone | ✅ committed |
-| `gold/<track>_<group>_gold.json` | **your** sampled + adjudicated gold set | ❌ yours, stays local |
 | `pools/<track>_pool.json` | the full-size pool you sample from (1,000–3,200 items) | ❌ build it yourself |
+| `pools/<track>_demo_pool.json` | small balanced stand-ins (60–72 items) for watching the pipeline run | ❌ build it yourself |
+| `gold/<track>_<group>_gold.json` | **your** sampled + adjudicated gold set | ❌ yours, stays local |
 | `raw/` | the original downloads the builder reshapes | ❌ build it yourself |
 
 Build any pool with:
 
 ```bash
-python scripts/prep_datasets.py <track>      # raamove · cars50 · l2_errors · icnale
+python scripts/prep_datasets.py <track>            # raamove · cars50 · l2_errors · icnale
+python scripts/prep_datasets.py <track> --demos    # ...and the small demo stand-in
 ```
 
-The demo sets are committed because they are small and their licences permit
-redistribution with attribution. The full pools are not: they are large, and for ICNALE
-redistribution is **not permitted at all**.
+Keeping the pools out of git keeps the template small and keeps redistribution
+questions out of it entirely — for ICNALE, redistribution is **not permitted at all**.
 
 > **Demo files are for seeing the pipeline work, not for your study.** A 60-item "pool"
 > is smaller than the sample you are meant to draw from it, which leaves nothing for

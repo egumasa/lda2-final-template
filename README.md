@@ -37,8 +37,8 @@ lda2-final-template/
 │   ├── prep_datasets.py            #   one command to rebuild a track's pool
 │   └── make_submission.py          #   collect what you hand in
 ├── data/
-│   ├── pools/                      # the pools you build (git-ignored), plus small
-│   │                               #   <track>_demo_pool.json files so 02–05 run on clone
+│   ├── pools/                      # the pools you build (git-ignored), full-size
+│   │                               #   plus optional small <track>_demo_pool.json
 │   ├── gold/                       # YOUR sample and YOUR gold set (git-ignored)
 │   └── raw/                        # original downloads (git-ignored)
 ├── prompts/<track>.txt             # your prompt lives here, as a file you edit
@@ -157,9 +157,11 @@ run out, hand the driver role to another member; the files stay put in Drive.
 | `l2_errors` | L2 error type, or error detection | 4 classes, or yes/no | ★★★ can also benchmark against the published tool |
 | `icnale` | Holistic essay score band | Low/Mid/High | ★★☆ needs a manual, registered download |
 
-Notebooks 02–05 run immediately on the shipped `<track>_demo_pool.json` files — but the
-demos are *smaller than the sample you are meant to draw from a pool*, so your real study
-starts by building the real thing in `01_build_pool_<track>.ipynb`.
+No data ships with the template — your first step is building a pool in
+`01_build_pool_<track>.ipynb`. If you want to watch 02–05 run before that, build the
+small stand-ins with `python scripts/prep_datasets.py <track> --demos`; they are
+*smaller than the sample you are meant to draw from a pool*, so they are for seeing the
+pipeline work, not for running your study.
 
 If you only want the file and not the reasoning — rebuilding a pool you have already
 thought about, say — there is a shortcut that makes every decision for you:

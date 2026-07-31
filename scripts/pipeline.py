@@ -260,24 +260,26 @@ def load_gold(url_or_path):
         raw_text = raw_bytes.decode("utf-8")
         gold = json.loads(raw_text)
     else:
-        # Only the small DEMO pools ship with the template; every other file is one
-        # you build or make yourself. If it is missing, say WHY and WHAT TO DO instead
+        # No pool or gold data ships with the template - every file here is one you
+        # build or make yourself. If it is missing, say WHY and WHAT TO DO instead
         # of a bare traceback.
         if not Path(url_or_path).exists():
             raise FileNotFoundError(
                 "File not found: " + str(url_or_path) + "\n"
-                "Only data/pools/<track>_demo_pool.json ships with the template. The "
-                "rest you build:\n"
+                "No data ships with the template - you build all of it:\n"
                 "  * A full-size POOL to sample from - notebook 01_build_pool_<track>, "
                 "or the\n"
                 "    shortcut `python scripts/prep_datasets.py <track>`. It lands in "
                 "data/pools/.\n"
+                "  * A small DEMO pool, if you just want to watch the pipeline run - "
+                "add\n"
+                "    `--demos` to that same command.\n"
                 "  * YOUR SAMPLE - notebook 02_sample writes it to data/gold/.\n"
                 "  * YOUR GOLD SET - notebook 03_annotate writes it, after you have "
                 "annotated\n"
                 "    and adjudicated. Nothing can make this one for you.\n"
-                "Check the paths in config.py. To just see the pipeline run, load "
-                "DEMO_POOL_PATH instead of POOL_PATH."
+                "Check the paths in config.py. To just see the pipeline run, build "
+                "the demo pool and load DEMO_POOL_PATH instead of POOL_PATH."
             )
         opened_file = open(url_or_path, encoding="utf-8")
         gold = json.loads(opened_file.read())

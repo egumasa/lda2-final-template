@@ -13,9 +13,10 @@ The notebooks/download_<track>.ipynb files do exactly the same work, one step at
 with the reasoning spelled out - and they run in Colab. Use those if you want to SEE the
 reshaping; use this if you just want the file.
 
-    --demos    ALSO rebuild the small data/pools/<track>_demo_pool.json files.
-               Off by default: those files are committed, so rebuilding them changes
-               what ships with the template. You almost certainly do not want this.
+    --demos    ALSO build the small data/pools/<track>_demo_pool.json files - a
+               60-72 item stand-in per track, useful for watching the pipeline run
+               before the full pool exists. No pool data is committed, so nothing
+               here ships with the template; you build whatever you need.
 """
 
 import sys
@@ -124,8 +125,8 @@ def main(argv):
         targets = list(BUILDERS)
 
     if demos:
-        print("--demos given: the committed data/pools/*_demo_pool.json files will be "
-              "REBUILT and may change.\n")
+        print("--demos given: the small data/pools/*_demo_pool.json stand-ins will "
+              "also be written.\n")
 
     failures = []
     for name in targets:

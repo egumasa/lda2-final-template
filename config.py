@@ -86,7 +86,8 @@ OUT_DIR = ROOT / "outputs"
 # your group's annotation round survives only in one person's notebook output.
 SHEET_PATH = ROOT / "data" / "gold" / (TRACK + "_" + GROUP + "_sheet.json")
 
-# The demo pool: small, ships with the repo, lets 02–05 run before 01 has been done.
+# The demo pool: small, built by `prep_datasets.py <track> --demos`, lets 02–05 run
+# before 01 has been done.
 # Far too small for a real study — see data/pools/README.md.
 DEMO_POOL_PATH = ROOT / "data" / "pools" / (TRACK + "_demo_pool.json")
 

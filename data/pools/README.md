@@ -15,10 +15,11 @@ Two kinds of file live here:
 | File | What it is | Where it comes from |
 |---|---|---|
 | `<track>_pool.json` | the full pool for a track (~1,000–3,200 items) | you build it, in `notebooks/01_build_pool_<track>.ipynb` |
-| `<track>_demo_pool.json` | a small stand-in (60–72 items) | ships with the template |
+| `<track>_demo_pool.json` | a small stand-in (60–72 items) | you build it, with `prep_datasets.py <track> --demos` |
 
-The full pools are **not committed** — they are large, and mostly not ours to
-redistribute. Rebuild one any time.
+**Nothing in this folder is committed** — the pools are large and mostly not ours to
+redistribute, so the template ships the builder rather than the data. Build one any
+time; it takes a minute.
 
 ## The labels in here are not your gold standard
 
@@ -62,8 +63,8 @@ Roughly what you get: raamove ≈ 3,100 items · cars50 ≈ 1,300 · l2_errors �
 
 ## The demo pools
 
-One per track, so notebooks 02–05 run the moment you clone, before anyone has built
-anything:
+One per track, for watching notebooks 02–05 run before you have built a real pool.
+Build them all with `python scripts/prep_datasets.py --demos`:
 
 - **`raamove_demo_pool.json`** — rhetorical moves in RA abstracts (64 sentences, 8 each:
   Background, Gap, Purpose, Method, Result, Conclusion, Contribution, Implication).
@@ -89,7 +90,7 @@ it. `notebooks/01_build_pool_icnale.ipynb` tells you what to put where. Both
 
 ## Licences
 
-The data here is **not** covered by the repository's MIT licence. All three demo pools
-are CC BY 4.0. Per-file terms are in [`LICENSE`](LICENSE); provenance and citations are in
+The data you build here is **not** covered by the repository's MIT licence. The three
+demo-pool sources are CC BY 4.0. Per-file terms are in [`LICENSE`](LICENSE); provenance and citations are in
 [`../SOURCES.md`](../SOURCES.md). If you report results, cite the original source and
 say that the data were reshaped.
