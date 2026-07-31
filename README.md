@@ -7,10 +7,10 @@ a small LLM-annotation study end to end, across five numbered notebooks:
 01 build pool  →  02 sample  →  03 annotate  →  04 prompt  →  05 report
 ```
 
-> **build** a pool from a real corpus → **sample** a balanced subset → **annotate and
-> adjudicate** it yourselves → write a **baseline prompt** → **iterate** it over 2–3
-> rounds (P/R/F1 + confusion matrix each round) → **freeze** the predictions →
-> **error analysis** → **export a one-page report**
+> **build** a pool from a real corpus → **choose how to sample** it and defend that →
+> **annotate and adjudicate** it yourselves → write a **baseline prompt** → **read what
+> it got wrong** and iterate on that over 2–3 rounds → **freeze** the predictions →
+> **triage the errors** → **export a one-page report**
 
 The plumbing is written for you. What you supply is the judgment: which items, which
 labels, which prompt, and what the errors mean.
@@ -26,11 +26,12 @@ lda2-final-template/
 ├── config.py                       # turns config.yaml into every path (you do not edit it)
 ├── notebooks/                      # YOUR five notebooks. Run them in order.
 │   ├── 01_build_pool_<track>.ipynb #   corpus → data/pools/<track>_pool.json
-│   ├── 02_sample.ipynb             #   pool → a balanced sample
-│   ├── 03_annotate.ipynb           #   sample → YOUR gold standard
-│   ├── 04_prompt.ipynb             #   gold → a frozen set of predictions
+│   ├── 02_sample.ipynb             #   pool → your sample → the annotation sheet
+│   ├── 03_annotate.ipynb           #   the filled-in sheet → YOUR gold standard
+│   ├── 04_prompt.ipynb             #   gold → iterate on errors → frozen predictions
 │   └── 05_report.ipynb             #   predictions → error analysis + report
-├── scripts/                        # the plumbing. You do NOT edit these.
+├── scripts/                        # the code the notebooks call. You do NOT edit these —
+│                                   #   but see scripts/README.md for the parts to READ
 │   ├── pipeline.py                 #   load, sample, prompt, freeze, export
 │   ├── metrics.py                  #   precision/recall/F1, kappa, confusion matrix
 │   ├── annotate.py                 #   the Google Sheets annotation round-trip
@@ -53,7 +54,23 @@ Nothing in `scripts/`.
 
 Each notebook ships with all of its prose, its plumbing, and — for every blank — a header
 saying what it is for, what is available to write it with, and **what to call the thing
-you produce**, because the next cell expects that name. What is missing is the calls.
+you produce**, because the next cell expects that name.
+
+**No cell is empty.** Each one comes with the shape of the code already typed, and `____`
+where the decision goes:
+
+```python
+# ── Delete the two you are NOT using. ────────────────────────────────
+sampled = sample_pool(pool, N_PER_CLASS, SEED)
+sampled = sample_random(pool, ____, SEED)                  # how many in total?
+sampled = sample_by_document(pool, ____, ____, SEED)       # how many docs? how many from each?
+```
+
+The left-hand side is given because it is the name the next cell needs and a typo in it
+costs you an afternoon. Anything the tutorials have not taught you is typed out in full.
+What is left is the **decision** — which strategy, which labels, which of your errors is
+the scheme's fault — and, next to it, the line of prose that defends it. `____` is not
+valid Python, so if you skip one it stops in that cell rather than three cells later.
 
 Two kinds of blank, and they are asking for different things:
 
@@ -61,20 +78,35 @@ Two kinds of blank, and they are asking for different things:
   annotations to trust, how fine-grained the scheme is, where a numeric scale gets cut.
   The download and the parsing are written for you; nobody learns anything from retyping
   a `User-Agent` header. `PLAN.md` asks you to justify what you chose.
-- **In 02–05**, the blanks are the *pipeline itself*: what each step consumes and
-  produces. Every call has the **same form it had in Days 1–3**, and each blank names
-  where you used it before. `run_prompt(PROMPT, gold)` and
-  `evaluate(gold, pred, ordered=True)` are the same two lines you ran on Day 3. If
+- **In 02–05**, the blanks are the *research decisions*: how to draw the sample and why,
+  what to change in the prompt and what the errors told you to change, and which of the
+  model's mistakes are your scheme's fault rather than the model's. Every call has the
+  **same form it had in Days 1–3**, and each blank names where you used it before. If
   something you typed in the tutorials does not work here, that is a bug in this
   template, not in your memory of it — please say so.
+
+### The code that does the work is in the notebook, not hidden
+
+Notebooks 02, 04 and 05 each print the functions they are about to call — the three
+sampling strategies, `run_prompt` and `extract_label`, `evaluate` and `show_errors` —
+read straight out of `scripts/` when the notebook is generated. Not a simplified copy:
+the code that runs.
+
+That is because those functions *are* your method. "We drew a balanced sample" and "we
+scored it with macro-F1" are claims you have to defend, and the commented steps inside
+`sample_pool` are the honest answer to how. The plumbing around them — retries,
+path checks, the Sheets round trip — stays imported, because nobody learns anything from
+reading it. See [`scripts/README.md`](scripts/README.md) for which is which.
 
 ### Each notebook hands a file to the next
 
 02 loads what 01 wrote; 03 loads what 02 wrote, and so on. That is not ceremony. Your
 group works across several days and several people's Colab runtimes, and a variable in
-someone else's session is not a handoff. It also means a group that stalls in 03 can be
-handed a gold set and carry on in 04, and that "does it run top to bottom on a fresh
-runtime?" is a question you can actually check.
+someone else's session is not a handoff. The 02/03 boundary is the clearest case: 02
+draws the sample and makes the sheet, then *days* pass while two of you annotate, and 03
+picks up from the file. It also means a group that stalls in 03 can be handed a gold set
+and carry on in 04, and that "does it run top to bottom on a fresh runtime?" is a
+question you can actually check.
 
 ## Run it in Google Colab
 

@@ -8,7 +8,7 @@ Two files land here, in this order:
 
 | File | What it is | Written by |
 |---|---|---|
-| `<track>_<group>_sample.json` | the balanced subset you drew from the pool | `notebooks/02_sample.ipynb` |
+| `<track>_<group>_sample.json` | the subset you drew from the pool | `notebooks/02_sample.ipynb` |
 | `<track>_<group>_gold.json` | **your gold standard** — annotated blind, adjudicated | `notebooks/03_annotate.ipynb` |
 
 Both use the same canonical shape as everything else in the project:

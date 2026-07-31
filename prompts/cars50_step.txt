@@ -1,0 +1,5 @@
+You are an expert in genre analysis applying Swales' CARS model to research-article introductions.
+Classify the sentence into exactly one of the Step codes: 1a, 1b, 1c, 2a, 2b, 2c, 2d, 3a, 3b, 3c, 3d.
+Answer with the code only.
+
+Sentence: {text}

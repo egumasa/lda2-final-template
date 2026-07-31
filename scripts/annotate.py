@@ -214,7 +214,7 @@ def create_annotation_sheet(title, items, labels, share_with=(), remember=None,
     else:
         print("NOT shared with anyone: this sheet is in your Drive only, so your second "
               "coder cannot open it. Share it by hand now (the Share button, top "
-              "right), and put your group's Google accounts in MEMBERS in config.py so "
+              "right), and put your group's Google accounts in MEMBERS in config.yaml so "
               "the next round does it for you. Do NOT re-run this cell to fix it - that "
               "makes a second, empty sheet.")
     if remember is not None:

@@ -4,9 +4,13 @@ Your prompt lives here as a **text file**, not pasted inside the notebook. This 
 purpose: prompt engineering is iteration, and keeping each version in a file makes the
 changes easy to see, save, and compare.
 
-There is one starter prompt per track — `raamove.txt`, `cars50.txt`,
-`l2_errors.txt` (write your own `icnale.txt` if you take that track). `04_prompt.ipynb`
-loads the one matching `track:` in `config.yaml`: `PROMPT_FILE = ROOT / "prompts" / (TRACK + ".txt")`.
+There is one starter prompt per track — `raamove.txt`, `cars50.txt`, `cars50_step.txt`,
+`l2_errors.txt`, `l2_error_detection.txt` (write your own `icnale.txt` if you take that
+track, since only your group knows what its bands are called).
+
+`04_prompt.ipynb` opens the one whose name matches `track:` in `config.yaml`. It never
+asks you for a path: `PROMPT_FILE` is built for you as `prompts/` + your track + `.txt`,
+so setting `track: cars50` is what makes it read `prompts/cars50.txt`.
 
 ## How it works
 

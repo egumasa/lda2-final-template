@@ -110,7 +110,7 @@ def main(argv):
         if len(reports) > 1:
             print("Found", len(reports), "runs. Bundling the newest:", newest)
     if track is None or run is None:
-        print("Could not work out which track and run this is. Either run step 6 "
+        print("Could not work out which track and run this is. Either run the export "
               "(export_results) first, or pass --track and --run.")
         return 1
 
@@ -158,7 +158,7 @@ def main(argv):
         found["data/gold/"] = gold
     else:
         missing.append("data/gold/" + stem + "_gold.json — your ADJUDICATED gold set "
-                       "(step 2c). Without it the numbers cannot be checked.")
+                       "(notebook 03). Without it the numbers cannot be checked.")
 
     # --- outputs: frozen predictions, CSV, report ------------------------------------
     # Named patterns rather than "<stem>*": export_results also drops a copy of the gold
@@ -172,9 +172,9 @@ def main(argv):
         found["outputs/"] = outputs
     if not any(name.endswith("_predictions.json") for name in outputs):
         missing.append("outputs/" + stem + "_predictions.json — your FROZEN predictions "
-                       "(step 4). This is the file your reported F1 must come from.")
+                       "(notebook 04). This is the file your reported F1 must come from.")
     if not any(name.endswith("_report.md") for name in outputs):
-        missing.append("outputs/" + stem + "_report.md — the one-page report (step 6).")
+        missing.append("outputs/" + stem + "_report.md — the one-page report (notebook 05).")
 
     # --- the plumbing, so the bundle actually runs -------------------------------------
     scripts = copy_matching(ROOT / "scripts", bundle / "scripts", "*.py")

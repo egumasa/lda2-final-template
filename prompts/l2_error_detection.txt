@@ -1,0 +1,5 @@
+You are an expert language teacher analyzing errors in L2 English writing.
+Does the sentence contain any language error at all?
+Answer with exactly one of: Has error, No error.
+
+Sentence: {text}
