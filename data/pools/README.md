@@ -51,22 +51,20 @@ them.
 If you only want the file and not the reasoning:
 
 ```bash
-python scripts/prep_datasets.py cefr        # or raamove · cars50 · l2_errors · icnale
+python scripts/prep_datasets.py raamove     # or cars50 · l2_errors · icnale
 ```
 
 That runs the same reshaping code with the decisions already made for you. It is the
 right tool for rebuilding a pool you have already thought about, and the wrong one for
 building it the first time.
 
-Roughly what you get: cefr ≈ 3,200 items · raamove ≈ 3,100 · cars50 ≈ 1,300 ·
-l2_errors ≈ 1,000. ICNALE needs a manual download first — see below.
+Roughly what you get: raamove ≈ 3,100 items · cars50 ≈ 1,300 · l2_errors ≈ 1,000. ICNALE needs a manual download first — see below.
 
 ## The demo pools
 
 One per track, so notebooks 02–05 run the moment you clone, before anyone has built
 anything:
 
-- **`cefr_demo_pool.json`** — CEFR sentence level (72 sentences, 12 per level: A1–C2).
 - **`raamove_demo_pool.json`** — rhetorical moves in RA abstracts (64 sentences, 8 each:
   Background, Gap, Purpose, Method, Result, Conclusion, Contribution, Implication).
 - **`cars50_demo_pool.json`** — Swales CARS moves in RA introductions (60 sentences, 20
@@ -91,8 +89,7 @@ it. `notebooks/01_build_pool_icnale.ipynb` tells you what to put where. Both
 
 ## Licences
 
-The data here is **not** covered by the repository's MIT licence. The CEFR demo carries
-a **share-alike** obligation (CC BY-SA 3.0); the other three are CC BY 4.0. Per-file
-terms are in [`LICENSE`](LICENSE); provenance and citations are in
+The data here is **not** covered by the repository's MIT licence. All three demo pools
+are CC BY 4.0. Per-file terms are in [`LICENSE`](LICENSE); provenance and citations are in
 [`../SOURCES.md`](../SOURCES.md). If you report results, cite the original source and
 say that the data were reshaped.

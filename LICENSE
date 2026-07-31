@@ -27,6 +27,5 @@ NOTE ON THE DATA
 This licence covers the CODE in this repository (scripts/, notebooks/) only.
 
 The data files under data/ are derived from third-party corpora and carry their
-own licences, which include a share-alike obligation for the CEFR track. See
-data/gold/LICENSE for the per-file terms and data/SOURCES.md for provenance and
-citations.
+own licences. See data/pools/LICENSE for the per-file terms and data/SOURCES.md for
+provenance and citations.
