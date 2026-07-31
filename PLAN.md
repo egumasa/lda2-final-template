@@ -77,6 +77,11 @@ with the names your group actually used.
 | 04 prompt     | the gold set, the pool, your prompt  | `outputs/…_predictions.json`   | |
 | 05 report     | the gold set + the frozen run        | `outputs/…_report.md`          | |
 
+Every one of those files lives in your group's shared Drive folder, and every notebook
+finds it through `config.py` — so there is nothing to email, paste or re-upload between
+steps. (The annotation Sheet in 03 is the one thing that is not a file; notebook 03
+writes its link to `data/gold/<track>_<group>_sheet.json` so that it behaves like one.)
+
 This table is the point of the exercise. If your group can say aloud *"03 consumes the
 sample and two annotators, and produces the gold set"*, you understand the pipeline — and
 that is what the end of Session 11 checks.

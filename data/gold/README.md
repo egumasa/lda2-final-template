@@ -38,9 +38,14 @@ in [`../pools/`](../pools/).
 ## Look after the gold file
 
 It is the single most valuable thing your group makes all week: hours of judgment, and
-the only artefact in the project that could not have been produced by a script. If you
-cloned this repo into your Google Drive, it is already saved across sessions. If you are
-working in a throwaway Colab runtime, **download it** before you close the tab.
+the only artefact in the project that could not have been produced by a script. It is
+already safe: the Setup cell will not let a notebook run in Colab from anywhere but your
+group's shared Drive folder, so this file is written there and stays there.
+
+Alongside it you will find `<track>_<group>_sheet.json`, the link to the annotation Sheet
+notebook 03 created. That is why it is a file too — the sheet is where the judgment
+happens, and a link that lives only in one person's notebook output is a link the group
+can lose.
 
 `export_results` in notebook 05 writes a copy into `outputs/` too, but do not wait for
 that — notebook 03 saves it the moment you have it, on purpose.

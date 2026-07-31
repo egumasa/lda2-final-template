@@ -75,28 +75,42 @@ someone else's session is not a handoff. It also means a group that stalls in 03
 handed a gold set and carry on in 04, and that "does it run top to bottom on a fresh
 runtime?" is a question you can actually check.
 
-## Run it in Google Colab (recommended)
+## Run it in Google Colab
 
-Open a notebook in Colab (*File ▸ Open notebook ▸ GitHub*, or the badge at the top of
-each one), then run its Setup cell — Colab starts with only that one file, so the cell
-clones everything *around* it.
+Your group works in **one shared Google Drive folder**, and every notebook's Setup cell
+goes and finds it. That is not a convenience: a Colab runtime is temporary storage, and
+files written to it look completely normal right up until the runtime resets, at which
+point a morning's annotation is gone and nobody else ever saw it. So if a notebook is
+running in Colab from anywhere other than that folder, it **stops** rather than write
+work you are going to lose.
 
-**Do this once, as a group:** clone into Google Drive, then always open the copies that
-live there (*File ▸ Open ▸ Drive ▸ `lda2-final-template/notebooks/`*). Your `config.py`,
-prompts, gold set and outputs then survive the runtime resetting — which matters more
-here than it would with one notebook, because the whole chain depends on the files each
-step leaves behind.
+Set it up once, at the start of the week.
+
+**One member of the group:**
 
 ```python
 from google.colab import drive
 drive.mount('/content/drive')
-%cd /content/drive/MyDrive
-![ -d lda2-final-template ] || git clone https://github.com/egumasa/lda2-final-template.git
-%cd /content/drive/MyDrive/lda2-final-template/notebooks
+!git clone https://github.com/egumasa/lda2-final-template.git /content/drive/MyDrive/lda2-final-template
 ```
 
-One member clones and shares the folder with the group. **Nobody pushes** — git is just
-how you get the code.
+Then, in Drive: right-click the new `lda2-final-template` folder ▸ **Share** ▸ add the
+rest of your group as **Editors**.
+
+**Everyone else:** open Drive ▸ *Shared with me* ▸ right-click the folder ▸ **Add
+shortcut to Drive** ▸ *My Drive*.
+
+> Keep the shortcut's name exactly `lda2-final-template`. That is what makes
+> `/content/drive/MyDrive/lda2-final-template/` mean the same thing for all of you. If
+> Drive names it `lda2-final-template (1)`, rename it — otherwise the Setup cell will
+> not find it, and you will end up working on separate copies without noticing.
+
+After that, open notebooks from the folder itself — *File ▸ Open notebook ▸ Drive ▸
+`lda2-final-template/notebooks/`* — rather than from the GitHub badge, which always
+gives you a fresh copy rather than your group's.
+
+**Nobody pushes.** git is just how you get the code; everything you produce stays in
+your Drive folder and is handed in via `make_submission.py`.
 
 ### Working as a group
 
@@ -105,11 +119,15 @@ once. Two things do not work that way:
 
 - **Runtimes are per-person.** Seeing `gold` in a saved output does not mean `gold` exists
   in *your* session. Whoever runs the cells is the **driver**.
-- **Files in the repo folder are last-write-wins.** `prompts/`, `outputs/` and `data/` are
-  ordinary files. Let the driver be the only one running cells that write them.
+- **Files in the folder are last-write-wins.** `prompts/`, `outputs/` and `data/` are
+  ordinary files, not Google Docs. Two of you writing the same one does not merge them —
+  Drive keeps one and may leave the other beside it as `… (1).json`, which nothing
+  downstream will ever read. Let the driver be the only one running cells that write.
 
 The **annotation Sheet in notebook 03 is the exception** — a real Google Sheet, so
-annotate it together. And your final run has to be *one* run by one person anyway, frozen
+annotate it together. Notebook 03 shares it with the addresses you put in `MEMBERS` in
+`config.py`; leave that list empty and the sheet sits in one person's Drive where the
+second coder cannot open it. And your final run has to be *one* run by one person anyway, frozen
 to a file.
 
 ### Your API key
