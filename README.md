@@ -134,7 +134,6 @@ run out, hand the driver role to another member; the files stay put in Drive.
 
 | Track | Task | Labels | Difficulty |
 |---|---|---|---|
-| `cefr` | CEFR sentence level | A1–C2 | ★☆☆ the on-ramp |
 | `raamove` | RA-abstract rhetorical moves | 8 moves | ★★☆ |
 | `cars50` | CARS moves in RA intros (Kim & Lu replication) | Move 1–3, or 11 steps | ★★★ the annotators themselves got κ ≈ 0.43 |
 | `l2_errors` | L2 error type, or error detection | 4 classes, or yes/no | ★★★ can also benchmark against the published tool |
@@ -148,7 +147,7 @@ If you only want the file and not the reasoning — rebuilding a pool you have a
 thought about, say — there is a shortcut that makes every decision for you:
 
 ```bash
-python scripts/prep_datasets.py cefr        # or raamove · cars50 · l2_errors · icnale
+python scripts/prep_datasets.py raamove     # or cars50 · l2_errors · icnale
 ```
 
 See [`data/pools/README.md`](data/pools/README.md) and
@@ -185,10 +184,10 @@ it from Drive as a zip and turn it in on Google Classroom.
 
 ## For maintainers
 
-All nine notebooks are **generated** — never hand-edit an `.ipynb`:
+All eight notebooks are **generated** — never hand-edit an `.ipynb`:
 
 ```bash
-python scripts/_generate_pool_notebooks.py      # 01_build_pool_<track>.ipynb ×5
+python scripts/_generate_pool_notebooks.py      # 01_build_pool_<track>.ipynb ×4
 python scripts/_generate_project_notebooks.py   # 02_sample … 05_report
 python scripts/_check_call_forms.py     # the contract test — run after ANY signature change
 ```
@@ -199,8 +198,8 @@ the tutorials.
 
 The reshaping logic lives once, in `reshape.py`; `_generate_pool_notebooks.py` embeds its
 source into the 01 notebooks with `inspect.getsource`, so the two cannot drift. The
-judgment-call blanks work by *omitting* the constants those functions read (`CEFR_NUM`,
-`RAAMOVE_LABELS`, `L2_COARSE`) — Python resolves them from the notebook's globals, so a
+judgment-call blanks work by *omitting* the constants those functions read
+(`RAAMOVE_LABELS`, `L2_COARSE`) — Python resolves them from the notebook's globals, so a
 filled-in notebook runs exactly the code `prep_datasets.py` runs. To check for drift:
 
 ```bash

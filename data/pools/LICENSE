@@ -12,15 +12,6 @@ Full provenance, notes and citations: ../SOURCES.md
 Per-file licences
 -----------------
 
-cefr_demo.json
-    Derived from CEFR-SP (Arase, Uchida & Kajiwara, EMNLP 2022), Wiki-Auto portion.
-    Licence: CREATIVE COMMONS ATTRIBUTION-SHAREALIKE 3.0 (CC BY-SA 3.0)
-    https://creativecommons.org/licenses/by-sa/3.0/
-
-    SHARE-ALIKE: if you redistribute this file, or anything derived from it, you must
-    release it under CC BY-SA 3.0 as well. This obligation does NOT extend to the
-    repository's code, which is why the data lives under its own licence.
-
 raamove_demo.json
     Derived from RAAMove (Liu et al., LREC-COLING 2024).
     Licence: CREATIVE COMMONS ATTRIBUTION 4.0 (CC BY 4.0)

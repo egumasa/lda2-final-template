@@ -22,7 +22,7 @@ data were reshaped.
 Build any pool with:
 
 ```bash
-python scripts/prep_datasets.py <track>      # cefr · raamove · cars50 · l2_errors · icnale
+python scripts/prep_datasets.py <track>      # raamove · cars50 · l2_errors · icnale
 ```
 
 The demo sets are committed because they are small and their licences permit
@@ -38,7 +38,6 @@ redistribution is **not permitted at all**.
 
 | Track | `label` | Source | Licence |
 |---|---|---|---|
-| `cefr` | CEFR level A1–C2 | CEFR-SP, Wiki-Auto portion | **CC BY-SA 3.0** (share-alike) |
 | `raamove` | RA-abstract move (8 classes) | RAAMove | CC BY 4.0 |
 | `cars50` | RA-intro Move (3) / Move+Step (11) | CaRS-50 | CC BY 4.0 |
 | `l2_errors` | L2 error category / detection | AutoErrorAnalyzer (OSF) | CC BY 4.0 |
@@ -46,11 +45,6 @@ redistribution is **not permitted at all**.
 
 Notes:
 
-- **CEFR-SP** ships text only for the **Wiki-Auto** (CC BY-SA 3.0) and SCoRE
-  (CC BY-NC-SA 4.0) portions; the Newsela portion is access-gated. Our files are built
-  from **Wiki-Auto only**, keeping sentences where **both annotators agree** (clean,
-  unambiguous → a good on-ramp). Derived files inherit **CC BY-SA 3.0 (share-alike)**,
-  which is why `gold/` carries its own `LICENSE` file separate from the code.
 - **L2 errors** is built from the OSF `Analysis/data_category.csv`, which holds each
   sentence's **human gold** error codes *and* the published tool's predictions
   (`AEA_ErrorCategories`) — so you can compare your LLM not only to the human gold but to
@@ -70,8 +64,6 @@ Notes:
   rhetorical Moves and Steps in 50 article introductions.* Mendeley Data, V1.
   doi:10.17632/kwr9s5c4nk.1. (50 BioRxiv intros, sentence-level Swales CARS Move+Step;
   inter-rater κ ≈ 0.43.) CC BY 4.0.
-- **CEFR-SP** — Arase, Y., Uchida, S., & Kajiwara, T. (2022). *CEFR-based Sentence
-  Difficulty Annotation and Assessment.* EMNLP 2022.
 - **AutoErrorAnalyzer** — Mizumoto, A. (2025). *Automated analysis of common errors in L2
   learner production: Prototype web application development.* Studies in Second Language
   Acquisition, 47(3), 867–884. (26-category error taxonomy; ~100 Japanese-EFL essays;
