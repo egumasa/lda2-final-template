@@ -36,13 +36,20 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import pipeline
 from pipeline import (
     build_fewshot,
+    export_results,
     label_set,
     load_gold,
+    load_json,
     load_predictions,
+    read_test_log,
+    record_test_scoring,
     reid,
     run_prompt,
     sample_pool,
+    save_json,
     save_predictions,
+    save_test_run,
+    split_dev_test,
 )
 from metrics import agreement, evaluate, show_errors
 
@@ -66,19 +73,26 @@ def check(description, function):
 
 
 def install_stub_backend():
-    """Replace the LLM with a stub, by pre-filling the cache make_backend() uses.
+    """Replace the LLM with a stub, so this file needs no key and makes no calls.
 
-    This is also a check in itself: if the caching mechanism is ever removed,
-    run_prompt would try to reach the real API here and this file would hang.
+    It stands in for the raw connection make_backend() would build, which means the
+    pacing and retry wrapper around it still runs and is still exercised here. Pacing
+    is turned right down, or forty stub calls would take three minutes.
+
+    This is also a check in itself: if the remembered-connection mechanism is ever
+    removed, run_prompt would try to reach the real API and this file would hang.
     """
     call_count = [0]
 
-    def stub_generate_text(prompt):
+    def stub_call_model(prompt):
         call_count[0] = call_count[0] + 1
         # Cycle through the labels so predictions are neither all-right nor all-wrong.
         return LEVELS[call_count[0] % len(LEVELS)]
 
-    pipeline._BACKEND = (stub_generate_text, "stub backend (no network)")
+    pipeline._CALL_MODEL = stub_call_model
+    pipeline._BACKEND_NAME = "stub backend (no network)"
+    pipeline._MODEL_IN_USE = "stub"
+    pipeline._MIN_INTERVAL = 0.0
     return call_count
 
 
@@ -147,15 +161,9 @@ def main():
 
     print("\nThe template's own extended forms (both arities must work)")
 
-    def legacy_evaluate():
-        # The pre-alignment 4-positional form, kept working via the shim.
-        score = evaluate(gold, predictions, labels, "a title")
-        assert isinstance(score, float), "the legacy shim must still return a float"
-    check("evaluate(gold, pred, labels, title) -> float  [legacy shim]", legacy_evaluate)
-
     def run_prompt_extended():
-        stub = pipeline._BACKEND[0]
-        result = run_prompt(PROMPT, gold, labels, stub)
+        sender = pipeline._default_backend()
+        result = run_prompt(PROMPT, gold, labels, sender)
         assert len(result) == len(gold)
     check("run_prompt(prompt, gold, labels, generate_text)", run_prompt_extended)
 
@@ -181,12 +189,167 @@ def main():
                 "build_fewshot leaked a gold item into the examples"
     check("build_fewshot(P, pool, gold) and the 6-argument form", fewshot)
 
+    print("\nThe dev/test split, and the audit trail on the held-out run")
+
+    def split_partitions():
+        dev, test = split_dev_test(gold, dev_per_class=1)
+        dev_ids = [item["id"] for item in dev]
+        test_ids = [item["id"] for item in test]
+        assert len(set(dev_ids) & set(test_ids)) == 0, "dev and test must not overlap"
+        assert sorted(dev_ids + test_ids) == sorted(item["id"] for item in gold), \
+            "every gold item must land on exactly one side of the line"
+    check("split_dev_test(gold, dev_per_class=n) partitions the gold set", split_partitions)
+
+    def split_fraction():
+        dev, test = split_dev_test(gold, dev_fraction=0.5)
+        assert len(dev) > 0 and len(test) > 0, "both halves must be non-empty"
+        assert len(dev) + len(test) == len(gold)
+    check("split_dev_test(gold, dev_fraction=f) partitions the gold set", split_fraction)
+
+    def split_spec_is_exclusive():
+        for bad_call in (lambda: split_dev_test(gold),
+                         lambda: split_dev_test(gold, dev_per_class=1, dev_fraction=0.3)):
+            try:
+                bad_call()
+            except ValueError:
+                continue
+            raise AssertionError("exactly one of dev_per_class / dev_fraction is required")
+    check("split_dev_test rejects both specs, and neither", split_spec_is_exclusive)
+
+    def split_is_seeded():
+        a = split_dev_test(gold, dev_per_class=1, seed=42)
+        b = split_dev_test(gold, dev_per_class=1)          # seed defaulted
+        c = split_dev_test(gold, dev_per_class=1, seed=7)
+        assert a == b, "the default seed must be the documented one (42)"
+        assert a != c, "a different seed must give a different split"
+    check("split_dev_test(gold, ..., seed) is reproducible", split_is_seeded)
+
+    def split_keeps_ids():
+        # THE REGRESSION THIS GUARDS: the three samplers all call reid(), and copying
+        # that here would renumber the gold ids. Notebook 05 joins the model's errors
+        # against the ids in the annotation sheet, and that join would silently start
+        # comparing unrelated rows.
+        dev, test = split_dev_test(gold, dev_per_class=1)
+        by_id = {}
+        for item in gold:
+            by_id[item["id"]] = item["text"]
+        for item in dev + test:
+            assert by_id[item["id"]] == item["text"], \
+                "split_dev_test must NOT renumber ids - notebook 05's join runs on them"
+    check("split_dev_test preserves the gold ids", split_keeps_ids)
+
+    def split_serves_test_first():
+        # A label with a single item cannot appear on both sides. It has to be the one
+        # that survives in TEST, or it drops out of the reported macro average unseen.
+        thin = make_gold(1)[:1] + make_gold(3)[1:]
+        dev, test = split_dev_test(thin, dev_per_class=2)
+        test_labels = set(item["label"] for item in test)
+        for label in label_set(thin):
+            assert label in test_labels, \
+                "every label present in gold must survive into test"
+    check("split_dev_test keeps every label in test", split_serves_test_first)
+
+    def split_by_document():
+        docs = []
+        for index, item in enumerate(make_gold(3)):
+            with_doc = dict(item)
+            with_doc["doc_id"] = "doc" + str(index % 4)
+            docs.append(with_doc)
+        dev, test = split_dev_test(docs, dev_fraction=0.4, by_document=True)
+        dev_docs = set(item["doc_id"] for item in dev)
+        test_docs = set(item["doc_id"] for item in test)
+        assert len(dev_docs & test_docs) == 0, \
+            "a document must not have sentences on both sides of the line"
+    check("split_dev_test(..., by_document=True) keeps documents whole", split_by_document)
+
+    def fewshot_excludes_test():
+        # Handed only `dev`, build_fewshot could pick a TEST item as a worked example -
+        # putting the answer to a held-out item into the prompt that produces the
+        # headline number. Notebook 04 passes the full gold set for exactly this reason.
+        sampled = sample_pool(pool, 3, 42)
+        dev, test = split_dev_test(sampled, dev_per_class=1)
+        example_block = build_fewshot(PROMPT, pool, sampled).split(
+            "Now classify this one.")[0]
+        for item in test:
+            assert item["text"] not in example_block, \
+                "build_fewshot(P, pool, gold) leaked a held-out item into the examples"
+    check("build_fewshot(P, pool, gold) leaks no test item", fewshot_excludes_test)
+
+    def test_run_auto_versions():
+        path = work_dir / "attempts" / "predictions.json"
+        first, attempt_one = save_test_run(predictions, path)
+        first_bytes = first.read_bytes()
+        second, attempt_two = save_test_run(predictions, path)
+        assert attempt_one == 1 and attempt_two == 2, "attempts must count up"
+        assert second != first, "a second run must not land on the first one's path"
+        assert first.read_bytes() == first_bytes, "attempt 1 must be left untouched"
+    check("save_test_run never overwrites - it versions", test_run_auto_versions)
+
+    def test_log_appends():
+        log_path = work_dir / "test_log.jsonl"
+        for attempt in (1, 2):
+            record_test_scoring(log_path, macro_f1=0.5, attempt=attempt,
+                                pred_path=work_dir / "predictions.json",
+                                prompt=PROMPT, prompt_file="prompts/track.txt",
+                                gold_items=gold, dev_f1=0.6,
+                                predictions=predictions)
+        table = read_test_log(log_path)
+        assert len(table) == 2, "every scoring appends one row, and none replaces another"
+        assert table["prompt_sha1"].nunique() == 1, \
+            "the same prompt must fingerprint the same both times"
+    check("record_test_scoring appends, read_test_log reads it back", test_log_appends)
+
+    def export_both_forms():
+        # The form that existed before the split - it must keep working untouched.
+        written = export_results("track", gold, predictions, {"round0": 0.5},
+                                 work_dir / "export_plain", group="g", run="v1")
+        assert written["gold"].name.endswith("_gold.json")
+        # And the split-aware form, which reports the test half and names it as such.
+        dev, test = split_dev_test(gold, dev_per_class=1)
+        test_predictions = predictions[:len(test)]
+        with_dev = export_results("track", test, test_predictions, {"round0": 0.5},
+                                  work_dir / "export_split", group="g", run="v1",
+                                  dev=dev)
+        assert with_dev["gold"].name.endswith("_test.json"), \
+            "with a split, the copy saved beside the results is the TEST half"
+        report = with_dev["report"].read_text(encoding="utf-8")
+        assert "held-out" in report, "the report must say which half the number is on"
+    check("export_results(...) and export_results(..., dev=dev)", export_both_forms)
+
     def freeze_roundtrip():
         path = work_dir / "frozen.json"
         save_predictions(predictions, path)
         assert load_predictions(path) == predictions, \
             "a frozen run must load back identically"
     check("save_predictions -> load_predictions round-trip", freeze_roundtrip)
+
+    def json_roundtrip():
+        path = work_dir / "rounds.json"
+        save_json({"round0 baseline": 0.61}, path, what="rounds")
+        # Both call forms: the one taught in the tutorials, and the one notebook 05
+        # uses now that a missing file names the notebook that writes it.
+        assert load_json(path, what="rounds") == {"round0 baseline": 0.61}
+        assert load_json(path, what="rounds", made_by="notebook 04_prompt") == \
+            {"round0 baseline": 0.61}
+    check("save_json -> load_json round-trip, both call forms", json_roundtrip)
+
+    def missing_handoff_files_explain_themselves():
+        # Arriving at notebook 05 without having finished 04 is ordinary, and the
+        # message has to say which notebook writes the file rather than tracebacking
+        # into open().
+        for call in [lambda: load_predictions(work_dir / "not_written_yet.json"),
+                     lambda: load_json(work_dir / "not_written_yet.json",
+                                       what="rounds", made_by="notebook 04_prompt")]:
+            try:
+                call()
+                raise AssertionError("a missing handoff file must raise")
+            except FileNotFoundError as problem:
+                assert "notebook 04_prompt" in str(problem), \
+                    "the message must name the notebook that writes the file"
+                assert "config.yaml" in str(problem), \
+                    "the message must mention the run/group naming trap"
+    check("a missing predictions or rounds file says which notebook makes it",
+          missing_handoff_files_explain_themselves)
 
     def agreement_keys():
         result = agreement(["A1", "A2", "B1"], ["A1", "B1", "B1"])
@@ -279,11 +442,14 @@ def main():
                           {"ID": 2, "Text": "second", "Final": "A2", "Note": "talked"}],
             }
             real_loader = annotate.load_annotation_sheet
+            real_tab_names = annotate.tab_names
             annotate.load_annotation_sheet = lambda sheet_id, tab: tabs[tab]
+            annotate.tab_names = lambda sheet_id: list(tabs)
             try:
                 merged = annotate.load_coder_sheets("ignored", ["CoderA", "CoderB"])
             finally:
                 annotate.load_annotation_sheet = real_loader
+                annotate.tab_names = real_tab_names
 
             assert len(merged) == 2, "one row per item, not one per tab"
             assert merged[0]["CoderA"] == "A1" and merged[0]["CoderB"] == "A1", \
@@ -306,7 +472,9 @@ def main():
                 same.append({"ID": number + 1, "Text": "t", "Label": "A1", "Note": ""})
             tabs = {"CoderA": same, "CoderB": same, "Final": []}
             real_loader = annotate.load_annotation_sheet
+            real_tab_names = annotate.tab_names
             annotate.load_annotation_sheet = lambda sheet_id, tab: tabs[tab]
+            annotate.tab_names = lambda sheet_id: list(tabs)
             printed = []
             real_print = builtins.print
             builtins.print = lambda *args, **kwargs: printed.append(" ".join(
@@ -315,6 +483,7 @@ def main():
                 annotate.load_coder_sheets("ignored", ["CoderA", "CoderB"])
             finally:
                 annotate.load_annotation_sheet = real_loader
+                annotate.tab_names = real_tab_names
                 builtins.print = real_print
             assert any("WARNING" in line for line in printed), \
                 "two identical coder columns must be called out, not passed through"
