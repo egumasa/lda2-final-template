@@ -5,8 +5,8 @@ purpose: prompt engineering is iteration, and keeping each version in a file mak
 changes easy to see, save, and compare.
 
 There is one starter prompt per track — `cefr.txt`, `raamove.txt`, `cars50.txt`,
-`l2_errors.txt` (write your own `icnale.txt` if you take that track). `mini_project.ipynb`
-loads the one matching its CONFIG cell: `PROMPT_FILE = "../prompts/" + TRACK + ".txt"`.
+`l2_errors.txt` (write your own `icnale.txt` if you take that track). `04_prompt.ipynb`
+loads the one matching `config.py`: `PROMPT_FILE = ROOT / "prompts" / (TRACK + ".txt")`.
 
 ## How it works
 

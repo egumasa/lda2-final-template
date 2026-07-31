@@ -13,7 +13,7 @@ The notebooks/download_<track>.ipynb files do exactly the same work, one step at
 with the reasoning spelled out - and they run in Colab. Use those if you want to SEE the
 reshaping; use this if you just want the file.
 
-    --demos    ALSO rebuild the small data/gold/<track>_demo.json files.
+    --demos    ALSO rebuild the small data/pools/<track>_demo_pool.json files.
                Off by default: those files are committed, so rebuilding them changes
                what ships with the template. You almost certainly do not want this.
 """
@@ -31,7 +31,6 @@ from reshape import balanced_sample, label_counts, reid, validate
 ROOT = Path(__file__).resolve().parent.parent
 RAW = ROOT / "data" / "raw"
 POOLS = ROOT / "data" / "pools"
-GOLD = ROOT / "data" / "gold"
 
 
 def write_json(directory, name, items, allowed=None):
@@ -61,7 +60,7 @@ def build_cefr(demos=False):
     write_json(POOLS, "cefr_pool.json", pool, reshape.CEFR_LABELS)
     if demos:
         demo = reid(balanced_sample(pool, per_label=12))
-        write_json(GOLD, "cefr_demo.json", demo, reshape.CEFR_LABELS)
+        write_json(POOLS, "cefr_demo_pool.json", demo, reshape.CEFR_LABELS)
 
 
 def build_raamove(demos=False):
@@ -71,7 +70,7 @@ def build_raamove(demos=False):
     write_json(POOLS, "raamove_pool.json", pool, allowed)
     if demos:
         demo = reid(balanced_sample(pool, per_label=8))
-        write_json(GOLD, "raamove_demo.json", demo, allowed)
+        write_json(POOLS, "raamove_demo_pool.json", demo, allowed)
 
 
 def build_cars50(demos=False):
@@ -85,7 +84,7 @@ def build_cars50(demos=False):
     # The 11-class Move+Step version, for the harder variant of this track.
     write_json(POOLS, "cars50_step_pool.json", step_rows)
     if demos:
-        write_json(GOLD, "cars50_demo.json", reid(balanced_sample(move_rows, per_label=20)))
+        write_json(POOLS, "cars50_demo_pool.json", reid(balanced_sample(move_rows, per_label=20)))
 
 
 def build_l2_errors(demos=False):
@@ -96,7 +95,7 @@ def build_l2_errors(demos=False):
     write_json(POOLS, "l2_error_detection_pool.json", detection_rows,
                reshape.L2_DETECTION_LABELS)
     if demos:
-        write_json(GOLD, "l2_errors_demo.json",
+        write_json(POOLS, "l2_errors_demo_pool.json",
                    reid(balanced_sample(category_rows, per_label=15)), reshape.L2_LABELS)
 
 
@@ -135,7 +134,7 @@ def main(argv):
         targets = list(BUILDERS)
 
     if demos:
-        print("--demos given: the committed data/gold/*_demo.json files will be "
+        print("--demos given: the committed data/pools/*_demo_pool.json files will be "
               "REBUILT and may change.\n")
 
     failures = []

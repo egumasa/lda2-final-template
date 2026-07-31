@@ -3,8 +3,8 @@
     [{"id": 1, "text": "...", "label": "..."}, ...]
 
 This is the ONE place the reshaping decisions live. `prep_datasets.py` calls these
-functions, and `_generate_download_notebooks.py` embeds their source into the
-`notebooks/download_<track>.ipynb` walkthroughs — so the command-line shortcut and the
+functions, and `_generate_pool_notebooks.py` embeds their source into the
+`notebooks/01_build_pool_<track>.ipynb` walkthroughs — so the command-line shortcut and the
 step-by-step notebooks can never drift apart, because they are the same code.
 
 Reshaping is not a mechanical format conversion. Each function below makes real

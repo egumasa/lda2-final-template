@@ -18,26 +18,37 @@ Exactly the strings that appear in your gold file:
 
 ## 3. Are the labels ORDERED?
 
-If yes, in what order? This decides `LABELS_ORDER` in the notebook's CONFIG cell.
+If yes, in what order? This decides `LABELS_ORDER` in `config.py`.
 
 > Watch out: labels that are ordered but not alphabetical (`Low`/`Mid`/`High`) will otherwise
 > be scored over `High < Low < Mid`, and the weighted κ reported to three decimal places
 > will be quietly wrong.
 
-## 4. Gold
+## 4. The decisions you made building the pool
+
+Notebook 01 left a few cells blank on purpose. Write down what you put in them, and why —
+this is the part a script could not have done for you, and the part the Q&A goes to.
+
+- The ✏️ decision(s) your track asked for (the label mapping / the code grouping / the
+  granularity / the band cut-offs):
+- Why that and not the obvious alternative:
+- What it cost you — items dropped, classes merged, rare classes left thin:
+
+## 5. Gold
 
 - Pool file:
+- `MIN_PER_CLASS` (your smallest class, from notebook 01 step 4b):
 - `N_PER_CLASS`:
 - `SEED`:
 - Expected total items:
 
-## 5. QC
+## 6. QC
 
 - CoderA:
 - CoderB:
 - Adjudicator:
 
-## 6. Prompt plan
+## 7. Prompt plan
 
 Your baseline idea:
 
@@ -49,22 +60,27 @@ The **one** change you predict will help — and why you think so:
 
 ## The pipeline, as an I/O chain
 
-| # | Step | Consumes | Produces |
-|---|------|----------|----------|
-| 1 | sample           | POOL_PATH, N_PER_CLASS, SEED | pool, sampled, LABELS |
-| 2 | QC / adjudicate  | sampled, LABELS, the sheet   | gold |
-| 3 | baseline         | PROMPT, gold                 | pred0, f1_by_round["0…"] |
-| 4 | iterate + freeze | PROMPT, pool, gold           | pred_final (a JSON file) |
-| 5 | error analysis   | gold, pred_final             | the errors table |
-| 6 | export           | all of the above             | outputs/…_report.md |
+Five notebooks, and each one hands a **file** to the next. Fill in the right-hand column
+with the names your group actually used.
 
-This table is the point of the exercise. If your group can say aloud *"step 2 consumes
-`sampled` and the sheet, and produces `gold`"*, you understand the pipeline — and that is what
-the end of Session 11 checks.
+| Notebook | Consumes | Produces | Your file |
+|---|---|---|---|
+| 01 build pool | the raw corpus + your ✏️ decisions | `data/pools/<track>_pool.json` | |
+| 02 sample     | the pool, `N_PER_CLASS`, `SEED`     | `data/gold/…_sample.json`      | |
+| 03 annotate   | the sample + two human annotators   | `data/gold/…_gold.json`        | |
+| 04 prompt     | the gold set, the pool, your prompt  | `outputs/…_predictions.json`   | |
+| 05 report     | the gold set + the frozen run        | `outputs/…_report.md`          | |
+
+This table is the point of the exercise. If your group can say aloud *"03 consumes the
+sample and two annotators, and produces the gold set"*, you understand the pipeline — and
+that is what the end of Session 11 checks.
+
+Note where the model appears: **not until 04**. Notebooks 01–03 are the study; the LLM is
+the thing being measured by it.
 
 ---
 
-**The rule:** no group calls the model until the instructor has read this file. Steps 1 and 2
-need no model, so there is plenty to get on with while you wait. `PLAN.md` travels in your
+**The rule:** no group calls the model until the instructor has read this file. Notebooks 01–03
+need no model at all, so there is plenty to get on with while you wait. `PLAN.md` travels in your
 submission bundle as evidence the gate was passed — a final run made before sign-off is not
 accepted as the final run.

@@ -7,33 +7,39 @@ outputs/*
 !outputs/.gitkeep
 
 # ---------------------------------------------------------------------------
-# Data — three rules, in order of increasing specificity.
+# Data — four rules, in order of increasing specificity.
 # ---------------------------------------------------------------------------
 # 1. Builder inputs (data/raw/) and the full-size pools you build (data/pools/)
 #    are never committed: they are large, and most of them are not ours to
 #    redistribute. Rebuild any of them at any time with
 #        python scripts/prep_datasets.py <track>
+#    or by running notebooks/01_build_pool_<track>.ipynb.
 data/raw/*
 !data/raw/.gitkeep
 data/pools/*
 !data/pools/.gitkeep
+!data/pools/README.md
+!data/pools/LICENSE
 
-# 2. data/gold/ holds two different things: the small DEMO sets that ship with the
-#    template, and YOUR OWN sampled + adjudicated gold set. Yours stays local (it is
-#    your work, and it goes in the submission bundle, not into git). The demos are
-#    committed, because they are small and their licences allow redistribution with
-#    attribution — see data/SOURCES.md and data/gold/LICENSE.
+# 2. The small DEMO pools ARE committed, so notebooks 02-05 run the moment you
+#    clone, before anyone has built a real pool. They are small, and their licences
+#    allow redistribution with attribution - see data/SOURCES.md and
+#    data/pools/LICENSE.
+!data/pools/cefr_demo_pool.json
+!data/pools/raamove_demo_pool.json
+!data/pools/cars50_demo_pool.json
+!data/pools/l2_errors_demo_pool.json
+
+# 3. data/gold/ is now entirely YOUR work - the sample notebook 02 draws and the
+#    adjudicated gold set notebook 03 writes. None of it is committed: it is yours,
+#    and it goes in the submission bundle rather than into git.
 data/gold/*
+!data/gold/.gitkeep
 !data/gold/README.md
-!data/gold/LICENSE
-!data/gold/cefr_demo.json
-!data/gold/raamove_demo.json
-!data/gold/cars50_demo.json
-!data/gold/l2_errors_demo.json
 
-# 3. ICNALE GRA is research-use-only and must NOT be redistributed. This rule comes
+# 4. ICNALE GRA is research-use-only and must NOT be redistributed. This rule comes
 #    LAST so it overrides every exception above, whatever the file ends up called.
-#    It is scoped to data/ so that the ICNALE *prompt* and *download notebook* —
+#    It is scoped to data/ so that the ICNALE *prompt* and *pool-building notebook* —
 #    which are code, not data — can still be tracked.
 data/**/*icnale*
 data/**/*ICNALE*
@@ -44,10 +50,11 @@ __pycache__/
 *.pyc
 *.executed.ipynb
 
-# A group's own working copy of the project notebook stays local. The blank
-# skeleton (notebooks/mini_project.ipynb) and the download notebooks ARE tracked —
-# the Colab badges in the README point at them on GitHub.
-notebooks/mini_project_*.ipynb
+# Notebooks 01-05 ARE tracked, blanks and all - the Colab badges in the README
+# point at them on GitHub, and a group's filled-in copies live in their own Drive.
+# Anything a group renames for itself stays local.
+notebooks/*_working.ipynb
+notebooks/Copy of *.ipynb
 
 # macOS
 .DS_Store

@@ -25,7 +25,7 @@ WHY THE FOLDER STRUCTURE IS KEPT
 --------------------------------
 Partly because that layout IS the S10 reproducibility checklist made physical - code,
 prompts, data and outputs, separated so each can be pointed at. And partly because the
-notebook reads "../scripts" and "../data/...": flatten the folder and the submitted
+notebooks read "../scripts" and "../data/...": flatten the folder and the submitted
 copy no longer runs.
 """
 
@@ -78,7 +78,7 @@ def main(argv):
     parser = argparse.ArgumentParser(
         description="Collect your mini-project files into a submission folder.")
     parser.add_argument("--group", required=True,
-                        help="your group name — must match GROUP in the notebook's CONFIG")
+                        help="your group name — must match GROUP in config.py")
     parser.add_argument("--track", default=None,
                         help="track name; inferred from your output files if omitted")
     parser.add_argument("--out", default=None,
@@ -120,11 +120,16 @@ def main(argv):
                        "evidence the gate was passed.")
 
     # --- the notebook -------------------------------------------------------------
-    notebooks = copy_matching(ROOT / "notebooks", bundle / "notebooks", "mini_project*.ipynb")
+    # All five, filled in. 01 is per-track, so only the one you actually ran is asked
+    # for; 02-05 are the same file for everyone and all four should be there.
+    notebooks = copy_matching(ROOT / "notebooks", bundle / "notebooks", "0*.ipynb")
     if notebooks:
         found["notebooks/"] = notebooks
     else:
-        missing.append("notebooks/mini_project.ipynb — your completed notebook.")
+        missing.append("notebooks/0*.ipynb — your completed notebooks 01-05.")
+    for stage in ("02_sample", "03_annotate", "04_prompt", "05_report"):
+        if not any(name.startswith(stage) for name in notebooks):
+            missing.append("notebooks/" + stage + ".ipynb — filled in.")
 
     # --- the prompts, including the iteration trail --------------------------------
     prompts = copy_matching(ROOT / "prompts", bundle / "prompts", track + "*.txt")
