@@ -8,6 +8,7 @@ is where you find out whether a wrong label is the MODEL's fault or your SCHEME'
 It is the same round-trip you ran in Day 2 S5, with the same function names:
 
     create_annotation_sheet(title, items, labels)   ->  a sheet URL
+    remembered_sheet(path)                          ->  that URL, next time
     load_annotation_sheet(sheet_id, worksheet)      ->  a list of row dicts
     annotator_agreement(rows)                       ->  percent agreement, kappa, matrix
     disagreements(rows)                             ->  your adjudication list
@@ -20,6 +21,9 @@ Note on working as a group: the SHEET is a real Google Sheets document, so all o
 can annotate it at the same time — unlike the repo's files, where concurrent writes
 overwrite each other. Annotate together in the sheet; let one person run the notebook.
 """
+
+import json
+import pathlib
 
 import pandas as pd
 import seaborn as sns
@@ -89,11 +93,33 @@ def marked_context(item):
     return "\n".join(lines)
 
 
-def create_annotation_sheet(title, items, labels):
+def remembered_sheet(path):
+    """The sheet URL create_annotation_sheet() wrote down, or "" if there is not one.
+
+    This exists because the sheet id is the only handoff in the project that is not a
+    file. Without it, the link to your group's annotation round lives in one person's
+    notebook output, and a runtime reset - or simply a different member opening the
+    notebook - loses it.
+    """
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f).get("url", "")
+    except FileNotFoundError:
+        return ""            # step 2 has not been run yet; that is not an error
+
+
+def create_annotation_sheet(title, items, labels, share_with=(), remember=None):
     """Create a Sheet in YOUR Drive: one row per item, blank columns to label.
 
     `items` are {"id", "text", ...} dicts - any existing label is deliberately NOT
     copied across, so you annotate blind. Returns the sheet URL.
+
+    `share_with` is a list of Google account addresses - your group, from MEMBERS in
+    config.py. The sheet is created in the Drive of whoever runs this cell, so without
+    this the second coder cannot open it, and step 3 needs two coders.
+
+    `remember` is a path to write the URL to, so the notebook can find the sheet again
+    without anyone pasting a link.
 
     Items that carry a `context` (the rhetorical-move tracks) get one extra column
     showing the passage, so the two coders judge the sentence on the same evidence the
@@ -133,11 +159,44 @@ def create_annotation_sheet(title, items, labels):
         worksheet.format(last_column + "2:" + last_column,
                          {"wrapStrategy": "WRAP", "verticalAlignment": "TOP"})
         worksheet.columns_auto_resize(0, len(header) - 2)
+    ### Step 5: let the rest of your group in ###
+    # The sheet was created in the Drive of whoever ran this cell. Everyone else gets
+    # "you need access" until they are named here.
+    shared = []
+    for address in share_with:
+        address = str(address).strip()
+        if not address:
+            continue
+        try:
+            sheet.share(address, perm_type="user", role="writer")
+            shared.append(address)
+        except Exception as error:
+            # One bad address should not cost you the other invitations.
+            print("  could not share with", address + ":", error)
+
+    ### Step 6: write the URL down, so nobody has to keep it in a notebook cell ###
+    if remember is not None:
+        path = pathlib.Path(remember)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump({"url": sheet.url, "title": title, "rounds": ["round1"]}, f,
+                      ensure_ascii=False, indent=2)
+
     print("Created '" + title + "' with", len(rows), "rows in tab 'round1'.")
     print("Allowed labels:", ", ".join(labels))
     if with_context:
         print("This track carries context: the 'Context' column shows each sentence's "
               "passage, with the one you are labelling marked '>>>'. Read it.")
+    if shared:
+        print("Shared (edit access) with:", ", ".join(shared))
+    else:
+        print("NOT shared with anyone: this sheet is in your Drive only, so your second "
+              "coder cannot open it. Share it by hand now (the Share button, top "
+              "right), and put your group's Google accounts in MEMBERS in config.py so "
+              "the next round does it for you. Do NOT re-run this cell to fix it - that "
+              "makes a second, empty sheet.")
+    if remember is not None:
+        print("Wrote the link to", remember, "- the next step finds it there.")
     print("Open it:", sheet.url)
     return sheet.url
 

@@ -8,11 +8,15 @@ names. That is why it is a file rather than a cell copied into five notebooks â€
 copies of a seed is five chances for the sample in notebook 03 not to be the sample
 that notebook 02 drew.
 
+It is also where every path in the project comes from. All of them hang off ROOT, which
+is wherever this file physically sits â€” your group's shared Drive folder. So there is
+never a path to type into a notebook, and the file notebook 01 writes is by construction
+the file notebook 02 opens.
+
 It should match your PLAN.md. If you change something here, re-run the setup cell of
 whichever notebook you are in.
 """
 
-import importlib.util
 from pathlib import Path
 
 # ----------------------------------------------------------------------------------
@@ -50,7 +54,11 @@ ROOT = Path(__file__).resolve().parent
 # are gone, and nobody else in the group ever saw them. So: if we are in Colab, ROOT
 # has to be inside your group's Drive folder. If it is not, stop here rather than let
 # a whole annotation round be written somewhere that will not survive lunch.
-IN_COLAB = importlib.util.find_spec("google.colab") is not None
+try:
+    import google.colab          # this module only exists inside Colab
+    IN_COLAB = True
+except ImportError:
+    IN_COLAB = False
 ON_DRIVE = "/content/drive/" in str(ROOT)
 
 if IN_COLAB and not ON_DRIVE:

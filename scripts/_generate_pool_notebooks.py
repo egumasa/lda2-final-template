@@ -7,7 +7,11 @@ Notebook 01 is where a track's pool comes from: download -> look at the raw form
 reshape to {id, text, label} -> check the label balance -> save
 data/pools/<track>_pool.json. Notebook 02 picks it up from there.
 
-It is standalone (stdlib only, no repo needed), so it runs in a fresh Colab.
+The reshaping code is stdlib only and travels inside the notebook, but the notebook is
+not standalone: like 02-05 it opens with the SETUP cell, mounts your group's Drive
+folder and imports config.py. That is on purpose. POOL_PATH is where notebook 02 comes
+looking, and a pool written anywhere else - a Colab runtime that is about to reset, a
+loose file in someone's Drive root - is a pool nobody reads.
 
 WHAT IS BLANK, AND WHY
 ----------------------
@@ -46,6 +50,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import reshape
+from _setup_cell import SCRATCH, SETUP_MD_LINES, setup_lines
 
 OUT = Path(__file__).resolve().parent.parent / "notebooks"
 
@@ -243,23 +248,46 @@ def parser_note(heading, intro, structure, api_steps, demo=None):
     return cells
 
 
-def save_cell(track, note=""):
+def setup(track):
+    """The SETUP cell, plus the markdown that explains the shared folder.
+
+    01 imports `config.py` for the same reason 02-05 do: POOL_PATH is where notebook
+    02 will come looking. A pool written anywhere else is a pool nobody reads.
+    """
+    return [md(*SETUP_MD_LINES), code(*setup_lines(workdir=SCRATCH))]
+
+
+def save_cell(track, note="", variants=()):
+    """Write the pool to POOL_PATH — the exact path notebook 02 opens.
+
+    Note the track guard. POOL_PATH is built from TRACK in config.py, so running this
+    notebook with config.py still set to another track would write, say, a RAAMove pool
+    into cars50_pool.json. Everything downstream would then run perfectly on the wrong
+    data, and the first sign of trouble would be labels that make no sense in notebook
+    03 - by which point two people have annotated forty items.
+
+    `variants` are the other TRACK values this notebook may legitimately be run under -
+    the second granularity a couple of tracks offer ("cars50_step"). Setting TRACK to
+    the variant is what puts the pool in its own file, so the guard has to allow it.
+    """
+    allowed = [track] + list(variants)
     lines = [
-        "# Save the pool. Two places you might want it:",
-        '#   * this repo, if you cloned it:  "../data/pools/' + track + '_pool.json"',
-        "#   * your Google Drive, so it survives the Colab runtime resetting",
-        "import json, pathlib",
+        "# Save the pool into your group's Drive folder, under the exact name notebook",
+        "# 02 will look for. POOL_PATH comes from config.py, so the two cannot drift.",
+        "import json",
         "",
-        'OUT_FILE = "../data/pools/' + track + '_pool.json"',
+        "if TRACK not in " + repr(allowed) + ":",
+        '    raise RuntimeError(',
+        '        "config.py says TRACK = " + repr(TRACK) + ", but this is the ' + track
+        + ' "',
+        '        "notebook. POOL_PATH points at " + POOL_PATH.name + ", so saving now "',
+        '        "would put ' + track + ' data in another track\'s file. Set TRACK to one "',
+        '        "of ' + " · ".join(allowed) + ' in config.py, then re-run the SETUP cell.")',
         "",
-        "# In Colab WITHOUT the repo, uncomment these two to write straight to Drive:",
-        '# from google.colab import drive; drive.mount("/content/drive")',
-        '# OUT_FILE = "/content/drive/MyDrive/' + track + '_pool.json"',
-        "",
-        "pathlib.Path(OUT_FILE).parent.mkdir(parents=True, exist_ok=True)",
-        'with open(OUT_FILE, "w", encoding="utf-8") as f:',
+        "POOL_PATH.parent.mkdir(parents=True, exist_ok=True)",
+        'with open(POOL_PATH, "w", encoding="utf-8") as f:',
         "    json.dump(rows, f, ensure_ascii=False, indent=2)",
-        'print("Saved", len(rows), "items to", OUT_FILE)',
+        'print("Saved", len(rows), "items to", POOL_PATH)',
     ]
     if note:
         lines = lines + ["", "# " + note]
@@ -289,8 +317,10 @@ def handoff(track):
         "",
         "---",
         "",
-        "**Next:** set `TRACK = \"" + track + "\"` in `config.py`, then open "
-        "`02_sample.ipynb`.")
+        "**Next:** open `02_sample.ipynb`. It reads `POOL_PATH` — the file the cell "
+        "above just wrote, in your group's Drive folder. Nothing to copy, nothing to "
+        "paste: that path is the handoff, and both notebooks get it from the same "
+        "`config.py`.")
 
 
 # ===================================================================== RAAMove
@@ -306,6 +336,7 @@ save("01_build_pool_raamove.ipynb", [
         "★★☆ — moderate. Moves are functional categories, so neighbouring sentences "
         "can be genuinely hard to separate.",
     ),
+    *setup("raamove"),
     md("## Step 1 — Download the raw data"),
     code("!git clone --depth 1 https://github.com/ljk1228/RAAMove"),
     md("## Step 2 — Look at the raw format",
@@ -443,6 +474,7 @@ save("01_build_pool_cars50.ipynb", [
         "★★★ — hard. Judging moves in an introduction needs more context than a single "
         "sentence gives you.",
     ),
+    *setup("cars50"),
     md("## Step 1 — Download the raw data",
        "",
        "This one is on **Mendeley Data**, which has a public API. We ask it for the "
@@ -586,8 +618,11 @@ save("01_build_pool_cars50.ipynb", [
     inspect_cell(),
     md("## Step 5 — Save it"),
     save_cell("cars50",
-              "If you chose steps, save as cars50_step_pool.json and point config.py "
-              "at that name."),
+              'If you chose steps, set TRACK = "cars50_step" in config.py before running '
+              "this: POOL_PATH then becomes cars50_step_pool.json, and the finer scheme "
+              "gets its own file rather than overwriting the 3-move one. You will need "
+              "prompts/cars50_step.txt too — copy cars50.txt and rewrite the labels.",
+              variants=("cars50_step",)),
     handoff("cars50"),
 ])
 
@@ -605,6 +640,7 @@ save("01_build_pool_l2_errors.ipynb", [
         "OSF: osf.io/jyf3r",
         "★★★ — hard. Many error types, and a sentence can carry several at once.",
     ),
+    *setup("l2_errors"),
     md("## Step 1 — Download the raw data",
        "",
        "The annotations live on the paper's **OSF** project. We fetch one CSV directly "
@@ -718,8 +754,11 @@ save("01_build_pool_l2_errors.ipynb", [
     inspect_cell(),
     md("## Step 5 — Save it"),
     save_cell("l2_errors",
-              "For the binary version, save as l2_error_detection_pool.json and point "
-              "config.py at that name."),
+              'For the binary version, set TRACK = "l2_error_detection" in config.py '
+              "before running this, so POOL_PATH becomes l2_error_detection_pool.json "
+              "and the two versions do not overwrite each other. You will need "
+              "prompts/l2_error_detection.txt too.",
+              variants=("l2_error_detection",)),
     handoff("l2_errors"),
 ])
 
@@ -736,6 +775,7 @@ save("01_build_pool_icnale.ipynb", [
         "Ishikawa, S. *The ICNALE Global Rating Archives.*",
         "★★☆ — moderate, but a different shape of task: long texts and an ordered scale.",
     ),
+    *setup("icnale"),
     md("## Step 1 — Get the data (this one is manual)",
        "",
        "ICNALE GRA is released for research use behind a registration form that emails "
@@ -746,13 +786,25 @@ save("01_build_pool_icnale.ipynb", [
        "<https://language.sakura.ne.jp/icnale/download.html> and wait for the password.",
        "2. Download and unpack `ICNALE_GRA_2.x.zip`.",
        "3. From its rating tables, export a CSV with **exactly two columns**, `text` and "
-       "`score`, and upload it here (or put it in `data/raw/icnale/essays_scores.csv`).",
+       "`score`.",
        "",
-       "In Colab, the cell below opens a file picker."),
+       "In Colab, the cell below opens a file picker. Every other track downloads its "
+       "corpus in one command and so keeps the raw data in the runtime — this one you "
+       "cannot re-fetch without going back through the registration form, so it is "
+       "worth keeping the file in your group's Drive folder and uploading it only "
+       "once. The second option below does that.",
+       "",
+       "⚠️ `data/raw/` is excluded from git and from your submission bundle, and "
+       "anything with `icnale` in the name is excluded twice over. Leave it that way — "
+       "the licence does not permit redistribution."),
     code("# In Colab: uncomment to upload your essays_scores.csv",
          "# from google.colab import files; files.upload()",
          "",
-         'RAW_FILE = "essays_scores.csv"'),
+         'RAW_FILE = "essays_scores.csv"        # the copy you just uploaded',
+         "",
+         "# Or, having put it in your group's Drive folder once, use it from there and",
+         "# skip the upload every session:",
+         '# RAW_FILE = str(ROOT / "data" / "raw" / "icnale" / "essays_scores.csv")'),
     md("## Step 2 — Look at the raw format",
        "",
        "The cell prints the **distribution** of the scores, not just a couple of rows. "
