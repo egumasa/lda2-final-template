@@ -2,8 +2,8 @@
 """prep_datasets.py — build the full-size pool for a track, in one command.
 
     python scripts/prep_datasets.py                 # every track that can be built
-    python scripts/prep_datasets.py cefr            # just one
-    python scripts/prep_datasets.py cefr raamove    # a few
+    python scripts/prep_datasets.py raamove         # just one
+    python scripts/prep_datasets.py raamove cars50  # a few
 
 It downloads the original corpus into data/raw/, reshapes it into the canonical schema,
 and writes data/pools/<track>_pool.json. Nothing here needs a pip install beyond what
@@ -54,15 +54,6 @@ def write_json(directory, name, items, allowed=None):
 # ----------------------------------------------------------------------------------
 # One builder per track. Each returns nothing and prints what it wrote.
 # ----------------------------------------------------------------------------------
-def build_cefr(demos=False):
-    wiki_auto = download.download_cefr(RAW)
-    pool = reshape.reshape_cefr(wiki_auto)
-    write_json(POOLS, "cefr_pool.json", pool, reshape.CEFR_LABELS)
-    if demos:
-        demo = reid(balanced_sample(pool, per_label=12))
-        write_json(POOLS, "cefr_demo_pool.json", demo, reshape.CEFR_LABELS)
-
-
 def build_raamove(demos=False):
     source = download.download_raamove(RAW)
     pool = reshape.reshape_raamove(source)
@@ -110,7 +101,6 @@ def build_icnale(demos=False):
 
 
 BUILDERS = {
-    "cefr": build_cefr,
     "raamove": build_raamove,
     "cars50": build_cars50,
     "l2_errors": build_l2_errors,

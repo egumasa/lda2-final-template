@@ -608,7 +608,7 @@ def export_results(track, gold, predictions, macro_f1_by_round, out_dir, group="
     output_folder.mkdir(parents=True, exist_ok=True)
     labels = label_set(gold)
 
-    # Every file we write starts with the same stem, e.g. "cefr_groupA".
+    # Every file we write starts with the same stem, e.g. "raamove_groupA".
     if group == "":
         stem = track
     else:

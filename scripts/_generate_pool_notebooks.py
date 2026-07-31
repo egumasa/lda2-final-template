@@ -293,109 +293,6 @@ def handoff(track):
         "`02_sample.ipynb`.")
 
 
-# ===================================================================== CEFR-SP
-save("01_build_pool_cefr.ipynb", [
-    header(
-        "CEFR-SP — build the pool",
-        "The on-ramp track: sentence proficiency level (A1–C2)",
-        "Sentences annotated with a CEFR level by two trained annotators. We use the "
-        "openly-shipped **Wiki-Auto** portion.",
-        "CC BY-SA 3.0 (Wiki-Auto portion) — **share-alike**, so anything you "
-        "redistribute from it inherits the same licence.",
-        "Arase, Uchida & Kajiwara (2022), *EMNLP*. github.com/yukiar/CEFR-SP",
-        "★☆☆ — easy. Levels are concrete and the annotators usually agree.",
-    ),
-    md("## Step 1 — Download the raw data",
-       "",
-       "The corpus lives in a GitHub repository, so we clone it. (`!` runs a shell "
-       "command from inside the notebook.)"),
-    code("!git clone --depth 1 https://github.com/yukiar/CEFR-SP"),
-    md("## Step 2 — Look at the raw format",
-       "",
-       "Note the folder path: cloning `CEFR-SP` gives you a `CEFR-SP` folder *inside* "
-       "`CEFR-SP`. Easy to trip over.",
-       "",
-       "The Wiki-Auto files are **tab-separated text**, one sentence per line:",
-       "",
-       "```",
-       "sentence <TAB> label_by_annotator_A <TAB> label_by_annotator_B",
-       "```",
-       "",
-       "Labels are digits: `1`=A1, `2`=A2, … `6`=C2. **Look at the output before you "
-       "write anything below** — the mapping you are about to type has to match what is "
-       "actually in the file."),
-    code('RAW_DIR = "CEFR-SP/CEFR-SP/Wiki-Auto"',
-         "",
-         'with open(RAW_DIR + "/CEFR-SP_Wikiauto_dev.txt", encoding="utf-8") as f:',
-         "    for _ in range(5):",
-         "        print(repr(next(f)))"),
-    *parser_note(
-        "Reading tab-separated text with `str.split`",
-        "No library needed for this one — a TSV line is just a string with tabs in it, "
-        "and `str.split(\"\\t\")` cuts it into a list. That is why the cell above printed "
-        "with `repr()`: a tab looks like ordinary spacing on screen, but `repr` shows it "
-        "as `\\t`, so you can count the fields and see there are exactly three.",
-        ["**The fields, in order:**",
-         "",
-         "* `parts[0]` — the sentence text",
-         "* `parts[1]` — annotator **A**'s level, as a digit `\"1\"`…`\"6\"`",
-         "* `parts[2]` — annotator **B**'s level, same encoding"],
-        ["`path.read_text().splitlines()` — the whole file as a list of lines.",
-         "`line.split(\"\\t\")` — one line into its three fields.",
-         "`len(parts) < 3` — a malformed line is skipped rather than crashing the run.",
-         "`parts[1] == parts[2]` — the agreement filter. This is the decision that "
-         "makes this the on-ramp track: sentences the two annotators disagreed about "
-         "are thrown away, so every surviving label is unambiguous."],
-        demo=['line = open(RAW_DIR + "/CEFR-SP_Wikiauto_dev.txt", encoding="utf-8").readline()',
-              "",
-              'parts = line.split("\\t")',
-              'print("fields:", len(parts))',
-              'for name, value in zip(("text", "annotator A", "annotator B"), parts):',
-              '    print(" ", name + ":", repr(value.strip()))']),
-    md("## Step 3 — Reshape into the canonical schema",
-       "",
-       "Three decisions are baked into this track, and the first is yours to write:",
-       "",
-       "1. ✏️ **What the levels are called.** The file says `1`; a prompt that says "
-       "`A1` needs far less explaining than one that says `1`. You supply that mapping "
-       "— and its keys are also a filter: a row whose digit is not in your mapping gets "
-       "dropped, so leaving a level out silently removes it from your study.",
-       "2. **Trust only agreement.** Each sentence has *two* annotators, and the code "
-       "below keeps a row only when both chose the same level (`label_a == label_b`). "
-       "Every remaining label is then unambiguous — which is what makes this the gentle "
-       "track, and also makes it easier than the data really is. Read that line and "
-       "make sure you can say why it is there; keeping the disagreements would have "
-       "meant deciding whose label wins.",
-       "3. **Wiki-Auto only** — the repo also ships a `SCoRE/` folder under a "
-       "*non-commercial* licence, and we deliberately never read it. Notice `RAW_DIR` "
-       "points at `Wiki-Auto` specifically rather than at the repo root: that is what "
-       "keeps the two apart."),
-    blank(
-        "Step 3a · Name the levels",
-        "map the digit in the file to the label a prompt can actually use.",
-        "CEFR_NUM (a dict)",
-        ['CEFR_NUM = {"1": "A1", ...}   # keys are STRINGS — the file is text',
-         "six entries, one per level"],
-        notes=["Careful   : a digit you leave out is a level you silently DROP.",
-               "            Check the counts in step 4 against what you expected.",
-               "Why blank : this is the label set your prompt, your annotation sheet and",
-               "            your confusion matrix all inherit. Put it in PLAN.md."]),
-    md("Now the reshaping function itself. It reads the `CEFR_NUM` you just defined — "
-       "if the cell below raises `NameError: CEFR_NUM`, go back and run the one above."),
-    code(embed(reshape.reid, reshape.reshape_cefr,
-               imports=["from pathlib import Path"])),
-    code("rows = reshape_cefr(RAW_DIR)",
-         'print("kept", len(rows), "sentences where both annotators agreed")'),
-    md("## Step 4 — Check the label balance",
-       "",
-       "Look at the counts before you trust anything downstream. This corpus is "
-       "**heavily imbalanced** — B1 and B2 dominate, and A1/C2 are scarce."),
-    inspect_cell(),
-    md("## Step 5 — Save it"),
-    save_cell("cefr"),
-    handoff("cefr"),
-])
-
 # ===================================================================== RAAMove
 save("01_build_pool_raamove.ipynb", [
     header(
@@ -765,7 +662,7 @@ save("01_build_pool_l2_errors.ipynb", [
     md("## Step 3 — Reshape into the canonical schema",
        "",
        "Two decisions, and the first is the biggest single judgment call in any of the "
-       "five tracks:",
+       "four tracks:",
        "",
        "1. ✏️ **Collapse the ~23 codes into a handful of categories.** The full "
        "taxonomy is too fine-grained to prompt for reliably at this scale, so you group "

@@ -43,40 +43,6 @@ def _fetch_with_browser_agent(url, timeout=60):
     return urllib.request.urlopen(request, timeout=timeout)
 
 
-# ----------------------------------------------------------------------------------
-def download_cefr(raw_dir):
-    """Clone CEFR-SP and return the path to its Wiki-Auto folder.
-
-    Two traps here, both worth knowing about:
-
-    1. THE NESTED FOLDER. Cloning `CEFR-SP` gives you `CEFR-SP/CEFR-SP/Wiki-Auto/` -
-       the repo has a folder inside it with the same name. We search for the Wiki-Auto
-       folder rather than assuming a fixed depth.
-    2. THE SCoRE FOLDER NEXT DOOR. The repo also ships a `SCoRE/` portion under a
-       NON-COMMERCIAL licence (CC BY-NC-SA 4.0), which we must not mix into our data.
-       Returning the Wiki-Auto directory specifically - rather than the repo root - is
-       what keeps it out, because the reshaper only globs inside what it is given.
-    """
-    destination = Path(raw_dir) / "cefr"
-    matches = sorted(destination.rglob("Wiki-Auto")) if destination.exists() else []
-    if not matches:
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        if not destination.exists():
-            _run_git_clone("https://github.com/yukiar/CEFR-SP", destination)
-        matches = sorted(destination.rglob("Wiki-Auto"))
-    if not matches:
-        raise FileNotFoundError(
-            "Cloned CEFR-SP but found no Wiki-Auto folder under " + str(destination)
-            + ". The repository layout may have changed - look inside and pass the "
-              "folder holding the CEFR-SP_Wikiauto_*.txt files."
-        )
-    wiki_auto = matches[0]
-    if wiki_auto.name != "Wiki-Auto":
-        raise RuntimeError("refusing to read " + str(wiki_auto)
-                           + ": only the Wiki-Auto portion is redistributable here.")
-    return wiki_auto
-
-
 def download_raamove(raw_dir):
     """Clone RAAMove and return the folder holding its per-domain JSON files."""
     destination = Path(raw_dir) / "raamove"
