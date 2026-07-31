@@ -102,54 +102,6 @@ def label_counts(items):
 
 
 # ----------------------------------------------------------------------------------
-# CEFR-SP (Wiki-Auto portion) -> CEFR level A1-C2
-# ----------------------------------------------------------------------------------
-CEFR_NUM = {"1": "A1", "2": "A2", "3": "B1", "4": "B2", "5": "C1", "6": "C2"}
-CEFR_LABELS = {"A1", "A2", "B1", "B2", "C1", "C2"}
-
-
-def reshape_cefr(wiki_auto_dir):
-    """Read the Wiki-Auto TSV files and keep only the sentences both annotators agreed on.
-
-    Each line is:  sentence <TAB> label_by_annotator_A <TAB> label_by_annotator_B
-    with labels as digits, 1=A1 ... 6=C2.
-
-    Three real decisions here:
-      1. TRUST ONLY AGREEMENT. A sentence is kept only when both annotators chose the
-         same level, so every label is unambiguous. That is what makes this the gentle
-         on-ramp track - and it also means the track is easier than the data really is.
-      2. HUMAN-READABLE LABELS. 1 -> A1, so a prompt can name the levels the way a
-         person would.
-      3. WIKI-AUTO ONLY. CEFR-SP also ships a SCoRE portion, but it is CC BY-NC-SA
-         (non-commercial), so we deliberately do not touch it - see data/SOURCES.md.
-    """
-    source_dir = Path(wiki_auto_dir)
-    rows = []
-
-    ### Read every TSV in the folder ###
-    # Sorted, so a rebuild reads the files in the same order and ids stay stable.
-    for path in sorted(source_dir.glob("*.txt")):
-        for line in path.read_text(encoding="utf-8").splitlines():   # One sentence per line.
-
-            ### Split the line on its tabs ###
-            parts = line.split("\t")             # -> [sentence, label_A, label_B]
-            if len(parts) < 3:                   # A short line is malformed; skip it rather than crash.
-                continue
-
-            ### Pull out the three fields ###
-            text = parts[0].strip()              # The sentence itself.
-            label_a = parts[1].strip()           # Annotator A's level, as a digit "1".."6".
-            label_b = parts[2].strip()           # Annotator B's level, same encoding.
-
-            ### Keep only what both annotators agreed on ###
-            if text and label_a == label_b and label_a in CEFR_NUM:   # Disagreements are dropped entirely.
-                rows.append({"id": 0, "text": text,
-                             "label": CEFR_NUM[label_a]})             # Digit -> human-readable level ("3" -> "B1").
-
-    return reid(rows)                            # Hand back with ids running 1..N.
-
-
-# ----------------------------------------------------------------------------------
 # RAAMove -> rhetorical move in an RA abstract (8 classes)
 # ----------------------------------------------------------------------------------
 RAAMOVE_LABELS = {

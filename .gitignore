@@ -25,7 +25,6 @@ data/pools/*
 #    clone, before anyone has built a real pool. They are small, and their licences
 #    allow redistribution with attribution - see data/SOURCES.md and
 #    data/pools/LICENSE.
-!data/pools/cefr_demo_pool.json
 !data/pools/raamove_demo_pool.json
 !data/pools/cars50_demo_pool.json
 !data/pools/l2_errors_demo_pool.json
