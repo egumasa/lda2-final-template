@@ -248,6 +248,33 @@ def main():
         check("to_canonical(..., source=sampled) carries context into gold",
               canonical_keeps_context)
 
+        from annotate import create_annotation_sheet, remembered_sheet
+
+        def sheet_creation_stays_three_args():
+            # Day 2 S5 taught create_annotation_sheet(title, items, labels). Sharing and
+            # remembering were added afterwards; if either ever loses its default, that
+            # three-argument call breaks in the middle of the annotation session.
+            import inspect
+            parameters = inspect.signature(create_annotation_sheet).parameters
+            required = [name for name, p in parameters.items()
+                        if p.default is inspect.Parameter.empty]
+            assert required == ["title", "items", "labels"], \
+                "create_annotation_sheet grew a required argument: " + str(required)
+        check("create_annotation_sheet(title, items, labels) still needs only three",
+              sheet_creation_stays_three_args)
+
+        def sheet_id_round_trip():
+            # The sheet id is the one handoff that is not a data file. If this stops
+            # round-tripping, notebook 03 step 3 silently gets "" and reads no sheet.
+            path = work_dir / "sheet.json"
+            assert remembered_sheet(path) == "", \
+                "a sheet that was never created must come back as empty, not raise"
+            url = "https://docs.google.com/spreadsheets/d/abc123/edit"
+            path.write_text(json.dumps({"url": url}), encoding="utf-8")
+            assert remembered_sheet(path) == url, "the saved URL did not come back"
+        check("remembered_sheet(path) round-trips, and tolerates no file yet",
+              sheet_id_round_trip)
+
         def sheet_agreement():
             result = annotator_agreement(rows)
             assert "kappa" in result

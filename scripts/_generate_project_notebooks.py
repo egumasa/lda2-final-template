@@ -31,10 +31,13 @@ and the thing they have to narrate in the Q&A.
 """
 
 import json
+import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _setup_cell import REPO, SETUP_MD_LINES, setup_lines
+
 OUT = Path(__file__).resolve().parent.parent / "notebooks"
-REPO = "egumasa/lda2-final-template"
 
 NOTEBOOKS = ["01_build_pool_<track>", "02_sample", "03_annotate", "04_prompt",
              "05_report"]
@@ -109,50 +112,11 @@ def title_cell(number, name, title, one_line, reads, writes, body):
     return md(*(lines + list(body)))
 
 
-SETUP_MD = [
-    "## Setup — run this first",
-    "",
-    "In Colab, uncomment **one** of the two clone blocks below before running. Colab "
-    "starts with only this one file; the clone fetches everything *around* it "
-    "(`scripts/`, `config.py`, `data/`) so the paths resolve.",
-    "",
-    "**Do Option A once, as a group** — then always open the copy in Drive (*File ▸ "
-    "Open ▸ Drive ▸ `lda2-final-template/notebooks/...`*). Your prompts, gold set and "
-    "outputs then survive the runtime resetting, and everyone sees the same files.",
-]
+SETUP_MD = SETUP_MD_LINES
 
 
 def setup_cell(extra_imports=()):
-    lines = [
-        "# ------------------------------------------------------------------",
-        "# SETUP — run me first.",
-        "# ------------------------------------------------------------------",
-        "# In Google Colab, UNCOMMENT one of the two blocks below, then run the cell.",
-        "",
-        "# --- Colab Option A: clone into your Google Drive (persists; do this once) ---",
-        "# from google.colab import drive",
-        '# drive.mount("/content/drive")',
-        "# %cd /content/drive/MyDrive",
-        "# ![ -d lda2-final-template ] || git clone https://github.com/" + REPO
-        + ".git lda2-final-template",
-        "# %cd /content/drive/MyDrive/lda2-final-template/notebooks",
-        "",
-        "# --- Colab Option B: quick, throwaway clone (changes lost on reset) ---",
-        "# !git clone https://github.com/" + REPO + ".git",
-        "# %cd lda2-final-template/notebooks",
-        "",
-        "# Put scripts/ and config.py on the import path. Works locally AND in Colab",
-        "# after the %cd above, because notebooks/ sits beside both.",
-        "import sys",
-        'sys.path.append("../scripts")',
-        'sys.path.append("..")',
-        "",
-        "from config import *      # TRACK, GROUP, SEED, N_PER_CLASS, and every path",
-    ]
-    lines = lines + list(extra_imports)
-    lines = lines + ["", "describe()                  # what this notebook is working on",
-                     ""]
-    return code(*lines)
+    return code(*setup_lines(extra_imports))
 
 
 CONFIG_MD = md(
@@ -192,8 +156,10 @@ cells = [
          "mean `sampled` exists in *your* session. Whoever runs the cells is the "
          "**driver**.",
          "- **Files are last-write-wins.** `data/`, `prompts/` and `outputs/` are "
-         "ordinary files, not Google Docs. Let the driver be the only one running cells "
-         "that write them.",
+         "ordinary files, not Google Docs. Two of you writing the same one does not "
+         "merge them — Drive keeps one and may quietly leave the other beside it as "
+         "`… (1).json`, which nothing downstream will ever read. Let the driver be the "
+         "only one running cells that write.",
          "",
          "The **annotation Sheet in notebook 03 is the exception** — that is a real "
          "Google Sheet, so annotate it together, all at once."]),
@@ -350,13 +316,21 @@ cells_03 = [
         "against.",
         "",
         "The first time you run this, Colab asks for permission to use your Google "
-        "account. That is `gspread` authorising against your own Drive."),
+        "account. That is `gspread` authorising against your own Drive.",
+        "",
+        "The sheet is created in the Drive of whoever runs the cell, so pass "
+        "`share_with=MEMBERS` — the Google accounts you put in `config.py` — or your "
+        "second coder will open the link and be told they need access. Pass "
+        "`remember=SHEET_PATH` too, and the link is written to a file instead of living "
+        "in this cell's output, where a runtime reset can lose it."),
     step(
         2, "Create the sheet",
-        "make a blind annotation sheet in your Drive, one row per sampled item.",
-        ["create_annotation_sheet(title, items, labels)  ->  the sheet URL"],
-        "Day 2 S5 step A — the same call.",
-        "a sheet URL — paste it into SHEET_ID below",
+        "make a blind annotation sheet, shared with your group, one row per item.",
+        ["create_annotation_sheet(title, items, labels,",
+         "                        share_with=..., remember=...)  ->  the sheet URL",
+         "MEMBERS · SHEET_PATH   (from config.py)"],
+        "Day 2 S5 step A — the same call, plus the two sharing arguments.",
+        "a sheet URL — and a note of it on disk, for the step after next",
         extra=["Note      : give it a title with your group and track in it. You will",
                "            have several of these by the end of the week.",
                "Careful   : run this ONCE. Running it again makes a SECOND sheet, and",
@@ -378,10 +352,18 @@ cells_03 = [
         "This is the point where the notebook stops and the week's actual work happens. "
         "Come back when both columns are full."),
     code(
-        "# Paste the URL your sheet printed above (or just the long id from it).",
-        "# It lives here rather than in config.py because it is per-round, not per-group.",
-        'SHEET_ID = ""',
-        'ROUND    = "round1"          # each re-annotation round gets its own tab',
+        "# The sheet step 2 created, read back from the file it wrote. This is why it",
+        "# wrote one: whoever runs the next cell need not be the person who ran step 2,",
+        "# and need not still have that cell's output on screen.",
+        "SHEET_ID = remembered_sheet(SHEET_PATH)",
+        "",
+        "# Working on a sheet someone made before this file existed? Paste its URL (or",
+        "# just the long id from it) here instead:",
+        '# SHEET_ID = ""',
+        "",
+        'ROUND = "round1"             # each re-annotation round gets its own tab',
+        "",
+        'print("sheet:", SHEET_ID or "-- none saved yet: run step 2 --")',
         ""),
     md(
         "## Step 3 — Measure agreement",
