@@ -904,7 +904,7 @@ save("01_build_pool_l2_errors.ipynb", [
          "                codes[code] = codes[code] + 1",
          "",
          'print(len(codes), "distinct codes:")',
-         "for code, n in codes.most_common():",
+         "for code, n in sorted(codes.items(), key=lambda kv: -kv[1]):",
          '    print("   ", code, n)'),
     *parser_note(
         "Reading CSV with `csv.DictReader`",
