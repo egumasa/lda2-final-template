@@ -122,10 +122,15 @@ def blank(title, goal, produces, hints, notes=(), starter=None):
     Never blank something without saying what the next cell expects to find - a
     student stuck on a NAME has learned nothing about annotation.
 
-    `starter` is a skeleton to leave in the cell instead of an empty line. Use it where
-    the DECISION is what goes in the gaps and the surrounding structure is just typing -
-    a beginner retyping eight dict keys from scratch is being tested on dict syntax,
+    `starter` is the skeleton the cell ships with, and no blank cell goes without one -
+    the DECISION is what goes in the gaps, and the surrounding structure is just typing.
+    A beginner retyping twenty dict keys from scratch is being tested on dict syntax,
     which is not what any of these cells are for.
+
+    The gaps are `____` rather than `...`, on purpose. `...` is real Python: a mapping
+    left half-filled runs, the labels come out as `Ellipsis`, the counts print, and the
+    first sign of trouble is a TypeError inside json.dump five cells later. `____` is
+    not defined, so it stops in the cell where the decision was, and names it.
     """
     rule = "─" * max(4, 60 - len(title))
     lines = ["# ✏️ " + title + " " + rule,
@@ -136,12 +141,10 @@ def blank(title, goal, produces, hints, notes=(), starter=None):
     for note in notes:
         lines.append("# " + note)
     lines.append("")
-    if starter:
-        lines.append("# ✏️ replace each ... below")
-        for line in starter:
-            lines.append(line)
-    else:
-        lines.append("# ✏️ your code here")
+    lines.append("# ✏️ your code here — fill in each ____")
+    lines.append("")
+    for line in starter:
+        lines.append(line)
     lines.append("")
     return code(*lines)
 
@@ -284,6 +287,13 @@ def save_cell(track, note="", variants=()):
         '        + POOL_PATH.name + ", which belongs to another track.\\n"',
         '        "Open config.yaml, set  track: to one of ' + " · ".join(allowed) + ',"',
         '        " save it, then re-run the SETUP cell at the top of this notebook.")',
+        "",
+        "",
+        "# Check the shape before writing. Everything downstream — the sampling, the",
+        "# annotation sheet, the scoring — assumes every item has an id, a text and a",
+        "# label, and a pool that breaks that assumption does not fail here: it fails",
+        "# in notebook 03, after two people have annotated forty items.",
+        "validate(rows)",
         "",
         "POOL_PATH.parent.mkdir(parents=True, exist_ok=True)",
         'with open(POOL_PATH, "w", encoding="utf-8") as f:',
@@ -428,7 +438,7 @@ save("01_build_pool_raamove.ipynb", [
         "fill in the move name your prompt will use for each three-letter code.",
         "RAAMOVE_LABELS (a dict)",
         ['the eight codes are given — you write the eight names',
-         'RAAMOVE_LABELS = {"BAC": "Background", "GAP": ..., ...}'],
+         'RAAMOVE_LABELS = {"BAC": "Background", "GAP": "Gap", ...}'],
         notes=["Note      : the names are not cosmetic. They are the wording your prompt",
                "            uses, your coders read on the sheet, and your confusion matrix",
                "            is labelled with. \"Gap\" and \"Establishing a niche\" name the",
@@ -438,17 +448,20 @@ save("01_build_pool_raamove.ipynb", [
                "            two. Decide that HERE and say so in PLAN.md, not after you",
                "            have seen the model do badly on them."],
         starter=['RAAMOVE_LABELS = {',
-                 '    "BAC": ...,      # e.g. "Background" — the wording your prompt will use',
-                 '    "GAP": ...,',
-                 '    "MTD": ...,',
-                 '    "PUR": ...,',
-                 '    "RST": ...,',
-                 '    "CLN": ...,',
-                 '    "CTN": ...,',
-                 '    "IMP": ...,',
-                 '}']),
+                 '    "BAC": ____,      # e.g. "Background" — in quotes: the wording your',
+                 '                      #   prompt, your sheet and your matrix will use',
+                 '    "GAP": ____,',
+                 '    "MTD": ____,',
+                 '    "PUR": ____,',
+                 '    "RST": ____,',
+                 '    "CLN": ____,',
+                 '    "CTN": ____,',
+                 '    "IMP": ____,',
+                 '}',
+                 '',
+                 'print(RAAMOVE_LABELS)']),
     md("The function below reads the `RAAMOVE_LABELS` you just defined."),
-    code(embed(reshape.reid, reshape.reshape_raamove,
+    code(embed(reshape.reid, reshape.reshape_raamove, reshape.validate,
                imports=["import json", "from pathlib import Path"])),
     code("rows = reshape_raamove(RAW_DIR)"),
     md("## Step 4 — Check the label balance",
@@ -595,7 +608,7 @@ save("01_build_pool_cars50.ipynb", [
        "`prompts/cars50_context.txt` shows it the introduction first. These are 26 "
        "sentences on average and up to 47, so the context condition is noticeably "
        "slower to run — worth knowing before you start it at 4pm."),
-    code(embed(reshape.reid, reshape.reshape_cars50,
+    code(embed(reshape.reid, reshape.reshape_cars50, reshape.validate,
                imports=["import xml.etree.ElementTree as ET",
                         "from pathlib import Path"])),
     code("move_rows, step_rows = reshape_cars50(RAW_DIR)",
@@ -614,15 +627,21 @@ save("01_build_pool_cars50.ipynb", [
                "            PLAN.md asks you to justify it in a sentence.",
                "Careful   : whichever you pick, the label names in your prompt and your",
                "            annotation sheet must match these exactly (\"Move 1\", or",
-               "            \"1b\")."]),
+               "            \"1b\")."],
+        starter=["# Delete whichever line you are not using.",
+                 "rows = move_rows      # 3 classes: Move 1 · Move 2 · Move 3",
+                 "rows = step_rows      # 11 classes: 1a · 1b · 2a … the finer scheme",
+                 "",
+                 'print(len(rows), "items")']),
     md("## Step 4 — Check the label balance"),
     inspect_cell(),
     md("## Step 5 — Save it"),
     save_cell("cars50",
               'If you chose steps, set  track: cars50_step  in config.yaml before running '
               "this: POOL_PATH then becomes cars50_step_pool.json, and the finer scheme "
-              "gets its own file rather than overwriting the 3-move one. You will need "
-              "prompts/cars50_step.txt too — copy cars50.txt and rewrite the labels.",
+              "gets its own file rather than overwriting the 3-move one. Notebook 04 "
+              "then reads prompts/cars50_step.txt, which is already there — a baseline "
+              "naming the eleven codes, for you to improve on.",
               variants=("cars50_step",)),
     handoff("cars50"),
 ])
@@ -730,12 +749,34 @@ save("01_build_pool_l2_errors.ipynb", [
          "(NO_ERROR is handled separately — do not list it)"],
         notes=["Careful   : a code you omit is not an error — it is a DROPPED sentence.",
                "            Compare your total in step 4 against the detection count.",
+               "Note      : the four category names below are the cut this track was",
+               "            written around, and they are only a starting point. Rename",
+               "            them, merge them, or use two categories instead of four —",
+               "            what matters is that you can say why.",
                "Note      : put the grouping in PLAN.md as a table, with a one-line",
                "            justification for any code a reasonable person would file",
-               "            somewhere else. That table is report section 1."]),
+               "            somewhere else. That table is report section 1."],
+        starter=[
+            "# One line per code you are KEEPING. Scroll up to step 2 for the full list",
+            "# with frequencies — the frequent codes are the ones worth arguing over.",
+            "#",
+            "# The right-hand side is your category name, and repeating one is how you",
+            "# merge: every code you send to \"Grammatical\" becomes one class.",
+            "",
+            "L2_COARSE = {",
+            '    "ART": "Grammatical",      # articles — given as an example of the shape',
+            '    "SP": "Mechanical",        # spelling — mechanical, or lexical? your call',
+            '    "PREP": ____,              # prepositions — grammatical or lexical?',
+            '    "____": ____,',
+            '    "____": ____,',
+            "    # … keep going, one line per code from step 2 that you want to study",
+            "}",
+            "",
+            'print(len(L2_COARSE), "codes kept ·", sorted(set(L2_COARSE.values())))',
+        ]),
     md("The two functions below read the `L2_COARSE` you just defined."),
     code(embed(reshape._l2_coarse_label, reshape.reid, reshape.reshape_l2_errors,
-               imports=["import csv"])),
+               reshape.validate, imports=["import csv"])),
     code("category_rows, detection_rows = reshape_l2_errors(RAW_FILE)",
          'print("categories:", len(category_rows), " detection:", len(detection_rows))'),
     blank(
@@ -746,7 +787,12 @@ save("01_build_pool_l2_errors.ipynb", [
          "rows = detection_rows    # Has error / No error"],
         notes=["Note      : detection is a genuinely easier task and a smaller project.",
                "            If you take it, plan an extension — benchmarking against the",
-               "            published tool's own predictions is right there in the CSV."]),
+               "            published tool's own predictions is right there in the CSV."],
+        starter=["# Delete whichever line you are not using.",
+                 "rows = category_rows      # your categories from 3a",
+                 "rows = detection_rows     # Has error / No error",
+                 "",
+                 'print(len(rows), "items")']),
     md("## Step 4 — Check the label balance",
        "",
        "Note how many sentences were dropped: compare your category count against the "
@@ -757,8 +803,8 @@ save("01_build_pool_l2_errors.ipynb", [
     save_cell("l2_errors",
               'For the binary version, set  track: l2_error_detection  in config.yaml '
               "before running this, so POOL_PATH becomes l2_error_detection_pool.json "
-              "and the two versions do not overwrite each other. You will need "
-              "prompts/l2_error_detection.txt too.",
+              "and the two versions do not overwrite each other. Notebook 04 then reads "
+              "prompts/l2_error_detection.txt, which is already there as a baseline.",
               variants=("l2_error_detection",)),
     handoff("l2_errors"),
 ])
@@ -805,7 +851,21 @@ save("01_build_pool_icnale.ipynb", [
          "",
          "# Or, having put it in your group's Drive folder once, use it from there and",
          "# skip the upload every session:",
-         '# RAW_FILE = str(ROOT / "data" / "raw" / "icnale" / "essays_scores.csv")'),
+         '# RAW_FILE = str(ROOT / "data" / "raw" / "icnale" / "essays_scores.csv")',
+         "",
+         "# Say so here rather than three cells down, where the same problem arrives as",
+         "# a bare FileNotFoundError from inside `open`.",
+         "import os",
+         "if not os.path.isfile(RAW_FILE):",
+         "    raise FileNotFoundError(",
+         '        RAW_FILE + " is not here.\\n"',
+         '        "This is the one track with no automatic download: register at "',
+         '        "https://language.sakura.ne.jp/icnale/download.html, export a CSV "',
+         '        "with a text column and a score column, then either uncomment the "',
+         '        "upload line above and run this cell again, or put the file in "',
+         '        "data/raw/icnale/ in your group\'s Drive folder and use the second "',
+         '        "RAW_FILE line.")',
+         'print("using", RAW_FILE)'),
     md("## Step 2 — Look at the raw format",
        "",
        "The cell prints the **distribution** of the scores, not just a couple of rows. "
@@ -869,7 +929,8 @@ save("01_build_pool_icnale.ipynb", [
        "alphabetical. List them under `labels_order:` in `config.yaml` — Low, then Mid, "
        "then High — or the weighted κ gets computed over `High < Low < Mid`, which "
        "means nothing."),
-    code(embed(reshape.reid, reshape.reshape_icnale, imports=["import csv"])),
+    code(embed(reshape.reid, reshape.reshape_icnale, reshape.validate,
+               imports=["import csv"])),
     blank(
         "Step 3a · Cut the scale",
         "turn a numeric score into three bands, and be able to defend where.",
@@ -880,7 +941,12 @@ save("01_build_pool_icnale.ipynb", [
         notes=["Note      : run it a couple of ways and look at step 4 each time. Seeing",
                "            the counts move as you shift a boundary is the point.",
                "Careful   : whatever you settle on goes in PLAN.md as two numbers and a",
-               "            reason. Do not re-cut after seeing your F1."]),
+               "            reason. Do not re-cut after seeing your F1."],
+        starter=["# Two numbers, from the rubric or from the percentiles printed above.",
+                 "# A score below low_below is Low; below mid_below is Mid; the rest High.",
+                 "rows = reshape_icnale(RAW_FILE, low_below=____, mid_below=____)",
+                 "",
+                 'print(len(rows), "essays")']),
     md("## Step 4 — Check the label balance"),
     inspect_cell(),
     md("## Step 5 — Save it",

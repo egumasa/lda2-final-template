@@ -1,6 +1,6 @@
 """_setup_cell.py — the bootstrap cell that opens every notebook.
 
-Both notebook generators import this, so all ten notebooks start the same way and
+Both notebook generators import this, so all nine notebooks start the same way and
 there is exactly one copy of the rule they enforce:
 
     a group's work lives in the group's Google Drive folder, or it does not run.
@@ -70,11 +70,14 @@ def setup_lines(extra_imports=(), workdir=None):
 
     lines = [
         "# ------------------------------------------------------------------",
-        "# SETUP — run me first.",
+        "# SETUP — run me first. You are not expected to read it.",
         "# ------------------------------------------------------------------",
-        "# Finds your group's shared folder in Google Drive. Everything this project",
-        "# keeps goes in there: a Colab runtime is wiped when it resets, and nobody",
-        "# else in your group can see inside it.",
+        "# This cell is plumbing, and it is the only cell in the project that is.",
+        "# It finds your group's shared folder in Google Drive, because everything",
+        "# this project keeps goes in there: a Colab runtime is wiped when it resets,",
+        "# and nobody else in your group can see inside it. Then it makes the",
+        "# project's own code importable. Run it and move on; nothing below asks you",
+        "# to have understood it.",
         "",
         'FOLDER = "' + FOLDER + '"     # the shared folder, in every member\'s Drive',
         "",
@@ -117,7 +120,14 @@ def setup_lines(extra_imports=(), workdir=None):
         "import importlib",
         "import config",
         "importlib.reload(config)",
-        "from config import *      # TRACK, GROUP, RUN, SEED, N_PER_CLASS, every path",
+        "",
+        "# Named one by one rather than with `import *`, so that every name a cell",
+        "# below uses can be traced back to the file it came from — config.yaml for",
+        "# these, scripts/ for the rest.",
+        "from config import (TRACK, GROUP, RUN, SEED, N_PER_CLASS, MEMBERS,",
+        "                    LABELS_ORDER, ROOT, OUT_DIR, POOL_PATH, DEMO_POOL_PATH,",
+        "                    SAMPLE_PATH, GOLD_PATH, PRED_PATH, ROUNDS_PATH,",
+        "                    PROMPT_FILE, SHEET_PATH, TRIAGE_PATH, describe)",
     ]
     lines = lines + list(extra_imports)
     lines = lines + ["", "describe()                  # what this notebook is working on",
