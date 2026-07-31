@@ -32,11 +32,16 @@ def reid(items):
     """Renumber ids sequentially from 1, keeping the current order."""
     renumbered = []
     next_id = 1
+
     for item in items:
-        new_item = dict(item)
-        new_item["id"] = next_id
-        renumbered.append(new_item)
-        next_id = next_id + 1
+        ### Copy before writing ###
+        new_item = dict(item)                    # Work on a copy, so the caller's item is left alone.
+
+        ### Stamp the id ###
+        new_item["id"] = next_id                 # Overwrite whatever id was there with the running number.
+        renumbered.append(new_item)              # Keep it in the order it arrived.
+        next_id = next_id + 1                    # Advance, so the next item gets a fresh id.
+
     return renumbered
 
 
@@ -120,18 +125,28 @@ def reshape_cefr(wiki_auto_dir):
     """
     source_dir = Path(wiki_auto_dir)
     rows = []
+
+    ### Read every TSV in the folder ###
     # Sorted, so a rebuild reads the files in the same order and ids stay stable.
     for path in sorted(source_dir.glob("*.txt")):
-        for line in path.read_text(encoding="utf-8").splitlines():
-            parts = line.split("\t")
-            if len(parts) < 3:
+        for line in path.read_text(encoding="utf-8").splitlines():   # One sentence per line.
+
+            ### Split the line on its tabs ###
+            parts = line.split("\t")             # -> [sentence, label_A, label_B]
+            if len(parts) < 3:                   # A short line is malformed; skip it rather than crash.
                 continue
-            text = parts[0].strip()
-            label_a = parts[1].strip()
-            label_b = parts[2].strip()
-            if text and label_a == label_b and label_a in CEFR_NUM:
-                rows.append({"id": 0, "text": text, "label": CEFR_NUM[label_a]})
-    return reid(rows)
+
+            ### Pull out the three fields ###
+            text = parts[0].strip()              # The sentence itself.
+            label_a = parts[1].strip()           # Annotator A's level, as a digit "1".."6".
+            label_b = parts[2].strip()           # Annotator B's level, same encoding.
+
+            ### Keep only what both annotators agreed on ###
+            if text and label_a == label_b and label_a in CEFR_NUM:   # Disagreements are dropped entirely.
+                rows.append({"id": 0, "text": text,
+                             "label": CEFR_NUM[label_a]})             # Digit -> human-readable level ("3" -> "B1").
+
+    return reid(rows)                            # Hand back with ids running 1..N.
 
 
 # ----------------------------------------------------------------------------------
@@ -150,22 +165,52 @@ def reshape_raamove(raamove_dir):
     them, because a move is meant to be a rhetorical function rather than a
     discipline-specific one - but that IS an assumption, and comparing the two domains
     separately would be a perfectly good extension.
+
+    A move is a rhetorical function WITHIN an abstract, so each item also carries the
+    abstract it came from - see the note on the two-pass loop below.
     """
     source_dir = Path(raamove_dir)
     rows = []
+
+    ### Read both discipline files into one pool ###
     for filename in ("Intelligence.json", "Engineering.json"):
         path = source_dir / filename
-        if not path.exists():
+        if not path.exists():                    # A missing file is not fatal; use whichever shipped.
             continue
-        data = json.loads(path.read_text(encoding="utf-8"))
+
+        ### Parse the JSON ###
+        data = json.loads(path.read_text(encoding="utf-8"))   # -> a list of {"idx": ..., "text": ..., "labels": ...} records.
+
+        ### PASS 1: group the flat record list back into abstracts ###
+        # The file is one long list of sentences, but `idx` is the abstract number, and
+        # the sentences of one abstract sit together in reading order. So a new idx means
+        # a new abstract - which is all the grouping we need, and it does not care that
+        # idx starts again at 0 in the other discipline file.
+        abstracts = []
         for record in data:
-            code = record["labels"]
-            if code in RAAMOVE_LABELS:
-                label = RAAMOVE_LABELS[code]
-            else:
-                label = code            # an unexpected code: keep it and let validate() complain
-            rows.append({"id": 0, "text": record["text"].strip(), "label": label})
-    return reid(rows)
+            if not abstracts or abstracts[-1][0] != record["idx"]:
+                abstracts.append((record["idx"], []))          # Start collecting a new abstract.
+            abstracts[-1][1].append(record)                    # Same idx: same abstract as the line before.
+
+        ### PASS 2: emit one item per sentence, with its abstract attached ###
+        for number, records in abstracts:
+            texts = [record["text"].strip() for record in records]   # The abstract, sentence by sentence.
+            context = "\n".join(texts)           # One string, newlines kept so the sentences stay visible.
+            doc_id = path.stem + "-" + str(number)   # e.g. "Intelligence-0". idx alone is NOT unique across the two files.
+
+            for position, record in enumerate(records):
+                code = record["labels"]          # e.g. "BAC".
+                if code in RAAMOVE_LABELS:
+                    label = RAAMOVE_LABELS[code]     # The name your prompt and annotation sheet will use.
+                else:
+                    label = code        # an unexpected code: keep it and let validate() complain
+                rows.append({"id": 0, "text": texts[position], "label": label,
+                             "doc_id": doc_id,           # Which abstract this sentence is from.
+                             "sent_index": position,     # Where in it - 0 is the first sentence.
+                             "n_sents": len(texts),      # How long the abstract is.
+                             "context": context})        # The abstract itself.
+
+    return reid(rows)                            # Hand back with ids running 1..N.
 
 
 # ----------------------------------------------------------------------------------
@@ -181,25 +226,60 @@ def reshape_cars50(cars50_dir):
     Step. So one parse gives two granularities, and which you use is a scheme decision:
     3 classes is a fair task, 11 classes is the stretch version. Returns
     (move_rows, step_rows).
+
+    A move is a rhetorical function WITHIN an introduction, so each item also carries the
+    introduction it came from - see the note on the two-pass loop below.
     """
     source_dir = Path(cars50_dir)
     move_rows = []
     step_rows = []
-    for xml_path in sorted(source_dir.glob("*.xml")):
-        tree = ET.parse(xml_path)
-        for sentence in tree.iter("sentence"):
-            text_element = sentence.find("text")
-            step_element = sentence.find("step")
-            if text_element is None or step_element is None:
-                continue
-            text = (text_element.text or "").strip()
-            code = (step_element.text or "").strip()
+
+    ### Walk the 50 XML files ###
+    for xml_path in sorted(source_dir.glob("*.xml")):   # One file per article introduction.
+
+        ### Parse one file into a tree ###
+        tree = ET.parse(xml_path)                # ElementTree turns the XML into a navigable tree.
+        doc_id = xml_path.stem                   # e.g. "text001". The FILENAME - the <sentenceID> tags are not reliable.
+
+        ### PASS 1: read the whole introduction, in order ###
+        # Every sentence that has text goes in here, including ones we are about to drop
+        # for having no usable code. They belong in the passage because a reader saw them:
+        # leaving them out would hand the model a doctored introduction.
+        passage = []
+        for sentence in tree.iter("sentence"):   # .iter() finds them at any depth, so the paragraph nesting does not matter.
+            text_element = sentence.find("text")     # The <text> child, or None if absent.
+            step_element = sentence.find("step")     # The <step> child, or None if absent.
+            text = (text_element.text or "").strip() if text_element is not None else ""   # `or ""` guards an empty tag, whose .text is None.
+            if text:
+                passage.append((text, step_element))
+
+        texts = [text for text, _ in passage]    # Just the sentences.
+        context = "\n".join(texts)               # One string, newlines kept so the sentences stay visible.
+
+        ### PASS 2: emit an item for each sentence that carries a usable code ###
+        # Position comes from enumerate(), never from <sentenceID>: those ids are padded
+        # three different ways, mix two widths inside text038.xml, and t025s020 appears
+        # twice in text025.xml.
+        for position, (text, step_element) in enumerate(passage):
+            code = (step_element.text or "").strip() if step_element is not None else ""   # e.g. "1b".
+
             # Skip anything unlabelled, or whose code does not start with a move digit.
-            if not text or not code or not code[0].isdigit():
+            if not code or not code[0].isdigit():
                 continue
-            move_rows.append({"id": 0, "text": text, "label": "Move " + code[0]})
-            step_rows.append({"id": 0, "text": text, "label": code})
-    return reid(move_rows), reid(step_rows)
+
+            ### Where this sentence sits - the same for both granularities ###
+            where = {"doc_id": doc_id,           # Which introduction this sentence is from.
+                     "sent_index": position,     # Where in it - 0 is the first sentence.
+                     "n_sents": len(texts),      # How long the introduction is.
+                     "context": context}         # The introduction itself.
+
+            ### Record the SAME sentence at both granularities ###
+            move_rows.append({"id": 0, "text": text,
+                              "label": "Move " + code[0], **where})   # Leading digit only -> 3 classes.
+            step_rows.append({"id": 0, "text": text,
+                              "label": code, **where})                # Whole code -> 11 classes.
+
+    return reid(move_rows), reid(step_rows)      # Two datasets, each with ids running 1..N.
 
 
 # ----------------------------------------------------------------------------------
@@ -226,21 +306,27 @@ def _l2_coarse_label(human_field):
     keeps this a single-label task. It also means the dataset under-represents exactly
     the messiest sentences, and that is worth a line in your limitations section.
     """
+    ### Split the comma-separated code list ###
     codes = []
-    for code in human_field.split(","):
+    for code in human_field.split(","):          # "ART,SP" -> ["ART", "SP"].
         code = code.strip()
-        if code:
+        if code:                                 # Drop empties from a trailing comma.
             codes.append(code)
-    if not codes:
+
+    ### Two easy cases first ###
+    if not codes:                                # Nothing to go on -> no label.
         return None
-    if codes[0] == "NO_ERROR":
+    if codes[0] == "NO_ERROR":                   # The explicit "this sentence is clean" marker.
         return "No error"
 
+    ### Map every code to its broader category ###
     categories = set()
     for code in codes:
-        if code in L2_COARSE:
+        if code in L2_COARSE:                    # Codes you did not list are silently ignored here...
             categories.add(L2_COARSE[code])
-    if len(categories) == 1:
+
+    ### One category, or nothing ###
+    if len(categories) == 1:                     # All the errors agree -> that is the label.
         return categories.pop()
     return None                       # no codes we recognise, or a mixed-category sentence
 
@@ -257,20 +343,29 @@ def reshape_l2_errors(csv_path):
     # utf-8-sig: the file ships with a byte-order mark, which would otherwise end up
     # glued to the first column name and break the lookup.
     with open(csv_path, encoding="utf-8-sig", newline="") as handle:
-        for record in csv.DictReader(handle):
-            sentence = (record.get("Sentence") or "").strip()
-            human = (record.get("Human_ErrorCategories") or "").strip()
-            if not sentence or not human:
+
+        ### Read the CSV a row at a time ###
+        for record in csv.DictReader(handle):    # DictReader gives each row as {column: value}.
+
+            ### Pull the two columns that matter ###
+            sentence = (record.get("Sentence") or "").strip()                  # The text.
+            human = (record.get("Human_ErrorCategories") or "").strip()        # The human codes, comma-separated.
+            if not sentence or not human:        # No text or no annotation -> unusable either way.
                 continue
-            label = _l2_coarse_label(human)
-            if label is not None:
+
+            ### Dataset 1: the coarse category ###
+            label = _l2_coarse_label(human)      # Returns None for mixed-category sentences...
+            if label is not None:                # ...and those get no row here at all.
                 category_rows.append({"id": 0, "text": sentence, "label": label})
-            if human == "NO_ERROR":
-                detection_label = "No error"
+
+            ### Dataset 2: did it have ANY error? ###
+            if human == "NO_ERROR":              # This one does not depend on your grouping,
+                detection_label = "No error"     # so every annotated sentence gets a row.
             else:
                 detection_label = "Has error"
             detection_rows.append({"id": 0, "text": sentence, "label": detection_label})
-    return reid(category_rows), reid(detection_rows)
+
+    return reid(category_rows), reid(detection_rows)   # Two datasets, each with ids running 1..N.
 
 
 # ----------------------------------------------------------------------------------
@@ -290,21 +385,29 @@ def reshape_icnale(csv_path, low_below=4.0, mid_below=7.0):
     rows = []
     skipped = 0
     with open(csv_path, encoding="utf-8-sig", newline="") as handle:
-        for record in csv.DictReader(handle):
+
+        ### Read the CSV a row at a time ###
+        for record in csv.DictReader(handle):    # DictReader gives each row as {column: value}.
+
+            ### Pull the essay and its score ###
             text = (record.get("text") or "").strip()
-            raw_score = (record.get("score") or "").strip()
-            if not text or not raw_score:
+            raw_score = (record.get("score") or "").strip()   # Still a string at this point.
+            if not text or not raw_score:        # Nothing to band -> skip.
                 continue
+
+            ### Turn the score into a number ###
             try:
                 score = float(raw_score)
             except ValueError:
                 skipped = skipped + 1      # a non-numeric cell: report it, do not crash
                 continue
-            if score < low_below:
+
+            ### Apply the two cut-offs ###
+            if score < low_below:                # Everything below the first boundary.
                 label = "Low"
-            elif score < mid_below:
+            elif score < mid_below:              # Between the two boundaries.
                 label = "Mid"
-            else:
+            else:                                # At or above the second boundary.
                 label = "High"
             rows.append({"id": 0, "text": text, "label": label})
     if skipped:

@@ -12,6 +12,12 @@ Members: …
 
 (sentence / whole text) — and why:
 
+> **`cars50` and `raamove` only.** Your items carry the passage they came from, so you
+> have a second decision: does the model see the sentence alone (`<track>.txt`) or the
+> whole passage first (`<track>_context.txt`)? Scoring is per sentence either way, so
+> running both is a real experiment — but say here which one is your baseline, and
+> predict in §7 which way it will go before you find out.
+
 ## 2. Label set
 
 Exactly the strings that appear in your gold file:
@@ -37,7 +43,7 @@ this is the part a script could not have done for you, and the part the Q&A goes
 ## 5. Gold
 
 - Pool file:
-- `MIN_PER_CLASS` (your smallest class, from notebook 01 step 4b):
+- `MIN_PER_CLASS` (your smallest class, from the pool counts in notebook 02 step 1):
 - `N_PER_CLASS`:
 - `SEED`:
 - Expected total items:

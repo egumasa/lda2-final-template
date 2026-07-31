@@ -21,6 +21,32 @@ Answer with the level only.
 Sentence: {text}
 ```
 
+## `{context}`, on the two rhetorical-move tracks
+
+`cars50` and `raamove` ask what a sentence *does in a passage* — `Method` vs `Result`,
+`Move 1` vs `Move 3`. That is not always decidable from the sentence on its own, so items
+on those two tracks carry the passage they came from, and a prompt may use a second
+placeholder, `{context}`, to show it.
+
+Both conditions ship, and the pair is a ready-made experiment:
+
+| file | the model sees |
+|---|---|
+| `raamove.txt` · `cars50.txt` | the sentence alone — **the baseline** |
+| `raamove_context.txt` · `cars50_context.txt` | the whole passage, then the sentence |
+
+Scoring is per sentence either way, so the two runs are directly comparable — which is the
+whole point. Write down which way you expect it to go **before** you run the second one;
+that prediction is what `PLAN.md` §7 is asking for.
+
+Two things to watch:
+
+- `{context}` is only filled in on those two tracks. Use it in a `cefr` or `l2_errors`
+  prompt and `run_prompt` will warn you that the model is being shown an empty passage.
+- Changing the prompt **and** switching on few-shot at the same time changes two things
+  at once, and you will not know which one moved the number. `build_fewshot` shows its
+  examples as bare sentences, without their passages.
+
 ## How to iterate
 
 Two easy ways:

@@ -30,7 +30,11 @@ from sklearn.metrics import cohen_kappa_score, confusion_matrix
 COL_ID, COL_TEXT = "ID", "Text"
 COL_A, COL_B = "CoderA", "CoderB"
 COL_FINAL, COL_NOTES = "Final", "Note"
+COL_CONTEXT = "Context"
 ANNOTATION_HEADER = [COL_ID, COL_TEXT, COL_A, COL_B, COL_FINAL, COL_NOTES]
+# Context is added on the END, and only for tracks that carry it (the rhetorical-move
+# ones). Last, because it is a long cell: put it before CoderA and the columns you
+# actually type in get pushed off the side of the screen.
 
 
 def _sheets_client():
@@ -63,31 +67,77 @@ def _sheets_client():
         ) from error
 
 
+def marked_context(item):
+    """The item's passage, numbered, with the sentence being judged marked `>>>`.
+
+    Only for display in the sheet - the item's own `context` stays untouched. A move is
+    a function within a passage, so a coder judging one sentence needs to see the rest;
+    but handing them 26 unbroken sentences and asking "which one was it again?" trades
+    one problem for another. Returns "" for tracks that carry no context.
+    """
+    context = item.get("context")
+    if not context:
+        return ""
+    target = item.get("sent_index")
+    lines = []
+    for position, sentence in enumerate(context.splitlines()):
+        number = str(position + 1) + ". "
+        if position == target:
+            lines.append(">>> " + number + sentence)   # The one you are labelling.
+        else:
+            lines.append("    " + number + sentence)
+    return "\n".join(lines)
+
+
 def create_annotation_sheet(title, items, labels):
     """Create a Sheet in YOUR Drive: one row per item, blank columns to label.
 
     `items` are {"id", "text", ...} dicts - any existing label is deliberately NOT
     copied across, so you annotate blind. Returns the sheet URL.
+
+    Items that carry a `context` (the rhetorical-move tracks) get one extra column
+    showing the passage, so the two coders judge the sentence on the same evidence the
+    model will get.
     """
     ### Step 1: make an empty spreadsheet in your own Drive ###
     sheet = _sheets_client().create(title)
     worksheet = sheet.sheet1
     worksheet.update_title("round1")   # first round lives in the 'round1' tab
 
-    ### Step 2: one row per item - id and text filled in, label columns left blank ###
+    ### Step 2: is this a track that carries context? ###
+    with_context = any(item.get("context") for item in items)   # All-or-nothing within a track.
+    if with_context:
+        header = ANNOTATION_HEADER + [COL_CONTEXT]
+    else:
+        header = ANNOTATION_HEADER                # The other tracks' sheets are unchanged.
+
+    ### Step 3: one row per item - id and text filled in, label columns left blank ###
     rows = []
     for item in items:
-        #             id            text          CoderA CoderB Final Note
-        rows.append([item["id"], item["text"], "", "", "", ""])
+        #      id            text          CoderA CoderB Final Note
+        row = [item["id"], item["text"], "", "", "", ""]
+        if with_context:
+            row.append(marked_context(item))      # The passage, with this sentence marked.
+        rows.append(row)
 
-    ### Step 3: write it all in one go, then pin the header row ###
+    ### Step 4: write it all in one go, then pin the header row ###
     # value_input_option="RAW" tells Sheets to store the text EXACTLY as given. Without
     # it, a sentence starting with "=", "+", "-" or "'" can be read as a formula and
     # mangled - which happens for real in learner-error and move-annotation data.
-    worksheet.update([ANNOTATION_HEADER] + rows, value_input_option="RAW")
+    worksheet.update([header] + rows, value_input_option="RAW")
     worksheet.freeze(rows=1)                       # header stays put as you scroll
+    if with_context:
+        # Without this the passage is one clipped line you can only read in the formula
+        # bar, which is a good way to make sure nobody reads it.
+        last_column = chr(ord("A") + len(header) - 1)
+        worksheet.format(last_column + "2:" + last_column,
+                         {"wrapStrategy": "WRAP", "verticalAlignment": "TOP"})
+        worksheet.columns_auto_resize(0, len(header) - 2)
     print("Created '" + title + "' with", len(rows), "rows in tab 'round1'.")
     print("Allowed labels:", ", ".join(labels))
+    if with_context:
+        print("This track carries context: the 'Context' column shows each sentence's "
+              "passage, with the one you are labelling marked '>>>'. Read it.")
     print("Open it:", sheet.url)
     return sheet.url
 
@@ -127,19 +177,37 @@ def load_annotation_sheet(sheet_id, worksheet="round1"):
         # This is almost always a header problem: a duplicated or blank column name.
         raise ValueError(
             "Could not read the rows of tab " + repr(worksheet) + ". This usually means "
-            "the header row has a DUPLICATE or BLANK column name. The columns must be "
-            "exactly: " + " · ".join(ANNOTATION_HEADER) + " - fix the header in the "
-            "sheet and re-run.\nOriginal error: " + str(error)
+            "the header row has a DUPLICATE or BLANK column name. The columns must "
+            "include: " + " · ".join(ANNOTATION_HEADER) + " (plus " + COL_CONTEXT
+            + " on the rhetorical-move tracks) - fix the header in the sheet and "
+            "re-run.\nOriginal error: " + str(error)
         ) from error
     print("Read", len(rows), "rows from tab '" + worksheet + "'.")
     return rows
 
 
-def to_canonical(rows, labels, column=COL_FINAL):
+def to_canonical(rows, labels, column=COL_FINAL, source=None):
     """Turn annotation rows into canonical gold: [{"id", "text", "label"}, ...].
 
     Blank rows are skipped; labels outside `labels` are reported, not silently kept.
+
+    `source` is the list of items the sheet was BUILT from (your sampled items). Pass it
+    on a track that carries context: gold is rebuilt from the sheet, which holds only the
+    id, the text and your label, so anything else the item was carrying would be dropped
+    here and notebook 04 would never see it. The extra fields are copied from `source` by
+    id rather than read back out of the sheet - the sheet's Context column is a
+    marked-up display copy, and a coder may have edited it.
     """
+    ### Step 0: look up what each sampled item was carrying, if we were given them ###
+    extras_by_id = {}
+    if source is not None:
+        for item in source:
+            extras = {}
+            for key in item:
+                if key not in ("id", "text", "label"):
+                    extras[key] = item[key]
+            extras_by_id[item["id"]] = extras
+
     ### Step 1: sort every row into one of three piles ###
     gold = []          # usable rows
     blank = 0          # not labelled yet
@@ -159,11 +227,13 @@ def to_canonical(rows, labels, column=COL_FINAL):
             except (KeyError, TypeError, ValueError):
                 bad_ids.append(row.get(COL_ID))
                 continue
-            gold.append({
+            gold_item = {
                 "id": item_id,
                 "text": str(row[COL_TEXT]),
                 "label": label,
-            })
+            }
+            gold_item.update(extras_by_id.get(item_id, {}))   # Put back whatever the sheet could not carry.
+            gold.append(gold_item)
 
     ### Step 2: report every count, so nothing is dropped silently ###
     print(len(gold), "usable ·", blank, "still blank ·", len(invalid), "invalid")
@@ -173,6 +243,19 @@ def to_canonical(rows, labels, column=COL_FINAL):
     if bad_ids:
         print("  these rows have a non-numeric ID cell (did something get typed over "
               "it?):", bad_ids[:10])
+
+    ### Step 3: if we were given the sampled items, check they actually matched ###
+    # A silent miss here is nasty: gold would come out looking fine, just without the
+    # context, and only notebook 04 would notice - by prompting with an empty passage.
+    if source is not None:
+        unmatched = 0
+        for item in gold:
+            if item["id"] not in extras_by_id:
+                unmatched = unmatched + 1
+        if unmatched:
+            print("  WARNING:", unmatched, "row(s) had no match in `source` by id, so "
+                  "they carry no context. Is `source` the same sampled items this sheet "
+                  "was created from?")
     return gold
 
 

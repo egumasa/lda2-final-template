@@ -2,321 +2,577 @@
   {
     "id": 1,
     "text": "Our results show that strategic fine-tuning using datasets from other high-resource dialects is beneficial for a low-resource dialect.",
-    "label": "Conclusion"
+    "label": "Conclusion",
+    "doc_id": "Intelligence-123",
+    "sent_index": 3,
+    "n_sents": 5,
+    "context": "We present state-of-the-art results on morphosyntactic tagging across different varieties of Arabic using fine-tuned pre-trained transformer language models.\nOur models consistently outperform existing systems in Modern Standard Arabic and all the Arabic dialects we study, achieving 2.6% absolute improvement over the previous state-of-the-art in Modern Standard Arabic, 2.8% in Gulf, 1.6% in Egyptian, and 8.3% in Levantine.\nWe explore different training setups for fine-tuning pre-trained transformer language models, including training data size, the use of external linguistic resources, and the use of annotated data from other dialects in a low-resource scenario.\nOur results show that strategic fine-tuning using datasets from other high-resource dialects is beneficial for a low-resource dialect.\nAdditionally, we show that high-quality morphological analyzers as external linguistic resources are beneficial especially in low-resource settings."
   },
   {
     "id": 2,
     "text": "However, these adaptive DA methods: (1) are computationally expensive and not sample-efficient, and (2) are designed merely for a specific setting. In this work, we present a universal DA technique, called Glitter, to overcome both issues.",
-    "label": "Method"
+    "label": "Method",
+    "doc_id": "Intelligence-72",
+    "sent_index": 3,
+    "n_sents": 8,
+    "context": "Data Augmentation (DA) is known to improve the generalizability of deep neural networks.\nMost existing DA techniques naively add a certain number of augmented samples without considering the quality and the added computational cost of these samples.\nTo tackle this problem, a common strategy, adopted by several state-of-the-art DA methods, is to adaptively generate or re-weight augmented samples with respect to the task objective during training.\nHowever, these adaptive DA methods: (1) are computationally expensive and not sample-efficient, and (2) are designed merely for a specific setting. In this work, we present a universal DA technique, called Glitter, to overcome both issues.\nGlitter can be plugged into any DA method, making training sample-efficient without sacrificing performance.\nFrom a pre-generated pool of augmented samples, Glitter adaptively selects a subset of worst-case samples with maximal loss, analogous to adversarial DA.\nWithout altering the training strategy, the task objective can be optimized on the selected subset.\nOur thorough experiments on the GLUE benchmark, SQuAD, and HellaSwag in three widely used training setups including consistency training, self-distillation and knowledge distillation reveal that Glitter is substantially faster to train and achieves a competitive performance, compared to strong baselines."
   },
   {
     "id": 3,
     "text": "Therefore, instructors should consider choosing more gender-neutral projects or make appropriate adjustments in project descriptions to minimize gender bias.",
-    "label": "Implication"
+    "label": "Implication",
+    "doc_id": "Engineering-45",
+    "sent_index": 6,
+    "n_sents": 7,
+    "context": "Students in design courses work on projects that are influenced by ambiguity, gender orientation, and domain relatedness.\nThis study investigates the impacts of these factors on student self-efficacy in order to increase retention in engineering disciplines.\nFrom a comprehensive literature review and feedback from engineering experts, an instrument is developed to assess student perceptions on tolerance to ambiguity (STA), project gender orientation (PGO), and project domain relatedness (PDR).\nStatistical analyses are conducted to examine the influence of STA, PGO, and PDR on student self-efficacy and collective efficacy.\nResults indicate that an increase in the gender orientation of the project decreases student self-efficacy.\nFurthermore, gender bias of the design project diminishes student tolerance to deal with ambiguous situations.\nTherefore, instructors should consider choosing more gender-neutral projects or make appropriate adjustments in project descriptions to minimize gender bias."
   },
   {
     "id": 4,
     "text": "While it is common to treat pre-training data as public, it may still contain personally identifiable information (PII), such as names, phone numbers, and copyrighted material.",
-    "label": "Gap"
+    "label": "Gap",
+    "doc_id": "Intelligence-189",
+    "sent_index": 2,
+    "n_sents": 8,
+    "context": "Recent advances in NLP often stem from large transformer-based pre-trained models, which rapidly grow in size and use more and more training data.\nSuch models are often released to the public so that end users can fine-tune them on a task dataset.\nWhile it is common to treat pre-training data as public, it may still contain personally identifiable information (PII), such as names, phone numbers, and copyrighted material.\nRecent findings show that the capacity of these models allows them to memorize parts of the training data,\nand suggest differentially private (DP) training as a potential mitigation.\nWhile there is recent work on DP fine-tuning of NLP models, the effects of DP pre-training are less well understood: it is not clear how downstream performance is affected by DP pre-training, and whether DP pre-training mitigates some of the memorization concerns.\nWe focus on T5 and show that by using recent advances in JAX and XLA we can train models with DP that do not suffer a large drop in pre-training utility, nor in training speed, and can still be fine-tuned to high accuracies on downstream tasks (e.g. GLUE).\nMoreover, we show that T5's span corruption is a good defense against data memorization."
   },
   {
     "id": 5,
     "text": "Thus, we recommend that future selective prediction approaches should be evaluated across tasks and settings for reliable estimation of their capabilities.",
-    "label": "Implication"
+    "label": "Implication",
+    "doc_id": "Intelligence-176",
+    "sent_index": 7,
+    "n_sents": 8,
+    "context": "In order to equip NLP systems with selective prediction' capability, several task-specific approaches have been proposed.\nHowever, which approaches work best across tasks or even if they consistently outperform the simplest baseline MaxProb remains to be explored.\nTo this end, we systematically study selective prediction in a large-scale setup of 17 datasets across several NLP tasks.\nThrough comprehensive experiments under in-domain (IID), out-of-domain (OOD), and adversarial (ADV) settings,\nwe show that despite leveraging additional resources (held-out data/computation), none of the existing approaches consistently and considerably outperforms MaxProb in all three settings.\nFurthermore, their performance does not translate well across tasks.\nFor instance, Monte-Carlo Dropout outperforms all other approaches on Duplicate Detection datasets but does not fare well on NLI datasets, especially in the OOD setting.\nThus, we recommend that future selective prediction approaches should be evaluated across tasks and settings for reliable estimation of their capabilities."
   },
   {
     "id": 6,
     "text": "Questioner raises the sub questions using an extending HRED model, and Oracle answers them one-by-one.",
-    "label": "Method"
+    "label": "Method",
+    "doc_id": "Intelligence-146",
+    "sent_index": 3,
+    "n_sents": 9,
+    "context": "Most existing approaches to Visual Question Answering (VQA) answer questions directly\nhowever, people usually decompose a complex question into a sequence of simple sub questions and finally obtain the answer to the original question after answering the sub question sequence(SQS).\nBy simulating the process, this paper proposes a conversation-based VQA (Co-VQA) framework, which consists of three components: Questioner, Oracle, and Answerer.\nQuestioner raises the sub questions using an extending HRED model, and Oracle answers them one-by-one.\nAn Adaptive Chain Visual Reasoning Model (ACVRM) for Answerer is also proposed, where the question-answer pair is used to update the visual representation sequentially.\nTo perform supervised learning for each model\nwe introduce a well-designed method to build a SQS for each question on VQA 2.0 and VQA-CP v2 datasets.\nExperimental results show that our method achieves state-of-the-art on VQA-CP v2.\nFurther analyses show that SQSs help build direct semantic connections between questions and images, provide question-adaptive variable-length reasoning chains, and with explicit interpretability as well as error traceability."
   },
   {
     "id": 7,
     "text": "To automate data preparation, training and evaluation steps,",
-    "label": "Purpose"
+    "label": "Purpose",
+    "doc_id": "Intelligence-198",
+    "sent_index": 4,
+    "n_sents": 9,
+    "context": "Transcription is often reported as the bottleneck in endangered language documentation, requiring large efforts from scarce speakers and transcribers.\nIn general, automatic speech recognition (ASR) can be accurate enough to accelerate transcription only if trained on large amounts of transcribed data.\nHowever, when a single speaker is involved, several studies have reported encouraging results for phonetic transcription even with small amounts of training.\nHere we expand this body of work on speaker-dependent transcription by comparing four ASR approaches, notably recent transformer and pretrained multilingual models, on a common dataset of 11 languages.\nTo automate data preparation, training and evaluation steps,\nwe also developed a phoneme recognition setup which handles morphologically complex languages and writing systems for which no pronunciation dictionary exists.\nWe find that fine-tuning a multilingual pretrained model yields an average phoneme error rate (PER) of 15% for 6 languages with 99 minutes or less of transcribed data for training.\nFor the 5 languages with between 100 and 192 minutes of training, we achieved a PER of 8.4% or less.\nThese results on a number of varied languages suggest that ASR can now significantly reduce transcription efforts in the speaker-dependent situation common in endangered language work."
   },
   {
     "id": 8,
     "text": "The generated explanations also help users make informed decisions about the correctness of answers.",
-    "label": "Implication"
+    "label": "Implication",
+    "doc_id": "Intelligence-63",
+    "sent_index": 8,
+    "n_sents": 9,
+    "context": "Most research on question answering focuses on the pre-deployment stage; i.e., building an accurate model for deployment\nIn this paper, we ask the question: Can we improve QA systems further post-deployment based on user interactions?\nWe focus on two kinds of improvements: 1) improving the QA system's performance itself, and 2) providing the model with the ability to explain the correctness or incorrectness of an answer\nWe collect a retrieval-based QA dataset, FeedbackQA, which contains interactive feedback from users.\nWe collect this dataset by deploying a base QA system to crowdworkers who then engage with the system and provide feedback on the quality of its answers\nThe feedback contains both structured ratings and unstructured natural language explanations\nWe train a neural model with this feedback data that can generate explanations and re-score answer candidates\nWe show that feedback data not only improves the accuracy of the deployed QA system but also other stronger non-deployed systems\nThe generated explanations also help users make informed decisions about the correctness of answers."
   },
   {
     "id": 9,
     "text": "This results in a better understanding of flexure oscillators and an alternative way of tuning isochronism by acting on inertia instead of stiffness.",
-    "label": "Contribution"
+    "label": "Contribution",
+    "doc_id": "Engineering-25",
+    "sent_index": 7,
+    "n_sents": 11,
+    "context": "Flexure oscillators are promising time bases, thanks to their high quality factor and monolithic design compatible with microfabrication.\nIn mechanical watchmaking, they could advantageously replace the traditional balance and hairspring oscillator, leading to improvements in timekeeping accuracy, autonomy, and assembly.\nAs MEMS oscillators, their performance can rival that of the well-established quartz oscillator.\nHowever, their inherent nonlinear elastic behavior can introduce a variation of their frequency with amplitude called isochronism defect, a major obstacle to accurate timekeeping in mechanical watches.\nPrevious research has focused on addressing this issue by controlling the elastic properties of flexure oscillators.\nYet, these oscillators exhibit other amplitude-related frequency variations caused by changes of inertia with amplitude.\nIn this article, we not only improve existing models by taking into account inertia effects but also present a new way of using them to adjust the isochronism defect.\nThis results in a better understanding of flexure oscillators and an alternative way of tuning isochronism by acting on inertia instead of stiffness.\nThis also opens the door to promising architectures such as the new rotation-dilation coupled oscillator (RDCO) whose symmetry has the advantage of minimizing the influence of linear accelerations on its frequency (the other major limitation of flexure oscillators).\nWe derive analytical models for the isochronism of this oscillator, show a dimensioning with compensating inertia and stiffness variations, and present a practical method for post-fabrication isochronism tuning by displacing masses.\nThe models are validated by finite element method (FEM) and mockups serve as preliminary proof-of-concept."
   },
   {
     "id": 10,
     "text": "To the best of our knowledge, this is the first work to have transformer models generate responses by reasoning over differentiable knowledge graphs.",
-    "label": "Contribution"
+    "label": "Contribution",
+    "doc_id": "Intelligence-26",
+    "sent_index": 5,
+    "n_sents": 8,
+    "context": "Users interacting with voice assistants today need to phrase their requests in a very specific manner to elicit an appropriate response.\nThis limits the user experience, and is partly due to the lack of reasoning capabilities of dialogue platforms and the hand-crafted rules that require extensive labor.\nOne possible solution to improve user experience and relieve the manual efforts of designers is to build an end-to-end dialogue system that can do reasoning itself while perceiving user's utterances.\nIn this work, we propose a novel method to incorporate the knowledge reasoning capability into dialog systems in a more scalable and generalizable manner.\nOur proposed method allows a single transformer model to directly walk on a large-scale knowledge graph to generate responses.\nTo the best of our knowledge, this is the first work to have transformer models generate responses by reasoning over differentiable knowledge graphs.\nWe investigate the reasoning abilities of the proposed method on both task-oriented and domain-specific chit-chat dialogues.\nEmpirical results show that this method can effectively and efficiently incorporate a knowledge graph into a dialogue system with fully-interpretable reasoning paths."
   },
   {
     "id": 11,
     "text": "In C3DP, collision-free scheduling is critical to the realization of cooperation and parallel operation among mobile printers.",
-    "label": "Background"
+    "label": "Background",
+    "doc_id": "Engineering-62",
+    "sent_index": 2,
+    "n_sents": 11,
+    "context": "Cooperative three-dimensional (3D) printing (C3DP)-a representative realization of cooperative manufacturing (CM)-is a novel approach that utilizes multiple mobile 3D printing robots for additive manufacturing (AM).\nIt makes the make-span much shorter compared with traditional 3D printing due to parallel printing.\nIn C3DP, collision-free scheduling is critical to the realization of cooperation and parallel operation among mobile printers.\nIn the extant literature, there is a lack of methods to schedule multi-robot C3DP with limited resources.\nThis study addresses this gap with two methods.\nThe first method, dynamic dependency list algorithm (DDLA), uses a constraint-satisfaction approach to eliminate solutions that could result in collisions between robots and collisions between robots with already-printed materials.\nThe second method, modified genetic algorithm (GA), uses chromosomes to represent chunk assignments and utilizes GA operators, such as the crossover and mutation, to generate diverse print schedules while maintaining the dependencies between chunks.\nThree case studies, including two large rectangular bars in different scales and a foldable sport utility vehicle (SUV), are used to demonstrate the effectiveness and performance of the two methods.\nThe results show that both methods can effectively generate valid print schedules using a specified number of robots while attempting to minimize the make-span.\nThe results also show that both methods generate a print schedule with equal print time for the first two case studies with homogeneous chunks.\nIn contrast, the modified GA outperforms the DDLA in the third case study, where the chunks are heterogeneous in volume and require different times to print."
   },
   {
     "id": 12,
     "text": "Stability-preserving constraints are included in the optimization problem solved offline by the predictive parameterized Pareto genetic algorithm (P3GA), a constrained nonlinear parametric optimization algorithm.",
-    "label": "Background"
+    "label": "Background",
+    "doc_id": "Engineering-80",
+    "sent_index": 1,
+    "n_sents": 10,
+    "context": "This paper introduces a new technique, called state-parameterized nonlinear programming control (sp-NLPC), for designing a feedback controller that can stabilize intrinsically unstable nonlinear dynamical systems using parametric optimization.\nStability-preserving constraints are included in the optimization problem solved offline by the predictive parameterized Pareto genetic algorithm (P3GA), a constrained nonlinear parametric optimization algorithm.\nThe optimal control policy is approximated from P3GA output using radial basis function (RBF) metamodeling.\nThe sp-NLPC technique requires fewer assumptions and is more data-efficient than alternative methods.\nTwo nonlinear systems (single and double inverted pendulums on a cart) are used as benchmarking problems.\nPerformance and computational efficiency are compared to several competing control design techniques.\nResults show that sp-NLPC outperforms and is more efficient than competing methods.\nA qualitative investigation on phase plane analysis for the controlled systems is presented to ensure stability.\nThe approximating state-dependent solution for the control input lends itself to applications of control design for control co-design (CCD).\nSuch extensions are discussed as part of future work."
   },
   {
     "id": 13,
     "text": "In this paper, we propose to use definitions retrieved in traditional dictionaries to produce word embeddings for rare words.",
-    "label": "Purpose"
+    "label": "Purpose",
+    "doc_id": "Intelligence-166",
+    "sent_index": 2,
+    "n_sents": 7,
+    "context": "Word embeddings are powerful dictionaries, which may easily capture language variations\nHowever, these dictionaries fail to give sense to rare words, which are surprisingly often covered by traditional dictionaries\nIn this paper, we propose to use definitions retrieved in traditional dictionaries to produce word embeddings for rare words.\nFor this purpose, we introduce two methods: Definition Neural Network (DefiNNet) and Define BERT (DefBERT).\nIn our experiments, DefiNNet and DefBERT significantly outperform state-of-the-art as well as baseline methods devised for producing embeddings of unknown words\nIn fact, DefiNNet significantly outperforms FastText, which implements a method for the same task-based on n-grams, and DefBERT significantly outperforms the BERT method for OOV words\nThen, definitions in traditional dictionaries are useful to build word embeddings for rare words."
   },
   {
     "id": 14,
     "text": "We consider the uplink transmission between a multi-antenna ground station and an unmanned aerial vehicle (UAV) swarm.",
-    "label": "Purpose"
+    "label": "Purpose",
+    "doc_id": "Engineering-116",
+    "sent_index": 0,
+    "n_sents": 12,
+    "context": "We consider the uplink transmission between a multi-antenna ground station and an unmanned aerial vehicle (UAV) swarm.\nThe UAVs are assumed as intelligent agents, which can explore their optimal three dimensional (3-D) deployment to maximize the channel capacity of the multiple input multiple output (MIMO) system.\nSpecifically, considering the limitations of each UAV in accessing the global information of the network, we focus on a decentralized control strategy by noting that each UAV in the swarm can only utilize the local information to achieve the optimal 3-D deployment.\nIn this case, the optimization problem can be divided into several optimization sub-problems with respect to the rank function.\nDue to the non-convex nature of the rank function and the fact that the optimization sub-problems are coupled, the original problem is NP-hard and, thus, cannot be solved with standard convex optimization solvers.\nInterestingly, we can relax the constraint condition of each sub-problem and solve the optimization problem by a formulated UAVs channel capacity maximization game.\nWe analyze such game according to the designed reward function and the potential function.\nThen, we discuss the existence of the pure Nash equilibrium in the game.\nTo achieve the best Nash equilibrium of the MIMO system, we develop a decentralized learning algorithm, namely decentralized UAVs channel capacity learning.\nThe details of the algorithm are provided, and then, the convergence, the effectiveness and the computational complexity are analyzed, respectively.\nMoreover, we give some insightful remarks based on the proofs and the theoretical analysis.\nAlso, extensive simulations illustrate that the developed learning algorithm can achieve a high MIMO channel capacity by optimizing the 3-D UAV swarm deployment with the local information."
   },
   {
     "id": 15,
     "text": "We show that black-box models struggle to learn this task from scratch (accuracy under 50%) even with access to each agent's knowledge and gold facts supervision.",
-    "label": "Result"
+    "label": "Result",
+    "doc_id": "Intelligence-130",
+    "sent_index": 4,
+    "n_sents": 8,
+    "context": "Training giant models from scratch for each complex task is resource- and data-inefficient.\nTo help develop models that can leverage existing systems, we propose a new challenge: Learning to solve complex tasks by communicating with existing agents (or models) in natural language.\nWe design a synthetic benchmark, CommaQA, with three complex reasoning tasks (explicit, implicit, numeric) designed to be solved by communicating with existing QA agents.\nFor instance, using text and table QA agents to answer questions such as Who had the longest javelin throw from USA?.\nWe show that black-box models struggle to learn this task from scratch (accuracy under 50%) even with access to each agent's knowledge and gold facts supervision.\nIn contrast, models that learn to communicate with agents outperform black-box models, reaching scores of 100% when given gold decomposition supervision.\nHowever, we show that the challenge of learning to solve complex tasks by communicating with existing agents without relying on any auxiliary supervision or data still remains highly elusive.\nWe will release CommaQA, along with a compositional generalization test split, to advance research in this direction."
   },
   {
     "id": 16,
     "text": "While behavioural tests capture human prior knowledge and insights, there has been little exploration on how to leverage them for model training and development.",
-    "label": "Gap"
+    "label": "Gap",
+    "doc_id": "Intelligence-11",
+    "sent_index": 1,
+    "n_sents": 8,
+    "context": "Behavioural testing{---}verifying system capabilities by validating human-designed input-output pairs{---}is an alternative evaluation method of natural language processing systems proposed to address the shortcomings of the standard approach: computing metrics on held-out data.\nWhile behavioural tests capture human prior knowledge and insights, there has been little exploration on how to leverage them for model training and development.\nWith this in mind, we explore behaviour-aware learning by examining several fine-tuning schemes using HateCheck, a suite of functional tests for hate speech detection systems.\nTo address potential pitfalls of training on data originally intended for evaluation,\nwe train and evaluate models on different configurations of HateCheck by holding out categories of test cases, which enables us to estimate performance on potentially overlooked system properties.\nThe fine-tuning procedure led to improvements in the classification accuracy of held-out functionalities and identity groups,\nsuggesting that models can potentially generalise to overlooked functionalities.\nHowever, performance on held-out functionality classes and i.i.d. hate speech detection data decreased, which indicates that generalisation occurs mostly across functionalities from the same class and that the procedure led to overfitting to the HateCheck data distribution."
   },
   {
     "id": 17,
     "text": "and show that weakly supervised normalizing flows compare favorably to standard weak supervision baselines.",
-    "label": "Conclusion"
+    "label": "Conclusion",
+    "doc_id": "Intelligence-3",
+    "sent_index": 7,
+    "n_sents": 8,
+    "context": "A popular approach to decrease the need for costly manual annotation of large data sets is weak supervision, which introduces problems of noisy labels, coverage and bias.\nMethods for overcoming these problems have either relied on discriminative models, trained with cost functions specific to weak supervision, and more recently, generative models, trying to model the output of the automatic annotation process.\nIn this work, we explore a novel direction of generative modeling for weak supervision{''}:'\nInstead of modeling the output of the annotation process (the labeling function matches), we generatively model the input-side data distributions (the feature space) covered by labeling functions.\nSpecifically, we estimate a density for each weak labeling source, or labeling function, by using normalizing flows.\nAn integral part of our method is the flow-based modeling of multiple simultaneously matching labeling functions, and therefore phenomena such as labeling function overlap and correlations are captured.\nWe analyze the effectiveness and modeling capabilities on various commonly used weak supervision data sets,\nand show that weakly supervised normalizing flows compare favorably to standard weak supervision baselines."
   },
   {
     "id": 18,
     "text": "However, NMT models still face various challenges including fragility and lack of style flexibility.",
-    "label": "Gap"
+    "label": "Gap",
+    "doc_id": "Intelligence-161",
+    "sent_index": 1,
+    "n_sents": 6,
+    "context": "Neural machine translation (NMT) has obtained significant performance improvement over the recent years.\nHowever, NMT models still face various challenges including fragility and lack of style flexibility.\nMoreover, current methods for instance-level constraints are limited in that they are either constraint-specific or model-specific\nTo this end, we propose prompt-driven neural machine translation to incorporate prompts for enhancing translation control and enriching flexibility.\nEmpirical results demonstrate the effectiveness of our method in both prompt responding and translation quality.\nThrough human evaluation, we further show the flexibility of prompt control and the efficiency in human-in-the-loop translation."
   },
   {
     "id": 19,
     "text": "Moreover, it is cloud-agnostic, i.e., DTM does not engage Cloud Service Providers (CSPs) into management procedures.",
-    "label": "Method"
+    "label": "Method",
+    "doc_id": "Engineering-125",
+    "sent_index": 8,
+    "n_sents": 10,
+    "context": "This article introduces the concept, implementation and evaluation of Dynamic Traffic Management (DTM).\nThis management mechanism minimizes traffic transfer costs on interdomain links.\nIt works for volume and 95 h percentile tariffs.\nDTM reacts dynamically to traffic changes on inter-domain links shifting some part of traffic (manageable traffic) from one link to another.\nThe management mechanism works in a distributed way.\nIt requires cooperation between operators, namely Internet Service Providers (ISPs), receiving and generating traffic.\nCommunication between ISPs is realized by SDN controllers (inter-domain SDN).\nDTM has been applied to intercloud communication for Data Centers (DCs) located in different ISP domains.\nMoreover, it is cloud-agnostic, i.e., DTM does not engage Cloud Service Providers (CSPs) into management procedures.\nEvaluation performed in the testbed shows that DTM is capable of decreasing ISP costs of transit traffic up to 29%."
   },
   {
     "id": 20,
     "text": "We also point out potential directions for future research to further enhance the communication efficiency of distributed learning in various scenarios.",
-    "label": "Implication"
+    "label": "Implication",
+    "doc_id": "Engineering-141",
+    "sent_index": 5,
+    "n_sents": 6,
+    "context": "Distributed learning is envisioned as the bedrock of next-generation intelligent networks, where intelligent agents, such as mobile devices, robots, and sensors, exchange information with each other or a parameter server to train machine learning models collaboratively without uploading raw data to a central entity for centralized processing.\nBy utilizing the computation/communication capability of individual agents, the distributed learning paradigm can mitigate the burden at central processors and help preserve data privacy of users.\nDespite its promising applications, a downside of distributed learning is its need for iterative information exchange over wireless channels, which may lead to high communication overhead unaffordable in many practical systems with limited radio resources such as energy and bandwidth.\nTo overcome this communication bottleneck, there is an urgent need for the development of communication-efficient distributed learning algorithms capable of reducing the communication cost and achieving satisfactory learning/optimization performance simultaneously.\nIn this paper, we present a comprehensive survey of prevailing methodologies for communication-efficient distributed learning, including reduction of the number of communications, compression and quantization of the exchanged information, radio resource management for efficient learning, and game-theoretic mechanisms incentivizing user participation.\nWe also point out potential directions for future research to further enhance the communication efficiency of distributed learning in various scenarios."
   },
   {
     "id": 21,
     "text": "Contrary to fixed shape robots, the design of reconfigurable robots presents unique challenges in designing their system, subsystems, and functionalities with the scope for innovative operational scenarios and achieving high performance in multiple modalities without compromise.",
-    "label": "Background"
+    "label": "Background",
+    "doc_id": "Engineering-73",
+    "sent_index": 1,
+    "n_sents": 8,
+    "context": "The design of cleaning and maintenance (CaM) robots is generally limited by their fixed morphologies, resulting in limited functions and modes of operation.\nContrary to fixed shape robots, the design of reconfigurable robots presents unique challenges in designing their system, subsystems, and functionalities with the scope for innovative operational scenarios and achieving high performance in multiple modalities without compromise.\nThis paper proposes a heuristic framework using three layers, namely input, formulation, and output layer, for designing reconfigurable robots with the aid of established transformation principles including expand/collapse, expose/cover, and fuse/divide observed in several products, services, and systems.\nWe apply this heuristic framework approach to the novel design of a pavement CaM robotic system and subsystems, namely, (i) varying footprint, (ii) transmission, (iii) outer skin or cover, (iv) storage bin, (v) surface cleaning, and (vi) vacuum/suction and blowing.\nThe advances in the design method using the heuristic approach are demonstrated by developing an innovative reconfigurable design for the CaM task.\nKinematic analysis and control architecture enables the unique locomotion behavior and gaits, namely, (a) static reconfiguration and (b) reconfiguration while locomotion, supported by the control architecture.\nExperiments were conducted, and outcomes were discussed along with the failure mode analysis to support the design robustness and limitations through the observations made from the development to testing phase over one year.\nA detailed video demonstrating the design capabilities is linked."
   },
   {
     "id": 22,
     "text": "The optimal control policy is approximated from P3GA output using radial basis function (RBF) metamodeling.",
-    "label": "Background"
+    "label": "Background",
+    "doc_id": "Engineering-80",
+    "sent_index": 2,
+    "n_sents": 10,
+    "context": "This paper introduces a new technique, called state-parameterized nonlinear programming control (sp-NLPC), for designing a feedback controller that can stabilize intrinsically unstable nonlinear dynamical systems using parametric optimization.\nStability-preserving constraints are included in the optimization problem solved offline by the predictive parameterized Pareto genetic algorithm (P3GA), a constrained nonlinear parametric optimization algorithm.\nThe optimal control policy is approximated from P3GA output using radial basis function (RBF) metamodeling.\nThe sp-NLPC technique requires fewer assumptions and is more data-efficient than alternative methods.\nTwo nonlinear systems (single and double inverted pendulums on a cart) are used as benchmarking problems.\nPerformance and computational efficiency are compared to several competing control design techniques.\nResults show that sp-NLPC outperforms and is more efficient than competing methods.\nA qualitative investigation on phase plane analysis for the controlled systems is presented to ensure stability.\nThe approximating state-dependent solution for the control input lends itself to applications of control design for control co-design (CCD).\nSuch extensions are discussed as part of future work."
   },
   {
     "id": 23,
     "text": "A Flexure field-effect transistor (FET) based MC receiver, providing high sensitivity by utilizing nonlinear electromechanical coupling, has recently been proposed.",
-    "label": "Background"
+    "label": "Background",
+    "doc_id": "Engineering-139",
+    "sent_index": 2,
+    "n_sents": 9,
+    "context": "Molecular communication (MC) is one of the emerging technologies enabling nanonetworks and the Internet of Everything (IoE).\nThe practical implementation of the intra-body MC systems is crucial for realizing smart healthcare applications, i.e., drug delivery, early detection, and health monitoring, through communication between nanomachines.\nA Flexure field-effect transistor (FET) based MC receiver, providing high sensitivity by utilizing nonlinear electromechanical coupling, has recently been proposed.\nIt can also identify neutral molecules, unlike bioFETs.\nThus, virus or pathogen detection can be performed with onboard computing by these receivers placed in the Edge.\nTo date, biosensor-based MC receivers have been analyzed only for concentration shift keying (CSK), although weight shift keying (WSK) is a very robust modulation technique.\nThe Flexure-FET-based MC receiver is a great candidate for use in a WSK-based MC system since its transduction mechanism relies on the molecular weight.\nThis work presents the first practical approach to a WSK-based MC system with an improved Flexure-FET-based MC receiver.\nIts key performance metrics are analyzed from a theoretical MC perspective, also considering biological interference to obtain a more realistic simulation."
   },
   {
     "id": 24,
     "text": "These 23 AM design principles, as a foundation for AM design and Industry 4.0, are provided in a common framework; expressed for ready use by designers, developers, and researchers; and illustrated through some contemporary designs.",
-    "label": "Method"
+    "label": "Method",
+    "doc_id": "Engineering-35",
+    "sent_index": 7,
+    "n_sents": 8,
+    "context": "Industry 4.0, as the fourth industrial revolution, represents significant challenges and numerous innovation opportunities for future product realization.\nA critical area of Industry 4.0 is the advancement of new design theories, design methods, and design principles to drive and enable the revolution with designers, engineers, teams, and organizations.\nThis paper focuses on the advancement of a design theory and design principles for a growing manufacturing capability for Industry 4.0: additive manufacturing (AM).\nWith high degrees of freedom, the field and use of AM requires design guidance and highly practical knowledge for supporting ideation processes, enabling understanding of capabilities, and creating a basis to innovative with the technology.\nSome design principles for AM exist in the literature; however, designers seek more fundamental and practical design guidelines for successfully creating and building their customized design artefacts, especially as Industry 4.0 moves forward.\nIn this study, a crowdsourced repository for additively manufacturable components is used as the source of design data, within an empirical study, to extract practical design principles for AM.\nA total of 23 crowdsourced design principles for AM are extracted and clustered according to level specificity: (i) design for manufacturing, (ii) design for digital manufacturing, (iii) design for AM, and (iv) design for fused deposition modeling.\nThese 23 AM design principles, as a foundation for AM design and Industry 4.0, are provided in a common framework; expressed for ready use by designers, developers, and researchers; and illustrated through some contemporary designs."
   },
   {
     "id": 25,
     "text": "We show that using a combination of multiple single-physics data in the training improves the prediction of GAN for multiphysics problems.",
-    "label": "Conclusion"
+    "label": "Conclusion",
+    "doc_id": "Engineering-71",
+    "sent_index": 5,
+    "n_sents": 7,
+    "context": "This work presents a method for generating concept designs for coupled multiphysics problems by employing generative adversarial networks (GANs).\nSince the optimal designs of multiphysics problems often contain a combination of features that can be found in the single-physics solutions, we investigate the feasibility of learning the optimal design from the single-physics solutions, to produce concept designs for problems that are governed by a combination of these single physics.\nWe employ GANs to produce optimal topologies similar to the results of level set topology optimization (LSTO) by finding a mapping between the sensitivity fields of specific boundary conditions, and the optimal topologies.\nTo find this mapping, we perform image-to-image translation GAN training with a combination of structural, heat conduction, and a relatively smaller number of coupled structural and heat conduction data.\nWe observe that the predicted topologies using GAN for coupled multiphysics problems are very similar to those generated by level set topology optimization, which can then be used as the concept designs for further detailed design.\nWe show that using a combination of multiple single-physics data in the training improves the prediction of GAN for multiphysics problems.\nWe provide several examples to demonstrate this."
   },
   {
     "id": 26,
     "text": "Extensive simulations validate the superiority of the proposed sensing framework over prior methods in terms of signal-to-IN ratios in RDMs, detecting performance and flexibility.",
-    "label": "Conclusion"
+    "label": "Conclusion",
+    "doc_id": "Engineering-128",
+    "sent_index": 10,
+    "n_sents": 11,
+    "context": "Integrating sensing into standardized communication systems can potentially benefit many consumer applications that require both radio frequency functions.\nHowever, without an effective sensing method, such integration may not achieve the expected gains of cost and energy efficiency.\nExisting sensing methods, which use communication payload signals, either have limited sensing performance or suffer from high complexity.\nIn this paper, we develop a novel and flexible sensing framework which has a complexity only dominated by a Fourier transform and also provides the flexibility in adapting to different sensing needs.\nWe propose to segment a whole block of echo signal evenly into sub-blocks; adjacent ones are allowed to overlap.\nWe design a virtual cyclic prefix (VCP) for each sub-block that allows us to employ two common ways of removing communication data symbols and generate two types of range-Doppler maps (RDMs) for sensing.\nWe perform a comprehensive analysis of the signal components in the RDMs, proving that their interference-plus-noise (IN) terms are approximately Gaussian distributed.\nThe statistical properties of the distributions are derived, which leads to the analytical comparisons between the two RDMs as well as between the prior and our sensing methods.\nMoreover, the impact of the lengths of sub-block, VCP and overlapping signal on sensing performance is analyzed.\nCriteria for designing these lengths for better sensing performance are also provided.\nExtensive simulations validate the superiority of the proposed sensing framework over prior methods in terms of signal-to-IN ratios in RDMs, detecting performance and flexibility."
   },
   {
     "id": 27,
     "text": "Such a task is crucial for many downstream tasks in natural language processing.",
-    "label": "Contribution"
+    "label": "Contribution",
+    "doc_id": "Intelligence-49",
+    "sent_index": 1,
+    "n_sents": 7,
+    "context": "We propose a probabilistic approach to select a subset of a target domain representative keywords from a candidate set, contrasting with a context domain.\nSuch a task is crucial for many downstream tasks in natural language processing.\nTo contrast the target domain and the context domain, we adapt the two-component mixture model concept to generate a distribution of candidate keywords.\nIt provides more importance to the distinctive keywords of the target domain than common keywords contrasting with the context domain.\nTo support the representativeness of the selected keywords towards the target domain, we introduce an optimization algorithm for selecting the subset from the generated candidate distribution.\nWe have shown that the optimization algorithm can be efficiently implemented with a near-optimal approximation guarantee.\nFinally, extensive experiments on multiple domains demonstrate the superiority of our approach over other baselines for the tasks of keyword summary generation and trending keywords selection."
   },
   {
     "id": 28,
     "text": "Our new dataset consists of 7,089 meta-reviews and all its 45k meta-review sentences are manually annotated with one of the 9 carefully defined categories, including abstract, strength, decision, etc.",
-    "label": "Method"
+    "label": "Method",
+    "doc_id": "Intelligence-156",
+    "sent_index": 4,
+    "n_sents": 10,
+    "context": "When directly using existing text generation datasets for controllable generation, we are facing the problem of not having the domain knowledge and thus the aspects that could be controlled are limited.\nA typical example is when using CNN/Daily Mail dataset for controllable text summarization, there is no guided information on the emphasis of summary sentences.\nA more useful text generator should leverage both the input text and the control signal to guide the generation, which can only be built with deep understanding of the domain knowledge.\nMotivated by this vision, our paper introduces a new text generation dataset, named MReD.\nOur new dataset consists of 7,089 meta-reviews and all its 45k meta-review sentences are manually annotated with one of the 9 carefully defined categories, including abstract, strength, decision, etc.\nWe present experimental results on start-of-the-art summarization models\nand propose methods for structure-controlled generation with both extractive and abstractive models using our annotated data.\nBy exploring various settings and analyzing the model behavior with respect to the control signal,\nwe demonstrate the challenges of our proposed task and the values of our dataset MReD.\nMeanwhile, MReD also allows us to have a better understanding of the meta-review domain."
   },
   {
     "id": 29,
     "text": "We solve this problem by proposing a Transformational Biencoder that incorporates a transformation into BERT to perform a zero-shot transfer from the source domain during training.",
-    "label": "Purpose"
+    "label": "Purpose",
+    "doc_id": "Intelligence-102",
+    "sent_index": 3,
+    "n_sents": 7,
+    "context": "Recent interest in entity linking has focused in the zero-shot scenario, where at test time the entity mention to be labelled is never seen during training, or may belong to a different domain from the source domain.\nCurrent work leverage pre-trained BERT with the implicit assumption that it bridges the gap between the source and target domain distributions.\nHowever, fine-tuned BERT has a considerable underperformance at zero-shot when applied in a different domain.\nWe solve this problem by proposing a Transformational Biencoder that incorporates a transformation into BERT to perform a zero-shot transfer from the source domain during training.\nAs like previous work, we rely on negative entities to encourage our model to discriminate the golden entities during training.\nTo generate these negative entities, we propose a simple but effective strategy that takes the domain of the golden entity into perspective.\nOur experimental results on the benchmark dataset Zeshel show effectiveness of our approach and achieve new state-of-the-art."
   },
   {
     "id": 30,
     "text": "In this work, we investigate an interactive semantic parsing framework that explains the predicted LF step by step in natural language and enables the user to make corrections through natural-language feedback for individual steps.",
-    "label": "Purpose"
+    "label": "Purpose",
+    "doc_id": "Intelligence-21",
+    "sent_index": 2,
+    "n_sents": 8,
+    "context": "Existing studies on semantic parsing focus on mapping a natural-language utterance to a logical form (LF) in one turn.\nHowever, because natural language may contain ambiguity and variability, this is a difficult challenge.\nIn this work, we investigate an interactive semantic parsing framework that explains the predicted LF step by step in natural language and enables the user to make corrections through natural-language feedback for individual steps.\nWe focus on question answering over knowledge bases (KBQA) as an instantiation of our framework, aiming to increase the transparency of the parsing process and help the user trust the final answer.\nWe construct INSPIRED, a crowdsourced dialogue dataset derived from the ComplexWebQuestions dataset.\nOur experiments show that this framework has the potential to greatly improve overall parse accuracy.\nFurthermore, we develop a pipeline for dialogue simulation to evaluate our framework w.r.t. a variety of state-of-the-art KBQA models without further crowdsourcing effort.\nThe results demonstrate that our framework promises to be effective across such models."
   },
   {
     "id": 31,
     "text": "In addition to training with the masked language modeling objective, we propose two novel self-supervised pre-training tasks on word and sentence-level alignment between input text sequence and rare word definitions to enhance language modeling representation with dictionary.",
-    "label": "Method"
+    "label": "Method",
+    "doc_id": "Intelligence-138",
+    "sent_index": 5,
+    "n_sents": 8,
+    "context": "Pre-trained language models (PLMs) aim to learn universal language representations by conducting self-supervised training tasks on large-scale corpora.\nSince PLMs capture word semantics in different contexts, the quality of word representations highly depends on word frequency, which usually follows a heavy-tailed distributions in the pre-training corpus.\nTherefore, the embeddings of rare words on the tail are usually poorly optimized.\nIn this work, we focus on enhancing language model pre-training by leveraging definitions of the rare words in dictionaries (e.g., Wiktionary).\nTo incorporate a rare word definition as a part of input, we fetch its definition from the dictionary and append it to the end of the input text sequence.\nIn addition to training with the masked language modeling objective, we propose two novel self-supervised pre-training tasks on word and sentence-level alignment between input text sequence and rare word definitions to enhance language modeling representation with dictionary.\nWe evaluate the proposed Dict-BERT model on the language understanding benchmark GLUE and eight specialized domain benchmark datasets.\nExtensive experiments demonstrate that Dict-BERT can significantly improve the understanding of rare words and boost model performance on various NLP downstream tasks."
   },
   {
     "id": 32,
     "text": "We increase the accuracy in PCM by more than 0.80, making it on par with state-of-the-art PCM methods that use millions of sentence pairs to train their models",
-    "label": "Result"
+    "label": "Result",
+    "doc_id": "Intelligence-38",
+    "sent_index": 5,
+    "n_sents": 7,
+    "context": "Quality Estimation (QE) models have the potential to change how we evaluate and maybe even train machine translation models.\nHowever, these models still lack the robustness to achieve general adoption.\nWe show that Stateof-the-art QE models, when tested in a Parallel Corpus Mining (PCM) setting, perform unexpectedly bad due to a lack of robustness to out-of-domain examples.\nWe propose a combination of multitask training, data augmentation and contrastive learning to achieve better and more robust QE performance.\nWe show that our method improves QE performance significantly in the MLQE challenge and the robustness of QE models when tested in the Parallel Corpus Mining setup.\nWe increase the accuracy in PCM by more than 0.80, making it on par with state-of-the-art PCM methods that use millions of sentence pairs to train their models\nIn comparison, we use a thousand times less data, 7K parallel sentences in total, and propose a novel low resource PCM method."
   },
   {
     "id": 33,
     "text": "We show through ablation studies that each of the two auxiliary tasks increases performance, and that re-ranking is an important factor to the increase.",
-    "label": "Conclusion"
+    "label": "Conclusion",
+    "doc_id": "Intelligence-174",
+    "sent_index": 7,
+    "n_sents": 9,
+    "context": "We propose an autoregressive entity linking model, that is trained with two auxiliary tasks, and learns to re-rank generated samples at inference time.\nOur proposed novelties address two weaknesses in the literature.\nFirst, a recent method proposes to learn mention detection and then entity candidate selection, but relies on predefined sets of candidates.\nWe use encoder-decoder autoregressive entity linking in order to bypass this need, and propose to train mention detection as an auxiliary task instead.\nSecond, previous work suggests that re-ranking could help correct prediction errors.\nWe add a new, auxiliary task, match prediction, to learn re-ranking.\nWithout the use of a knowledge base or candidate sets, our model sets a new state of the art in two benchmark datasets of entity linking: COMETA in the biomedical domain, and AIDA-CoNLL in the news domain.\nWe show through ablation studies that each of the two auxiliary tasks increases performance, and that re-ranking is an important factor to the increase.\nFinally, our low-resource experimental results suggest that performance on the main task benefits from the knowledge learned by the auxiliary tasks, and not just from the additional training data."
   },
   {
     "id": 34,
     "text": "Experimental results show that our contrastive method achieves consistent improvements in a variety of tasks, including grammatical error detection, entity tasks, structural probing and GLUE.",
-    "label": "Result"
+    "label": "Result",
+    "doc_id": "Intelligence-149",
+    "sent_index": 5,
+    "n_sents": 7,
+    "context": "Syntactic information has been proved to be useful for transformer-based pre-trained language models.\nPrevious studies often rely on additional syntax-guided attention components to enhance the transformer, which require more parameters and additional syntactic parsing in downstream tasks.\nThis increase in complexity severely limits the application of syntax-enhanced language model in a wide range of scenarios.\nIn order to inject syntactic knowledge effectively and efficiently into pre-trained language models, we propose a novel syntax-guided contrastive learning method which does not change the transformer architecture.\nBased on constituency and dependency structures of syntax trees, we design phrase-guided and tree-guided contrastive objectives, and optimize them in the pre-training stage, so as to help the pre-trained language model to capture rich syntactic knowledge in its representations.\nExperimental results show that our contrastive method achieves consistent improvements in a variety of tasks, including grammatical error detection, entity tasks, structural probing and GLUE.\nDetailed analysis further verifies that the improvements come from the utilization of syntactic information, and the learned attention weights are more explainable in terms of linguistics."
   },
   {
     "id": 35,
     "text": "We find that explanations of individual predictions are prone to noise, but that stable explanations can be effectively identified through repeated training and explanation.",
-    "label": "Result"
+    "label": "Result",
+    "doc_id": "Intelligence-73",
+    "sent_index": 3,
+    "n_sents": 5,
+    "context": "Input saliency methods have recently become a popular tool for explaining predictions of deep learning models in NLP.\nNevertheless, there has been little work investigating methods for aggregating prediction-level explanations to the class level, nor has a framework for evaluating such class explanations been established.\nWe explore explanations based on XLM-R and the Integrated Gradients input attribution method, and propose 1) the Stable Attribution Class Explanation method (SACX) to extract keyword lists of classes in text classification tasks, and 2) a framework for the systematic evaluation of the keyword lists.\nWe find that explanations of individual predictions are prone to noise, but that stable explanations can be effectively identified through repeated training and explanation.\nWe evaluate on web register data and show that the class explanations are linguistically meaningful and distinguishing of the classes"
   },
   {
     "id": 36,
     "text": "Furthermore, our results show that the proposed solution closely approaches a performance upper bound for mmWave FD-UAV systems.",
-    "label": "Result"
+    "label": "Result",
+    "doc_id": "Engineering-162",
+    "sent_index": 8,
+    "n_sents": 9,
+    "context": "In this paper, a full-duplex unmanned aerial vehicle (FD-UAV) relay is employed to increase the communication capacity of millimeter-wave (mmWave) networks.\nLarge antenna arrays are equipped at the source node (SN), destination node (DN), and FD-UAV relay to overcome the high path loss of mmWave channels and to help mitigate the self-interference at the FD-UAV relay.\nSpecifically, we formulate a problem for maximization of the achievable rate from the SN to the DN, where the UAV position, analog beamforming, and power control are jointly optimized.\nSince the problem is highly non-convex and involves high-dimensional, highly coupled variable vectors, we first obtain the conditional optimal position of the FD-UAV relay for maximization of an approximate upper bound on the achievable rate in closed form, under the assumption of a line-of-sight (LoS) environment and ideal beamforming.\nThen, the UAV is deployed to the position which is closest to the conditional optimal position and yields LoS paths for both air-to-ground links.\nSubsequently, we propose an alternating interference suppression (AIS) algorithm for the joint design of the beamforming vectors and the power control variables.\nIn each iteration, the beamforming vectors are optimized for maximization of the beamforming gains of the target signals and the successive reduction of the interference, where the optimal power control variables are obtained in closed form.\nOur simulation results confirm the superiority of the proposed positioning, beamforming, and power control method compared to three benchmark schemes.\nFurthermore, our results show that the proposed solution closely approaches a performance upper bound for mmWave FD-UAV systems."
   },
   {
     "id": 37,
     "text": "For D2D we propose two schemes, one where compression of state information is separated from channel coding and one where it is integrated via a hybrid coding approach.",
-    "label": "Conclusion"
+    "label": "Conclusion",
+    "doc_id": "Engineering-199",
+    "sent_index": 5,
+    "n_sents": 6,
+    "context": "This paper considers information-theoretic models for integrated sensing and communication (ISAC) over multi-access channels (MAC) and device-to-device (D2D) communication.\nThe models are general and include as special cases scenarios with and without perfect or imperfect state-information at the MAC receiver as well as causal state-information at the D2D terminals.\nFor both setups, we propose collaborative sensing ISAC schemes where terminals not only convey data to the other terminals but also state-information that they extract from their previous observations.\nThis state-information can be exploited at the other terminals to improve their sensing performances.\nIndeed, as we show through examples, our schemes improve over previous non-collaborative schemes in terms of their achievable rate-distortion tradeoffs.\nFor D2D we propose two schemes, one where compression of state information is separated from channel coding and one where it is integrated via a hybrid coding approach."
   },
   {
     "id": 38,
     "text": "We will release CommaQA, along with a compositional generalization test split, to advance research in this direction.",
-    "label": "Contribution"
+    "label": "Contribution",
+    "doc_id": "Intelligence-130",
+    "sent_index": 7,
+    "n_sents": 8,
+    "context": "Training giant models from scratch for each complex task is resource- and data-inefficient.\nTo help develop models that can leverage existing systems, we propose a new challenge: Learning to solve complex tasks by communicating with existing agents (or models) in natural language.\nWe design a synthetic benchmark, CommaQA, with three complex reasoning tasks (explicit, implicit, numeric) designed to be solved by communicating with existing QA agents.\nFor instance, using text and table QA agents to answer questions such as Who had the longest javelin throw from USA?.\nWe show that black-box models struggle to learn this task from scratch (accuracy under 50%) even with access to each agent's knowledge and gold facts supervision.\nIn contrast, models that learn to communicate with agents outperform black-box models, reaching scores of 100% when given gold decomposition supervision.\nHowever, we show that the challenge of learning to solve complex tasks by communicating with existing agents without relying on any auxiliary supervision or data still remains highly elusive.\nWe will release CommaQA, along with a compositional generalization test split, to advance research in this direction."
   },
   {
     "id": 39,
     "text": "In order to be useful for CSS analysis, these categories must be fine-grained.",
-    "label": "Background"
+    "label": "Background",
+    "doc_id": "Intelligence-144",
+    "sent_index": 1,
+    "n_sents": 7,
+    "context": "Many tasks in text-based computational social science (CSS) involve the classification of political statements into categories based on a domain-specific codebook\nIn order to be useful for CSS analysis, these categories must be fine-grained.\nThe typically skewed distribution of fine-grained categories, however, results in a challenging classification problem on the NLP side.\nThis paper proposes to make use of the hierarchical relations among categories typically present in such codebooks:e.g., markets and taxation are both subcategories of economy, while borders is a subcategory of security.\nWe use these ontological relations as prior knowledge to establish additional constraints on the learned model, thusimproving performance overall and in particular for infrequent categories.\nWe evaluate several lightweight variants of this intuition by extending state-of-the-art transformer-based textclassifiers on two datasets and multiple languages.\nWe find the most consistent improvement for an approach based on regularization."
   },
   {
     "id": 40,
     "text": "Next, by exploring the sparsity of channel in the delay-Doppler-angle domain, a two-dimensional pattern coupled hierarchical prior with the sparse Bayesian learning and covariance-free method (TDSBL-FM) is developed for the channel estimation.",
-    "label": "Method"
+    "label": "Method",
+    "doc_id": "Engineering-167",
+    "sent_index": 3,
+    "n_sents": 7,
+    "context": "This paper considers the joint channel estimation and device activity detection in the grant-free random access systems, where a large number of Internet-of-Things devices intend to communicate with a low-earth orbit satellite in a sporadic way.\nIn addition, the massive multiple-input multiple-output (MIMO) with orthogonal time-frequency space (OTFS) modulation is adopted to combat the dynamics of the terrestrial-satellite link.\nWe first analyze the input-output relationship of the single-input single-output OTFS when the large delay and Doppler shift both exist, and then extend it to the grant-free random access with massive MIMO-OTFS.\nNext, by exploring the sparsity of channel in the delay-Doppler-angle domain, a two-dimensional pattern coupled hierarchical prior with the sparse Bayesian learning and covariance-free method (TDSBL-FM) is developed for the channel estimation.\nThen, the active devices are detected by computing the energy of the estimated channel.\nFinally, the generalized approximate message passing algorithm combined with the sparse Bayesian learning and two-dimensional convolution (ConvSBL-GAMP) is proposed to decrease the computations of the TDSBL-FM algorithm.\nSimulation results demonstrate that the proposed algorithms outperform conventional methods."
   },
   {
     "id": 41,
     "text": "This novel CFM is expected to be used in machines or robots to interact friendly with the environment.",
-    "label": "Implication"
+    "label": "Implication",
+    "doc_id": "Engineering-68",
+    "sent_index": 8,
+    "n_sents": 9,
+    "context": "Constant-force mechanisms (CFMs) can produce an almost invariant output force over a limited range of input displacement.\nWithout using additional sensor and force controller, adjustable CFMs can passively produce an adjustable constant output force to interact with the working environment.\nIn the literature, one-dimensional CFMs have been developed for various applications.\nThis paper presents the design of a novel CFM that can produce adjustable constant force in two dimensions.\nBecause an adjustable constant force can be produced in each radial direction, the proposed adjustable CFM can be used in applications that require two-dimensional force regulation.\nIn this paper, the design formulation and simulation results are presented and discussed.\nEquations to minimize the output force variation are given to choose the design parameters optimally.\nA prototype of the two-dimensional CFM is tested to demonstrate the effectiveness and accuracy of adjustable force regulation.\nThis novel CFM is expected to be used in machines or robots to interact friendly with the environment."
   },
   {
     "id": 42,
     "text": "Our model is especially effective in low resource settings.",
-    "label": "Conclusion"
+    "label": "Conclusion",
+    "doc_id": "Intelligence-173",
+    "sent_index": 5,
+    "n_sents": 6,
+    "context": "We study the problem of few shot learning for named entity recognition.\nSpecifically, we leverage the semantic information in the names of the labels as a way of giving the model additional signal and enriched priors.\nWe propose a neural architecture that consists of two BERT encoders, one to encode the document and its tokens and another one to encode each of the labels in natural language format.\nOur model learns to match the representations of named entities computed by the first encoder with label representations computed by the second encoder.\nThe label semantics signal is shown to support improved state-of-the-art results in multiple few shot NER benchmarks and on-par performance in standard benchmarks.\nOur model is especially effective in low resource settings."
   },
   {
     "id": 43,
     "text": "Recently, graphene-based plasmonic nano-antenna arrays that can accommodate hundreds of antenna elements in a few millimeters have been proposed.",
-    "label": "Gap"
+    "label": "Gap",
+    "doc_id": "Engineering-191",
+    "sent_index": 2,
+    "n_sents": 8,
+    "context": "The prospect of ultra-massive multiple-input multiple-output (UM-MIMO) technology to combat the distance problem at the Terahertz (THz) band is considered.\nIt is well-known that the very large available bandwidths at THz frequencies come at the cost of severe propagation losses and power limitations, which result in very short communication distances.\nRecently, graphene-based plasmonic nano-antenna arrays that can accommodate hundreds of antenna elements in a few millimeters have been proposed.\nWhile such arrays enable efficient beamforming that can increase the communication range, they fail to provide sufficient spatial degrees of freedom for spatial multiplexing.\nIn this paper, we examine spatial modulation (SM) techniques that can leverage the properties of densely packed configurable arrays of subarrays of nano-antennas, to increase capacity and spectral efficiency, while maintaining acceptable beamforming performance.\nDepending on the communication distance and the frequency of operation, a specific SM configuration that ensures good channel conditions is recommended.\nWe analyze the performance of the proposed schemes theoretically and numerically in terms of symbol and bit error rates, where significant gains are observed compared to conventional SM.\nWe demonstrate that SM at very high frequencies is a feasible paradigm, and we motivate several extensions that can make THz-band SM a future research trend."
   },
   {
     "id": 44,
     "text": "Although artificial neural networks (ANNs) are often used to forecast time series because of their strong self-learning and nonlinear fitting capabilities, it is a challenging and time-consuming task to obtain the optimal ANN architecture.",
-    "label": "Gap"
+    "label": "Gap",
+    "doc_id": "Engineering-27",
+    "sent_index": 2,
+    "n_sents": 9,
+    "context": "Precise time series prediction serves as an important role in constructing a digital twin (DT).\nThe various internal and external interferences result in highly nonlinear and stochastic time series.\nAlthough artificial neural networks (ANNs) are often used to forecast time series because of their strong self-learning and nonlinear fitting capabilities, it is a challenging and time-consuming task to obtain the optimal ANN architecture.\nThis paper proposes a hybrid time series prediction model based on an ensemble empirical mode decomposition (EEMD), long short-term memory (LSTM) neural networks, and Bayesian optimization (BO).\nTo improve the predictability of stochastic and nonstationary time series, the EEMD method is implemented to decompose the original time series into several components (each component is a single-frequency and stationary signal) and a residual signal.\nThe decomposed signals are used to train the neural networks, in which the hyperparameters are fine-tuned by the BO algorithm.\nThe following time series data are predicted by summating all the predictions of the decomposed signals based on the trained neural networks.\nTo evaluate the performance of the proposed EEMD-BO-LSTM neural networks, this paper conducts two case studies (the wind speed prediction and the wave height prediction) and implements a comprehensive comparison between the proposed method and other approaches including the persistence model, autoregressive integrated moving average (ARIMA) model, LSTM neural networks, BO-LSTM neural networks, and EEMD-LSTM neural networks.\nThe results show an improved prediction accuracy using the proposed method by multiple accuracy metrics."
   },
   {
     "id": 45,
     "text": "We propose that the benchmark dataset should develop social impact metadata and data curator should take a role in managing the social impact metadata.",
-    "label": "Implication"
+    "label": "Implication",
+    "doc_id": "Intelligence-4",
+    "sent_index": 6,
+    "n_sents": 7,
+    "context": "This paper critically examines the current practices of benchmark dataset sharing in NLP and suggests a better way to inform reusers of the benchmark dataset.\nAs the dataset sharing platform plays a key role not only in distributing the dataset but also in informing the potential reusers about the dataset, we believe data-sharing platforms should provide a comprehensive context of the datasets.\nWe survey four benchmark dataset sharing platforms: HuggingFace, PaperswithCode, Tensorflow, and Pytorch to diagnose the current practices of how the dataset is shared which metadata is shared and omitted.\nTo be specific, drawing on the concept of data curation which considers the future reuse when the data is made public, we advance the direction that benchmark dataset sharing platforms should take into consideration.\nWe identify that four benchmark platforms have different practices of using metadata and there is a lack of consensus on what social impact metadata is.\nWe believe the problem of missing a discussion around social impact in the dataset sharing platforms has to do with the failed agreement on who should be in charge.\nWe propose that the benchmark dataset should develop social impact metadata and data curator should take a role in managing the social impact metadata."
   },
   {
     "id": 46,
     "text": "We conclude with recommended guidelines for resource development.",
-    "label": "Contribution"
+    "label": "Contribution",
+    "doc_id": "Intelligence-37",
+    "sent_index": 7,
+    "n_sents": 8,
+    "context": "In this position paper, we describe our perspective on how meaningful resources for lower-resourced languages should be developed in connection with the speakers of those languages.\nBefore advancing that position, we first examine two massively multilingual resources used in language technology development,\nidentifying shortcomings that limit their usefulness.\nWe explore the contents of the names stored in Wikidata for a few lower-resourced languages\nand find that many of them are not in fact in the languages they claim to be, requiring non-trivial effort to correct.\nWe discuss quality issues present in WikiAnn and evaluate whether it is a useful supplement to hand-annotated data.\nWe then discuss the importance of creating annotations for lower-resourced languages in a thoughtful and ethical way that includes the language speakers as part of the development process.\nWe conclude with recommended guidelines for resource development."
   },
   {
     "id": 47,
     "text": "Extensive experiments demonstrate that our ASCM+SL significantly outperforms existing state-of-the-art techniques in few-shot settings.",
-    "label": "Result"
+    "label": "Result",
+    "doc_id": "Intelligence-151",
+    "sent_index": 5,
+    "n_sents": 6,
+    "context": "Prompt-based learning, which exploits knowledge from pre-trained language models by providing textual prompts and designing appropriate answer-category mapping methods, has achieved impressive successes on few-shot text classification and natural language inference (NLI)\nBecause of the diverse linguistic expression, there exist many answer tokens for the same category.\nHowever, both manual answer design and automatic answer search constrain answer space and therefore hardly achieve ideal performance.\nTo address this issue, we propose an answer space clustered prompting model (ASCM) together with a synonym initialization method (SI) which automatically categorizes all answer tokens in a semantic-clustered embedding space.\nWe also propose a stable semi-supervised method named stair learning (SL) that orderly distills knowledge from better models to weaker models.\nExtensive experiments demonstrate that our ASCM+SL significantly outperforms existing state-of-the-art techniques in few-shot settings."
   },
   {
     "id": 48,
     "text": "While semantic communication succeeds in efficiently transmitting due to the strong capability to extract the essential semantic information, it is still far from the intelligent or human-like communications.",
-    "label": "Gap"
+    "label": "Gap",
+    "doc_id": "Engineering-131",
+    "sent_index": 0,
+    "n_sents": 7,
+    "context": "While semantic communication succeeds in efficiently transmitting due to the strong capability to extract the essential semantic information, it is still far from the intelligent or human-like communications.\nIn this paper, we introduce an essential component, memory, into semantic communications to mimic human communications.\nParticularly, we investigate a deep learning (DL) based semantic communication system with memory, named Mem-DeepSC, by considering the scenario question answer task.\nWe exploit the universal Transformer based transceiver to extract the semantic information and introduce the memory module to process the context information.\nMoreover, we derive the relationship between the length of semantic signal and the channel noise to validate the possibility of dynamic transmission.\nSpecially, we propose two dynamic transmission methods to enhance the transmission reliability as well as to reduce the communication overheads by masking some unessential elements, which are recognized through training the model with mutual information.\nNumerical results show that the proposed Mem-DeepSC is superior to benchmarks in terms of answer accuracy and transmission efficiency, i.e., number of transmitted symbols."
   },
   {
     "id": 49,
     "text": "The formulated problem is highly complicated, due to non-convex constraints and strong coupling among optimisation variables.",
-    "label": "Gap"
+    "label": "Gap",
+    "doc_id": "Engineering-164",
+    "sent_index": 3,
+    "n_sents": 8,
+    "context": "For future networks, it is highly demanding to satisfy a wide range of time-sensitive and computation-intensive services.\nThis is a very challenging task, since it requires a combination of aspects from information, communication and computation in order to establish a digital representation of the real network environment.\nThis paper introduces a fairness-aware latency minimisation (FALM) framework in the digital twin (DT) aided edge computing with ultra-reliable and low latency communications (URLLC), which jointly optimises various communication and computation parameters, namely, bandwidth allocation, transmission power, task offloading portions, and processing rate of user equipments (UEs) and edge servers (ESs).\nThe formulated problem is highly complicated, due to non-convex constraints and strong coupling among optimisation variables.\nTo deal with this problem, we develop both centralised and distributed optimisation approaches.\nIn particular, we first resort to successive convex approximation (SCA) method to develop a low-complexity iterative algorithm and solve the problem in a centralised manner.\nCombining tools from SCA and alternating direction method of multipliers (ADMM), we develop an efficient distributed solution with parallel computation processing at ESs under global consensus in each iteration and strong theoretical performance guaranteed.\nNumerical results are provided to validate the proposed solutions in terms of convergence speed and overall latency as well as improving fairness among all UEs."
   },
   {
     "id": 50,
     "text": "Our dataset and evaluation script will be made publicly available to stimulate additional work in this area.",
-    "label": "Contribution"
+    "label": "Contribution",
+    "doc_id": "Intelligence-69",
+    "sent_index": 7,
+    "n_sents": 8,
+    "context": "We address the problem of learning fixed-length vector representations of characters in novels.\nRecent advances in word embeddings have proven successful in learning entity representations from short texts,\nbut fall short on longer documents because they do not capture full book-level information.\nTo overcome the weakness of such text-based embeddings, we propose two novel methods for representing characters:\n(i) graph neural network-based embeddings from a full corpus-based character network; and (ii) low-dimensional embeddings constructed from the occurrence pattern of characters in each novel.\nWe test the quality of these character embeddings using a new benchmark suite to evaluate character representations, encompassing 12 different tasks.\nWe show that our representation techniques combined with text-based embeddings lead to the best character representations, outperforming text-based embeddings in four tasks.\nOur dataset and evaluation script will be made publicly available to stimulate additional work in this area."
   },
   {
     "id": 51,
     "text": "Through self-training and co-training with the two classifiers,",
-    "label": "Method"
+    "label": "Method",
+    "doc_id": "Intelligence-89",
+    "sent_index": 2,
+    "n_sents": 7,
+    "context": "We introduce a method for unsupervised parsing that relies on bootstrapping classifiers to identify if a node dominates a specific span in a sentence.\nThere are two types of classifiers, an inside classifier that acts on a span, and an outside classifier that acts on everything outside of a given span.\nThrough self-training and co-training with the two classifiers,\nwe show that the interplay between them helps improve the accuracy of both, and as a result, effectively parse.\nA seed bootstrapping technique prepares the data to train these classifiers\nOur analyses further validate that such an approach in conjunction with weak supervision using prior branching knowledge of a known language (left/right-branching) and minimal heuristics injects strong inductive bias into the parser, achieving 63.1 F_1 on the English (PTB) test set\nIn addition, we show the effectiveness of our architecture by evaluating on treebanks for Chinese (CTB) and Japanese (KTB) and achieve new state-of-the-art results."
   },
   {
     "id": 52,
     "text": "An important aspect of the proposed digital twin is the incorporation of model uncertainty and process variability.",
-    "label": "Background"
+    "label": "Background",
+    "doc_id": "Engineering-33",
+    "sent_index": 1,
+    "n_sents": 11,
+    "context": "This paper proposes a detailed methodology for constructing an additive manufacturing (AM) digital twin for the laser powder bed fusion (LPBF) process.\nAn important aspect of the proposed digital twin is the incorporation of model uncertainty and process variability.\nA virtual representation of the LPBF process is first constructed using a physics-based model.\nTo enable faster computation required in uncertainty analysis and decision-making, the physics-based model is replaced by a cheaper surrogate model.\nA two-step surrogate model is proposed when the quantity of interest is not directly observable during manufacturing.\nThe data collected from the monitoring sensors are used for diagnosis (of current part quality) and passed on to the virtual representation for model updating.\nThe model updating consists of Bayesian calibration of the uncertain parameters and the discrepancy term representing the model prediction error.\nThe resulting digital twin is thus tailored for the particular individual part being produced and is used for probabilistic process parameter optimization (initial, before starting the printing) and online, real-time adjustment of the LPBF process parameters, in order to control the porosity in the manufactured part.\nA robust design optimization formulation is used to minimize the mean and standard deviation of the difference between the target porosity and the predicted porosity.\nThe proposed methodology includes validation of the digital twin in two stages.\nValidation of the initial model in the digital twin is performed using available data, whereas data collected during manufacturing are used to validate the overall digital twin."
   },
   {
     "id": 53,
     "text": "The code for this paper is available at https://github.com/HongyangDu/SemSensing.",
-    "label": "Contribution"
+    "label": "Contribution",
+    "doc_id": "Engineering-197",
+    "sent_index": 11,
+    "n_sents": 12,
+    "context": "Semantic communications can reduce the resource consumption by transmitting task-related semantic information extracted from source messages.\nHowever, when the source messages are utilized for various tasks, e.g., wireless sensing data for localization and activities detection, semantic communication technique is difficult to be implemented because of the increased processing complexity.\nIn this paper, we propose the inverse semantic communications as a new paradigm.\nInstead of extracting semantic information from messages, we aim to encode the task-related source messages into a hyper-source message for data transmission or storage.\nFollowing this paradigm, we design an inverse semantic-aware wireless sensing framework with three algorithms for data sampling, reconfigurable intelligent surface (RIS)-aided encoding, and self-supervised decoding, respectively.\nSpecifically, on the one hand, we propose a novel RIS hardware design for encoding several signal spectrums into one MetaSpectrum.\nTo select the task-related signal spectrums for achieving efficient encoding, a semantic hash sampling method is introduced.\nOn the other hand, we propose a self-supervised learning method for decoding the MetaSpectrums to obtain the original signal spectrums.\nUsing the sensing data collected from real-world, we show that our framework can reduce the data volume by 95% compared to that before encoding, without affecting the accomplishment of sensing tasks.\nMoreover, compared with the typically used uniform sampling scheme, the proposed semantic hash sampling scheme can achieve 67% lower mean squared error in recovering the sensing parameters.\nIn addition, experiment results demonstrate that the amplitude response matrix of the RIS enables the encryption of the sensing data.\nThe code for this paper is available at https://github.com/HongyangDu/SemSensing."
   },
   {
     "id": 54,
     "text": "Our method outperforms previous work on three word alignment datasets and on a downstream task.",
-    "label": "Result"
+    "label": "Result",
+    "doc_id": "Intelligence-96",
+    "sent_index": 7,
+    "n_sents": 8,
+    "context": "After a period of decrease, interest in word alignments is increasing again for their usefulness in domains such as typological research, cross-lingual annotation projection and machine translation.\nGenerally, alignment algorithms only use bitext and do not make use of the fact that many parallel corpora are multiparallel.\nHere, we compute high-quality word alignments between multiple language pairs by considering all language pairs together.\nFirst, we create a multiparallel word alignment graph, joining all bilingual word alignment pairs in one graph.\nNext, we use graph neural networks (GNNs) to exploit the graph structure.\nOur GNN approach (i) utilizes information about the meaning, position and language of the input words, (ii) incorporates information from multiple parallel sentences, (iii) adds and removes edges from the initial alignments, and (iv) yields a prediction model that can generalize beyond the training sentences.\nWe show that community detection algorithms can provide valuable information for multiparallel word alignment\nOur method outperforms previous work on three word alignment datasets and on a downstream task."
   },
   {
     "id": 55,
     "text": "Additionally, this cost typically grows with the sample count.",
-    "label": "Gap"
+    "label": "Gap",
+    "doc_id": "Engineering-40",
+    "sent_index": 7,
+    "n_sents": 12,
+    "context": "Surrogate models can be used to approximate complex systems at a reduced cost and are widely used when data generation is expensive or time consuming.\nThe accuracy of these models is dependent on the samples used to create them.\nTherefore, proper sample selection within the parameter space is paramount.\nNumerous design of experiments (DOE) methodologies have been developed with the aim of identifying the optimal sample set to capture the system of interest.\nAdaptive sampling techniques are a subclass of DOE methods that identify optimal locations for new samples by leveraging response information from existing samples.\nBy exploiting knowledge of the system, adaptive sampling methods have been demonstrated to significantly reduce the number of samples required to build a surrogate model of a given accuracy.\nHowever, utilizing the response information of the previous samples adds a computational cost associated with determining the ideal sample locations.\nAdditionally, this cost typically grows with the sample count.\nThis article presents techniques to reduce the cost associated with the adaptive sampling procedure so that the cost savings provided by adaptive sampling are maximized.\nA new K-fold cross-validation (KFCV)-Voronoi adaptive sampling technique is proposed to reduce the sample selection costs by adding a global KFCV filter to the cross-validation (CV)-Voronoi technique.\nThe costs are further reduced through an innovative Voronoi batch sampling technique that is demonstrated to outperform naive batch sampling.\nThe proposed adaptive sampling acceleration techniques are evaluated using benchmark functions of increasing dimension and aerodynamic loading data."
   },
   {
     "id": 56,
     "text": "We find that although the Rayleigh fading process is band-limited, the quasi-static assumption is not safe for relay selection even well within a single coherence time.",
-    "label": "Result"
+    "label": "Result",
+    "doc_id": "Engineering-143",
+    "sent_index": 6,
+    "n_sents": 11,
+    "context": "Interactive, immersive, and other timing-critical applications demand ultra-reliable low-latency communication (URLLC).\nTo build wireless communication systems that can support these applications, understanding the relevant characteristics of the wireless medium is paramount.\nAlthough wireless channel characteristics and dynamics have been extensively studied, it is important to revisit these concepts in the context of the strict demands of low-latency and ultra-high reliability.\nIn this paper, we bring a modeling approach from robust control to wireless communication-the wireless channel characteristics are given a nominal model around which we allow for some quantified uncertainty.\nWe propose certain key URLLC-relevant parameters along which the model uncertainty is to be bounded.\nTo validate the nominal model of the spatially independent quasi-static Rayleigh fading, we take an in-depth look at the spatial and temporal correlations based on Jakes' model.\nWe find that although the Rayleigh fading process is band-limited, the quasi-static assumption is not safe for relay selection even well within a single coherence time.\nWe also find that under reasonable conditions, the spatial correlation of channels provide a fading distribution that is not too far off from an independent spatial fading model.\nIn addition, we look at the impact of these channel models on cooperative communication-based systems.\nWe find that while spatial-diversity-based techniques are necessary to combat the adverse effects of fading, time-diversity-based techniques are necessary to be robust against unmodeled errors.\nRobust URLLC systems need to operate with both an adequate SNR margin and a time margin through repetitions."
   },
   {
     "id": 57,
     "text": "Finally, our low-resource experimental results suggest that performance on the main task benefits from the knowledge learned by the auxiliary tasks, and not just from the additional training data.",
-    "label": "Implication"
+    "label": "Implication",
+    "doc_id": "Intelligence-174",
+    "sent_index": 8,
+    "n_sents": 9,
+    "context": "We propose an autoregressive entity linking model, that is trained with two auxiliary tasks, and learns to re-rank generated samples at inference time.\nOur proposed novelties address two weaknesses in the literature.\nFirst, a recent method proposes to learn mention detection and then entity candidate selection, but relies on predefined sets of candidates.\nWe use encoder-decoder autoregressive entity linking in order to bypass this need, and propose to train mention detection as an auxiliary task instead.\nSecond, previous work suggests that re-ranking could help correct prediction errors.\nWe add a new, auxiliary task, match prediction, to learn re-ranking.\nWithout the use of a knowledge base or candidate sets, our model sets a new state of the art in two benchmark datasets of entity linking: COMETA in the biomedical domain, and AIDA-CoNLL in the news domain.\nWe show through ablation studies that each of the two auxiliary tasks increases performance, and that re-ranking is an important factor to the increase.\nFinally, our low-resource experimental results suggest that performance on the main task benefits from the knowledge learned by the auxiliary tasks, and not just from the additional training data."
   },
   {
     "id": 58,
     "text": "To this end, we systematically study selective prediction in a large-scale setup of 17 datasets across several NLP tasks.",
-    "label": "Purpose"
+    "label": "Purpose",
+    "doc_id": "Intelligence-176",
+    "sent_index": 2,
+    "n_sents": 8,
+    "context": "In order to equip NLP systems with selective prediction' capability, several task-specific approaches have been proposed.\nHowever, which approaches work best across tasks or even if they consistently outperform the simplest baseline MaxProb remains to be explored.\nTo this end, we systematically study selective prediction in a large-scale setup of 17 datasets across several NLP tasks.\nThrough comprehensive experiments under in-domain (IID), out-of-domain (OOD), and adversarial (ADV) settings,\nwe show that despite leveraging additional resources (held-out data/computation), none of the existing approaches consistently and considerably outperforms MaxProb in all three settings.\nFurthermore, their performance does not translate well across tasks.\nFor instance, Monte-Carlo Dropout outperforms all other approaches on Duplicate Detection datasets but does not fare well on NLI datasets, especially in the OOD setting.\nThus, we recommend that future selective prediction approaches should be evaluated across tasks and settings for reliable estimation of their capabilities."
   },
   {
     "id": 59,
     "text": "We test our approach on over 600 unseen languages and demonstrate it significantly outperforms baselines.",
-    "label": "Implication"
+    "label": "Implication",
+    "doc_id": "Intelligence-184",
+    "sent_index": 5,
+    "n_sents": 6,
+    "context": "Grapheme-to-Phoneme (G2P) has many applications in NLP and speech fields.\nMost existing work focuses heavily on languages with abundant training datasets, which limits the scope of target languages to less than 100 languages.\nThis work attempts to apply zero-shot learning to approximate G2P models for all low-resource and endangered languages in Glottolog (about 8k languages).\nFor any unseen target language, we first build the phylogenetic tree (i.e. language family tree) to identify top-k nearest languages for which we have training sets.\nThen we run models of those languages to obtain a hypothesis set, which we combine into a confusion network to propose a most likely hypothesis as an approximation to the target language.\nWe test our approach on over 600 unseen languages and demonstrate it significantly outperforms baselines."
   },
   {
     "id": 60,
     "text": "The design guidelines presented in this research can support the design of future innovative aerial robots.",
-    "label": "Contribution"
+    "label": "Contribution",
+    "doc_id": "Engineering-32",
+    "sent_index": 6,
+    "n_sents": 7,
+    "context": "The field of aerial robotics has advanced rapidly, but the design knowledge has not yet been codified into reusable design guidelines.\nDesign guidelines have been developed for many mechanical design areas to advance the field itself and help novice designers benefit from past expert knowledge more easily.\nWe used an inductive approach and collected 90 aerial robot examples by reviewing recent work in aerial robotics and studying the key motivations, features, functionalities, and potential design contradictions.\nThen, design guidelines are derived by identifying patterns and grouping them by the problem they solve and the innovation made to solve it iteratively.\nFrom this, we find 35 unique design examples that can be grouped into either 14 design guidelines for more sensing, battery, mission, or actuation efficiency; or to improve the desired functionality in an aerial robot such as reducing complexity or improving how the robot can interact with objects or its environment.\nThe derived guidelines are validated for thematic saturation using convergence analysis and its utility through a qualitative design study involving novices and experienced designers working on two design problems.\nThe design guidelines presented in this research can support the design of future innovative aerial robots."
   },
   {
     "id": 61,
     "text": "Chinese Spelling Correction (CSC) is a task to detect and correct misspelled characters in Chinese texts. CSC is challenging since many Chinese characters are visually or phonologically similar but with quite different semantic meanings. Many recent works use BERT-based language models to directly correct each character of the input sentence",
-    "label": "Background"
+    "label": "Background",
+    "doc_id": "Intelligence-86",
+    "sent_index": 0,
+    "n_sents": 6,
+    "context": "Chinese Spelling Correction (CSC) is a task to detect and correct misspelled characters in Chinese texts. CSC is challenging since many Chinese characters are visually or phonologically similar but with quite different semantic meanings. Many recent works use BERT-based language models to directly correct each character of the input sentence\nHowever, these methods can be sub-optimal since they correct every character of the sentence only by the context which is easily negatively affected by the misspelled characters\nSome other works propose to use an error detector to guide the correction by masking the detected errors.\nNevertheless, these methods dampen the visual or phonological features from the misspelled characters which could be critical for correction.\nIn this work, we propose a novel general detector-corrector multi-task framework where the corrector uses BERT to capture the visual and phonological features from each character in the raw sentence and uses a late fusion strategy to fuse the hidden states of the corrector with that of the detector to minimize the negative impact from the misspelled characters.\nComprehensive experiments on benchmarks demonstrate that our proposed method can significantly outperform the state-of-the-art methods in the CSC task."
   },
   {
     "id": 62,
     "text": "In this paper, we present a comprehensive survey of prevailing methodologies for communication-efficient distributed learning, including reduction of the number of communications, compression and quantization of the exchanged information, radio resource management for efficient learning, and game-theoretic mechanisms incentivizing user participation.",
-    "label": "Purpose"
+    "label": "Purpose",
+    "doc_id": "Engineering-141",
+    "sent_index": 4,
+    "n_sents": 6,
+    "context": "Distributed learning is envisioned as the bedrock of next-generation intelligent networks, where intelligent agents, such as mobile devices, robots, and sensors, exchange information with each other or a parameter server to train machine learning models collaboratively without uploading raw data to a central entity for centralized processing.\nBy utilizing the computation/communication capability of individual agents, the distributed learning paradigm can mitigate the burden at central processors and help preserve data privacy of users.\nDespite its promising applications, a downside of distributed learning is its need for iterative information exchange over wireless channels, which may lead to high communication overhead unaffordable in many practical systems with limited radio resources such as energy and bandwidth.\nTo overcome this communication bottleneck, there is an urgent need for the development of communication-efficient distributed learning algorithms capable of reducing the communication cost and achieving satisfactory learning/optimization performance simultaneously.\nIn this paper, we present a comprehensive survey of prevailing methodologies for communication-efficient distributed learning, including reduction of the number of communications, compression and quantization of the exchanged information, radio resource management for efficient learning, and game-theoretic mechanisms incentivizing user participation.\nWe also point out potential directions for future research to further enhance the communication efficiency of distributed learning in various scenarios."
   },
   {
     "id": 63,
     "text": "Strikingly, we find that a dominant winning ticket that takes up 0.05% of the parameters can already achieve satisfactory performance, indicating that the PLM is significantly reducible during fine-tuning.",
-    "label": "Conclusion"
+    "label": "Conclusion",
+    "doc_id": "Intelligence-103",
+    "sent_index": 4,
+    "n_sents": 5,
+    "context": "The Lottery Ticket Hypothesis suggests that for any over-parameterized model, a small subnetwork exists to achieve competitive performance compared to the backbone architecture\nIn this paper, we study whether there is a winning lottery ticket for pre-trained language models, which allow the practitioners to fine-tune the parameters in the ticket but achieve good downstream performance.\nTo achieve this, we regularize the fine-tuning process with L1 distance and explore the subnetwork structure (what we refer to as the dominant winning ticket).\nEmpirically, we show that (a) the dominant winning ticket can achieve performance that is comparable with that of the full-parameter model, (b) the dominant winning ticket is transferable across different tasks, (c) and the dominant winning ticket has a natural structure within each parameter matrix.\nStrikingly, we find that a dominant winning ticket that takes up 0.05% of the parameters can already achieve satisfactory performance, indicating that the PLM is significantly reducible during fine-tuning."
   },
   {
     "id": 64,
     "text": "In order to reduce human cost and improve the scalability of QA systems, we propose and study an Open-domain Document Visual Question Answering (Open-domain DocVQA) task, which requires answering questions based on a collection of document images directly instead of only document texts, utilizing layouts and visual features additionally",
-    "label": "Purpose"
+    "label": "Purpose",
+    "doc_id": "Intelligence-93",
+    "sent_index": 2,
+    "n_sents": 9,
+    "context": "Open-domain question answering has been used in a wide range of applications, such as web search and enterprise search, which usually takes clean texts extracted from various formats of documents (e.g., web pages, PDFs, or Word documents) as the information source.\nHowever, designing different text extraction approaches is time-consuming and not scalable.\nIn order to reduce human cost and improve the scalability of QA systems, we propose and study an Open-domain Document Visual Question Answering (Open-domain DocVQA) task, which requires answering questions based on a collection of document images directly instead of only document texts, utilizing layouts and visual features additionally\nTowards this end, we introduce the first Chinese Open-domain DocVQA dataset called DuReader_{vis, containing about 15K question-answering pairs and 158K document images from the Baidu search engine.\nThere are three main challenges in DuReader_{vis: (1) long document understanding, (2) noisy texts, and (3) multi-span answer extraction.\nThe extensive experiments demonstrate that the dataset is challenging.\nAdditionally, we propose a simple approach that incorporates the layout and visual features,\nand the experimental results show the effectiveness of the proposed approach.\nThe dataset and code will be publicly available at https://github.com/baidu/DuReader/tree/master/DuReader-vis."
   }
 ]

@@ -232,6 +232,22 @@ def main():
                     "to_canonical must emit exactly {id, text, label}"
         check("to_canonical(rows, labels) -> canonical gold", canonical)
 
+        def canonical_keeps_context():
+            # The rhetorical-move tracks carry a passage the SHEET cannot hold: it has
+            # only ID, Text and your label. Without source= it is dropped here and
+            # notebook 04 prompts with nothing.
+            source = [{"id": 1, "text": "first", "label": "A1",
+                       "doc_id": "text001", "sent_index": 0, "n_sents": 2,
+                       "context": "first\nsecond"}]
+            result = to_canonical(rows, labels, source=source)
+            first = result[0]
+            assert first["context"] == "first\nsecond", "context must survive"
+            assert first["label"] == "A1", "the SHEET's adjudicated label still wins"
+            assert set(result[1].keys()) == {"id", "text", "label"}, \
+                "an item with nothing extra stays bare"
+        check("to_canonical(..., source=sampled) carries context into gold",
+              canonical_keeps_context)
+
         def sheet_agreement():
             result = annotator_agreement(rows)
             assert "kappa" in result
