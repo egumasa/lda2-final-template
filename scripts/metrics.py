@@ -30,7 +30,8 @@ from sklearn.metrics import (
 
 import pandas as pd
 
-from pipeline import plot_confusion_matrix, label_set
+from pipeline import (plot_confusion_matrix, label_set, triage_category,
+                      TRIAGE_CATEGORIES)
 
 
 def evaluate(gold, predictions, ordered=False, labels=None, title="Confusion matrix"):
@@ -131,6 +132,103 @@ def agreement(labels_a, labels_b):
     return {"percent_agreement": percent_agreement,
             "kappa": kappa,
             "cohen_kappa": kappa}
+
+
+def triage_counts(triage, errors=None):
+    """Count a triage by category, and say what it adds up to.
+
+    `triage` is the dict your group writes by hand: {item id: "category - reason"}.
+    The categories are fixed (model / scheme / wording / ambiguous) so that the counts
+    mean the same thing across groups, and so this is a judgment you make from a menu
+    rather than an essay you write.
+
+    Pass `errors` (the table from show_errors) and it will also tell you how much of
+    the error set you have actually been through.
+    """
+    counts = {}
+    for category in TRIAGE_CATEGORIES:
+        counts[category] = 0
+
+    unrecognised = []
+    for item_id in triage:
+        category = triage_category(triage[item_id])
+        if category is None:
+            unrecognised.append(item_id)
+        else:
+            counts[category] = counts[category] + 1
+
+    parts = []
+    for category in TRIAGE_CATEGORIES:
+        if counts[category] > 0:
+            parts.append(str(counts[category]) + " " + category)
+    if parts:
+        print("Triaged " + str(len(triage)) + " errors: " + " / ".join(parts))
+    else:
+        print("Triaged 0 errors.")
+
+    if unrecognised:
+        print("NOTE: these lines do not start with one of",
+              ", ".join(TRIAGE_CATEGORIES) + ":", unrecognised)
+        print("      Start each line with the category word, then the reason:")
+        print('        7: "scheme - Move 1/Move 2 boundary, our coders split too"')
+
+    # "We looked at 3 of 40 errors" and "we looked at all 12" are different claims, and
+    # the report should not let the first quietly read as the second.
+    if errors is not None and hasattr(errors, "shape"):
+        total = errors.shape[0]
+        if len(triage) < total:
+            print("You have triaged", len(triage), "of", total, "errors. Say so in the",
+                  "report, or work through the rest.")
+    return counts
+
+
+def errors_on_disagreed(errors, disagreed):
+    """How many of the model's errors land on items YOUR OWN coders disagreed about.
+
+    This is the most interesting number in the project. If the model's misses cluster
+    on the items CoderA and CoderB could not agree on either, then what you have
+    measured is a fuzzy boundary in the annotation scheme, not a stupid model - and
+    that is a better finding than a clean F1.
+
+    Both tables carry the same ids: the sheet was built from the sampled items, and
+    the gold set was rebuilt from the sheet, so nothing has been renumbered in between.
+    The sheet returns its ID column as text, though, so it is converted here.
+    """
+    if errors is None or disagreed is None:
+        print("Nothing to compare - one of the two tables is empty.")
+        return []
+
+    error_ids = []
+    for value in errors["id"]:
+        error_ids.append(int(value))
+
+    disagreed_ids = []
+    for value in disagreed["ID"]:
+        try:
+            disagreed_ids.append(int(value))
+        except (TypeError, ValueError):
+            # A typed-over ID cell. to_canonical reports these too; skip it here
+            # rather than lose the whole comparison over one bad row.
+            pass
+
+    overlap = []
+    for item_id in error_ids:
+        if item_id in disagreed_ids and item_id not in overlap:
+            overlap.append(item_id)
+    overlap.sort()
+
+    if len(error_ids) == 0:
+        print("No errors to compare.")
+        return []
+
+    share = len(overlap) / len(error_ids)
+    print(len(error_ids), "errors.", len(overlap), "of them",
+          "(" + format(share, ".0%") + ")",
+          "are on items your two coders also disagreed about.")
+    if overlap:
+        print("  those ids:", overlap)
+        print("  Read those items again before you blame the model.")
+    return overlap
 
 
 def show_errors(gold, predictions):

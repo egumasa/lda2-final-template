@@ -74,10 +74,15 @@ SAMPLE_PATH = ROOT / "data" / "gold" / (STEM + "_sample.json")         # 02 writ
 GOLD_PATH = ROOT / "data" / "gold" / (STEM + "_gold.json")             # 03 writes
 PRED_PATH = ROOT / "outputs" / (STEM + "_predictions.json")            # 04 writes
 ROUNDS_PATH = ROOT / "outputs" / (STEM + "_rounds.json")               # 04 writes
+
+# Your group's reading of the model's errors - which are the scheme's fault, which are
+# the model's. Written in notebook 05 and read straight back into the report, because
+# it is the one part of the analysis that exists only in your heads until you type it.
+TRIAGE_PATH = ROOT / "outputs" / (STEM + "_triage.json")               # 05 writes
 PROMPT_FILE = ROOT / "prompts" / (TRACK + ".txt")
 OUT_DIR = ROOT / "outputs"
 
-# Where notebook 03 writes down the annotation sheet it created. The sheet is the one
+# Where notebook 02 writes down the annotation sheet it created. The sheet is the one
 # handoff in this project that is not a file of its own — without this, the link to
 # your group's annotation round survives only in one person's notebook output.
 SHEET_PATH = ROOT / "data" / "gold" / (STEM + "_sheet.json")
