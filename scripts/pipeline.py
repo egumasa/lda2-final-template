@@ -218,7 +218,7 @@ def make_backend():
         print("         It has no temperature or seed setting, so the same prompt can")
         print("         give different answers - your numbers will NOT be reproducible.")
         print("         Put your key in the Colab Secrets panel as GEMINI_API_KEY")
-        print("         before your final run. See resources/tools/gemini-api-key.md.")
+        print("         before your final run. A free key: aistudio.google.com/apikey")
         # colab.ai publishes no rate limit, so pace conservatively.
         _BACKEND = (_throttle_and_retry(call_model, 13.2), "Colab Gemini (non-reproducible)")
         return _BACKEND
@@ -230,7 +230,7 @@ def make_backend():
         "No LLM backend found. Either set GEMINI_API_KEY - in Colab via the Secrets "
         "panel (the key icon in the sidebar), or in a .env file when running locally - "
         "or run this notebook in Google Colab, which has a free built-in Gemini that "
-        "needs no key. See resources/tools/gemini-api-key.md."
+        "needs no key. A free key takes a minute: https://aistudio.google.com/apikey"
     )
 
 
@@ -424,6 +424,11 @@ def sample_pool(pool, n_per_class, seed=42):
     Rare labels simply give fewer items - that is a property of the data.
     The same seed always gives the same sample; a different seed gives a
     different draw (so different groups can get different subsets).
+
+    This is the BALANCED strategy: it forces the classes level so that per-class
+    precision and recall are readable and the confusion matrix is not dominated by
+    one huge class. The cost is that your sample no longer looks like the corpus.
+    See sample_random and sample_by_document for the other two positions.
     """
     random_generator = random.Random(seed)
 
@@ -448,24 +453,123 @@ def sample_pool(pool, n_per_class, seed=42):
     random_generator.shuffle(sampled)
     sampled = reid(sampled)
 
-    # Step 4: report how many of each label we ended up with.
+    # Step 4: say what we drew, and warn if we took most of the pool. A sample is only
+    # meaningful if there is a pool left over - both because a near-total sample is not
+    # a sample, and because build_fewshot needs unused items for its examples.
+    _report_draw(sampled, pool, "Sampled balanced by label")
+    return sampled
+
+
+def _report_draw(sampled, pool, what):
+    """Print what a draw produced, and warn if it swallowed the pool.
+
+    Shared by all three sampling strategies, so that whichever one a group picks,
+    they see the same two things: the per-label counts their choice produced, and a
+    warning if there is no pool left for build_fewshot to draw examples from.
+    """
     counts = {}
     for item in sampled:
         label = item["label"]
         if label not in counts:
             counts[label] = 0
         counts[label] = counts[label] + 1
-    print("Sampled", len(sampled), "items. Per-label counts:", counts)
+    print(what + ":", len(sampled), "items. Per-label counts:", counts)
 
-    # Step 5: warn if we took most of the pool. A sample is only meaningful if there
-    # is a pool left over - both because a near-total sample is not a sample, and
-    # because build_fewshot needs unused items to draw its examples from.
     if len(pool) > 0 and len(sampled) > 0.5 * len(pool):
         print("WARNING: you just took", len(sampled), "of", len(pool), "pool items.")
         print("         That is most of the pool, which leaves few or no spare items")
         print("         for few-shot examples. Are you pointing at a small DEMO file")
         print("         instead of a full pool? Build the real one with:")
         print("             python scripts/prep_datasets.py <track>")
+
+
+def sample_random(pool, n_total, seed=42):
+    """Draw n_total items at random, ignoring the labels entirely.
+
+    The corpus as it actually is: every item equally likely, so each label turns up
+    roughly as often as it does in the pool. That is the honest thing if you want to
+    say something about the corpus - and the awkward thing if a label is rare, because
+    a rare label will come back with one or two items, or none at all, and precision
+    and recall on a class of one mean very little.
+
+    Compare sample_pool, which forces the classes level instead.
+    """
+    random_generator = random.Random(seed)
+
+    # Copy before shuffling: shuffling the caller's pool in place would quietly change
+    # the order of the list they are still holding.
+    shuffled = list(pool)
+    random_generator.shuffle(shuffled)
+    sampled = reid(shuffled[:n_total])
+
+    _report_draw(sampled, pool, "Sampled at random")
+    return sampled
+
+
+def sample_by_document(pool, n_docs, n_per_doc, seed=42):
+    """Pick whole documents first, then sentences inside them.
+
+    Forty sentences drawn from forty abstracts and forty sentences drawn from three
+    are both "forty sentences", and they support very different claims. This strategy
+    makes that choice explicit: n_docs documents, n_per_doc sentences from each.
+
+    Only the tracks whose items remember where they came from can do this - cars50,
+    cars50_step and raamove carry `doc_id`. On the others it stops and says so.
+    """
+    # Say it here, in terms of the track, rather than dying on a KeyError inside the
+    # loop below - which would read as "the code is broken" rather than "this corpus
+    # does not record which document a sentence came from".
+    items_without_doc = 0
+    for item in pool:
+        if "doc_id" not in item:
+            items_without_doc = items_without_doc + 1
+    if items_without_doc > 0:
+        raise KeyError(
+            "sample_by_document needs to know which document each item came from, "
+            "and " + str(items_without_doc) + " of these " + str(len(pool)) + " items "
+            "do not carry a doc_id.\n"
+            "Only the rhetorical-move tracks record that: cars50, cars50_step and "
+            "raamove. On this track a sentence is not part of a passage in the data, "
+            "so there are no documents to stratify by.\n"
+            "Use sample_pool (balanced across labels) or sample_random instead, and "
+            "say in PLAN.md which you chose.")
+
+    random_generator = random.Random(seed)
+
+    # Step 1: group the pool into documents.
+    items_by_doc = {}
+    for item in pool:
+        doc_id = item["doc_id"]
+        if doc_id not in items_by_doc:
+            items_by_doc[doc_id] = []
+        items_by_doc[doc_id].append(item)
+
+    # Step 2: choose the documents. Sorted first, so the seed alone decides the draw -
+    # dict order would otherwise depend on what order the pool happened to be built in.
+    doc_ids = sorted(items_by_doc)
+    random_generator.shuffle(doc_ids)
+    chosen_docs = doc_ids[:n_docs]
+    if len(chosen_docs) < n_docs:
+        print("NOTE: you asked for", n_docs, "documents and the pool has only",
+              len(chosen_docs), "- using all of them.")
+
+    # Step 3: from each chosen document, take up to n_per_doc sentences.
+    sampled = []
+    for doc_id in chosen_docs:
+        items_in_doc = list(items_by_doc[doc_id])
+        random_generator.shuffle(items_in_doc)
+        for item in items_in_doc[:n_per_doc]:
+            sampled.append(item)
+
+    random_generator.shuffle(sampled)
+    sampled = reid(sampled)
+
+    _report_draw(sampled, pool, "Sampled by document")
+    print("        from", len(chosen_docs), "documents, up to", n_per_doc, "each.")
+    # The labels were never controlled for, so say what that cost. A group that draws
+    # by document and then reports per-class F1 needs to have seen this line.
+    print("        Note the label counts above: this strategy balances DOCUMENTS,")
+    print("        not labels, so a rare move stays rare.")
     return sampled
 
 
@@ -642,13 +746,42 @@ def plot_confusion_matrix(matrix, labels, title, xlabel="Predicted", ylabel="Gol
 # ----------------------------------------------------------------------------------
 # Writing the report
 # ----------------------------------------------------------------------------------
+# The four things that can be wrong when a model gets an item wrong. Fixed on purpose:
+# a triage is a judgment you make from a menu, not an essay, and fixed words mean the
+# counts say the same thing in every group's report.
+#
+#   model      - the label is clear, both coders agreed at once, the model still missed
+#   scheme     - the item is genuinely borderline under YOUR scheme
+#   wording    - the label NAME misleads; a different word might fix it
+#   ambiguous  - the item itself is unclear, in a way no scheme would settle
+#
+# Note what the difference between `scheme` and `wording` is worth: a wording error is
+# something your next prompt round can fix, and a scheme error is not.
+TRIAGE_CATEGORIES = ["model", "scheme", "wording", "ambiguous"]
+
+
+def triage_category(reason):
+    """The category word a triage line starts with, or None if it is not one of ours."""
+    first_word = str(reason).strip().split(" ")[0]
+    first_word = first_word.strip("-—:,.").lower()
+    if first_word in TRIAGE_CATEGORIES:
+        return first_word
+    return None
+
+
+
 def export_results(track, gold, predictions, macro_f1_by_round, out_dir, group="",
-                   run="", overwrite=False):
+                   run="", overwrite=False, triage=None):
     """Write your gold set, a predictions CSV, and a one-page report scaffold.
 
     `group` and `run` are added to every filename, so several groups can drop their
     results in one folder without overwriting each other, and a second attempt does not
     replace your first. These files are what you submit.
+
+    `triage` is your group's own reading of the errors - {item id: "category - reason"}.
+    Give it and section 4 becomes your analysis, with the counts at the top and your
+    reason beside each item. Leave it off and section 4 is a placeholder asking for
+    exactly that, which is worth less to you and to whoever reads the report.
     """
     output_folder = Path(out_dir)
     output_folder.mkdir(parents=True, exist_ok=True)
@@ -713,20 +846,60 @@ def export_results(track, gold, predictions, macro_f1_by_round, out_dir, group="
     else:
         final_f1 = float("nan")
 
-    # Collect up to five wrong items as concrete error examples.
-    error_lines = []
+    # The wrong items. With a triage, EVERY triaged one is listed, with your group's
+    # reason beside it - that judgment is the section. Without one, the first five are
+    # listed as a prompt to go and make it.
+    wrong_records = []
     for record in records:
-        if len(error_lines) >= 5:
-            break
         if not record["correct"]:
+            wrong_records.append(record)
+
+    error_lines = []
+    if triage:
+        for record in wrong_records:
+            reason = triage.get(record["id"])
+            if reason is None:
+                reason = triage.get(str(record["id"]))     # keys survive a JSON trip as text
+            if reason is None:
+                continue
             snippet = str(record["text"])[:120]
-            line = ("- **id " + str(record["id"]) + "** gold `" + str(record["gold"])
-                    + "` -> pred `" + str(record["pred"]) + "`: " + snippet)
-            error_lines.append(line)
+            error_lines.append("- **id " + str(record["id"]) + "** gold `"
+                               + str(record["gold"]) + "` -> pred `"
+                               + str(record["pred"]) + "`: " + snippet)
+            error_lines.append("  - " + str(reason))
+    else:
+        for record in wrong_records:
+            if len(error_lines) >= 5:
+                break
+            snippet = str(record["text"])[:120]
+            error_lines.append("- **id " + str(record["id"]) + "** gold `"
+                               + str(record["gold"]) + "` -> pred `"
+                               + str(record["pred"]) + "`: " + snippet)
+
     if len(error_lines) == 0:
         error_examples = "- (no errors to show)"
     else:
         error_examples = "\n".join(error_lines)
+
+    # The headline of the error section: what the errors were CAUSED by, in your own
+    # judgment. "6 of 14 are the scheme's fault" is a finding; "F1 was 0.62" is not.
+    triage_summary = ""
+    if triage:
+        counts = {}
+        for category in TRIAGE_CATEGORIES + ["uncategorised"]:
+            counts[category] = 0
+        for item_id in triage:
+            category = triage_category(triage[item_id])
+            if category is None:
+                category = "uncategorised"
+            counts[category] = counts[category] + 1
+        parts = []
+        for category in TRIAGE_CATEGORIES + ["uncategorised"]:
+            if counts[category] > 0:
+                parts.append(str(counts[category]) + " " + category)
+        triage_summary = ("- **Your triage of " + str(len(triage)) + " of "
+                          + str(len(wrong_records)) + " errors:** "
+                          + " / ".join(parts) + "\n\n")
 
     # Assemble the one-page report, section by section. Anything in _italics_ is a
     # placeholder YOU replace - a section left as the placeholder scores zero.
@@ -753,9 +926,17 @@ def export_results(track, gold, predictions, macro_f1_by_round, out_dir, group="
                        "the notebook output.\n")
     report = report + "- _Which class did worst, and what did it get confused with?_\n\n"
     report = report + "## 4. Error analysis\n"
+    report = report + triage_summary
     report = report + error_examples + "\n\n"
-    report = report + ("_For each miss: is it the **model's** fault or the **scheme's** "
-                       "(a genuinely borderline item)? Give a reason, not a verdict._\n\n")
+    if triage:
+        report = report + ("_What do the **scheme** errors have in common? That pattern "
+                           "is the finding - say what your scheme would have to add to "
+                           "settle those items._\n\n")
+    else:
+        report = report + ("_For each miss: is it the **model's** fault or the "
+                           "**scheme's** (a genuinely borderline item)? Give a reason, "
+                           "not a verdict. Passing `triage=` to export_results puts your "
+                           "reasons here automatically._\n\n")
     report = report + "## 5. Limitations\n"
     report = report + ("_Replace these three generic lines with at least two limitations "
                        "that apply to YOUR run._\n")
