@@ -1,15 +1,42 @@
-# Secrets — never commit
+# Secrets — never commit. Your Gemini API key lives here.
 .env
 
-# Run outputs (regenerated every run)
+# Run outputs (regenerated every run). These are also the files you submit —
+# scripts/make_submission.py collects them for you.
 outputs/*
 !outputs/.gitkeep
 
-# Data pools you build/house yourself are not committed.
-# Exception: the small CEFR sample that ships with the template so it runs out of the box.
+# ---------------------------------------------------------------------------
+# Data — three rules, in order of increasing specificity.
+# ---------------------------------------------------------------------------
+# 1. Builder inputs (data/raw/) and the full-size pools you build (data/pools/)
+#    are never committed: they are large, and most of them are not ours to
+#    redistribute. Rebuild any of them at any time with
+#        python scripts/prep_datasets.py <track>
+data/raw/*
+!data/raw/.gitkeep
+data/pools/*
+!data/pools/.gitkeep
+
+# 2. data/gold/ holds two different things: the small DEMO sets that ship with the
+#    template, and YOUR OWN sampled + adjudicated gold set. Yours stays local (it is
+#    your work, and it goes in the submission bundle, not into git). The demos are
+#    committed, because they are small and their licences allow redistribution with
+#    attribution — see data/SOURCES.md and data/gold/LICENSE.
 data/gold/*
 !data/gold/README.md
-!data/gold/cefr_pool.json
+!data/gold/LICENSE
+!data/gold/cefr_demo.json
+!data/gold/raamove_demo.json
+!data/gold/cars50_demo.json
+!data/gold/l2_errors_demo.json
+
+# 3. ICNALE GRA is research-use-only and must NOT be redistributed. This rule comes
+#    LAST so it overrides every exception above, whatever the file ends up called.
+#    It is scoped to data/ so that the ICNALE *prompt* and *download notebook* —
+#    which are code, not data — can still be tracked.
+data/**/*icnale*
+data/**/*ICNALE*
 
 # Notebook / Python cruft
 .ipynb_checkpoints/
@@ -17,8 +44,10 @@ __pycache__/
 *.pyc
 *.executed.ipynb
 
-# Per-track notebooks are not tracked here (distributed separately)
-notebooks/*.ipynb
+# A group's own working copy of the project notebook stays local. The blank
+# skeleton (notebooks/mini_project.ipynb) and the download notebooks ARE tracked —
+# the Colab badges in the README point at them on GitHub.
+notebooks/mini_project_*.ipynb
 
 # macOS
 .DS_Store

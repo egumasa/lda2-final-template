@@ -3,9 +3,25 @@
 You do NOT need to edit anything in this file. It holds the "boring but necessary"
 helpers that move data around: reading the gold file, sampling a balanced subset,
 loading a prompt, asking the LLM, building few-shot examples, plotting, and writing
-the report. The interesting evaluation math lives in evaluate.py.
+the report. The interesting evaluation math lives in metrics.py.
 
 Read it if you are curious — every function is written the long way, on purpose.
+
+-------------------------------------------------------------------------------
+THE CALL-FORM RULE (please read before changing any signature)
+
+Every call form taught in the Day 1-3 course notebooks must run here UNCHANGED.
+That is what lets you carry your own code over from the tutorials instead of
+learning a second dialect during the project. Concretely, these must both work:
+
+    predictions = run_prompt(PROMPT, gold)            # Day 3
+    evaluate(gold, predictions, ordered=True)         # Day 2 S6 / Day 3
+
+So when a function here needs more information than the Day-3 version did, the
+extra arguments are added as OPTIONAL KEYWORDS at the END of the parameter list,
+and sensible values are worked out automatically when they are left off.
+`scripts/_check_call_forms.py` enforces this — run it after any signature edit.
+-------------------------------------------------------------------------------
 """
 
 import json
@@ -26,6 +42,13 @@ try:
     load_dotenv()
 except ImportError:
     pass
+
+
+# The pinned model. gemini-3.1-flash-lite gets 15 requests/minute and ~500/day on
+# the free tier. NOT gemini-2.5-flash: its free tier is 5/minute and 20/day, so a
+# single 42-item run would need two days of quota. Override with LLM_MODEL if you
+# must, but then say so in your report — the model is part of your method.
+MODEL_ID = "gemini-3.1-flash-lite"
 
 
 # ----------------------------------------------------------------------------------
@@ -68,20 +91,23 @@ def _suggested_delay(error, fallback):
     return fallback
 
 
-def _throttle_and_retry(call_model):
+def _throttle_and_retry(call_model, default_min_interval):
     """Wrap a raw 'prompt -> text' function with free-tier friendliness.
 
-    Free-tier Gemini caps requests per minute (roughly 10 for flash). If we fire
-    faster than that, we get a 429 RESOURCE_EXHAUSTED / rate-limit error. Guards:
+    Free-tier Gemini caps requests per minute. If we fire faster than that, we get a
+    429 RESOURCE_EXHAUSTED / rate-limit error. Guards:
       1) MIN_INTERVAL - wait at least this many seconds between calls, so we stay
          under the per-minute cap in the first place.
       2) on a per-minute rate-limit error, sleep (honoring the server's suggested
          delay when given) and retry a few times.
       3) on a PER-DAY quota error, stop immediately - retrying cannot help today -
          and raise a clear message about how to get unblocked.
-    MIN_INTERVAL and MAX_RETRIES are tunable via environment variables.
+
+    `default_min_interval` depends on which backend we picked (the API key path can
+    go faster than colab.ai). Both it and the retry count are tunable via the
+    LLM_MIN_INTERVAL / LLM_MAX_RETRIES environment variables.
     """
-    min_interval = float(os.environ.get("LLM_MIN_INTERVAL", "4.5"))
+    min_interval = float(os.environ.get("LLM_MIN_INTERVAL", str(default_min_interval)))
     max_retries = int(os.environ.get("LLM_MAX_RETRIES", "5"))
     last_call_time = [0.0]   # a list so the inner function can update it
 
@@ -103,11 +129,11 @@ def _throttle_and_retry(call_model):
                     raise RuntimeError(
                         "Gemini free-tier DAILY quota is exhausted for this model. "
                         "Retrying will not help until it resets (~midnight Pacific). "
-                        "To keep working now: switch models by setting "
-                        "LLM_MODEL=gemini-3.1-flash-lite in your .env (a separate daily "
-                        "bucket with a much higher limit, ~500/day), run the notebook in "
-                        "Google Colab (free built-in Gemini), or enable billing. "
-                        "You can also lower N_PER_CLASS to make each run use fewer calls."
+                        "To keep working now: hand the 'driver' role to another group "
+                        "member and use their key (your files stay put in the shared "
+                        "Drive folder), lower N_PER_CLASS so each run uses fewer calls, "
+                        "or run in Google Colab without a key (free built-in Gemini - "
+                        "but NOT reproducible, so it must not be your final frozen run)."
                     ) from error
                 # Guard 2: a per-minute cap - back off (honoring the server hint) and retry.
                 if attempt == max_retries:
@@ -121,75 +147,142 @@ def _throttle_and_retry(call_model):
     return generate_text
 
 
-def make_backend():
-    """Return a function that sends a prompt to an LLM and returns its text reply.
+def _resolve_gemini_key():
+    """Find a Gemini API key: Colab Secrets first, then the environment.
 
-    Whichever backend we pick is wrapped by _throttle_and_retry, so EVERY notebook
-    gets the same free-tier pacing and rate-limit backoff for free.
+    The Colab Secrets panel (the little key icon in the sidebar) is where Day 3 tells
+    you to put your key - but Colab does NOT copy secrets into the environment, so we
+    have to ask for it explicitly. That is the only reason this function exists.
     """
-    # Option 1: inside Google Colab, use the free built-in Gemini (no API key).
+    try:
+        from google.colab import userdata      # only exists inside Colab
+        key = userdata.get("GEMINI_API_KEY")   # what you saved in the Secrets panel
+        if key:
+            return key
+    except Exception:
+        pass                                    # not in Colab, or the secret is not set
+    return os.environ.get("GEMINI_API_KEY")     # last resort: an environment variable
+
+
+# Once make_backend() has run, its result is remembered here so that re-running the
+# Setup cell does not build a second backend (which would reset the pacing clock and
+# risk a burst of calls). run_prompt() reads this when you do not pass a backend in.
+_BACKEND = None
+
+
+def make_backend():
+    """Return (generate_text, backend_name) - a function that sends a prompt and
+    returns the model's text reply, plus a label describing what we connected to.
+
+    We prefer an API KEY, because the API lets us pin temperature=0 and a fixed seed,
+    which is what makes a run reproducible. Colab's keyless built-in Gemini is only a
+    fallback: it works with zero setup but exposes no temperature or seed, so the same
+    prompt can give different answers - fine for a quick look, NOT for your final
+    frozen run.
+    """
+    global _BACKEND
+    if _BACKEND is not None:
+        return _BACKEND                      # already built - reuse it, stay paced
+
+    # Option 1 (preferred): the Gemini API with your own key. Reproducible.
+    key = _resolve_gemini_key()
+    if key:
+        from google import genai
+        from google.genai import types
+        client = genai.Client(api_key=key)
+        model = os.environ.get("LLM_MODEL", MODEL_ID)
+        # temperature=0 + a fixed seed = the same prompt gives the same answer every
+        # run. This is what "reproducible" means in practice, and it is the whole
+        # reason we prefer the key path over Colab's built-in model.
+        config = types.GenerateContentConfig(temperature=0, seed=42)
+
+        def call_model(prompt):
+            response = client.models.generate_content(
+                model=model, contents=prompt, config=config)
+            return response.text
+
+        label = "Gemini API (" + model + ", temperature=0, seed=42)"
+        # 4.4s between calls keeps us under the 15-requests-per-minute free-tier cap.
+        _BACKEND = (_throttle_and_retry(call_model, 4.4), label)
+        return _BACKEND
+
+    # Option 2 (fallback): Colab's free built-in Gemini. No key, but not reproducible.
     try:
         from google.colab import ai
 
         def call_model(prompt):
             return ai.generate_text(prompt)
 
-        return _throttle_and_retry(call_model), "Colab Gemini"
+        print("WARNING: no API key found, so we are using Colab's built-in Gemini.")
+        print("         It has no temperature or seed setting, so the same prompt can")
+        print("         give different answers - your numbers will NOT be reproducible.")
+        print("         Put your key in the Colab Secrets panel as GEMINI_API_KEY")
+        print("         before your final run. See resources/tools/gemini-api-key.md.")
+        # colab.ai publishes no rate limit, so pace conservatively.
+        _BACKEND = (_throttle_and_retry(call_model, 13.2), "Colab Gemini (non-reproducible)")
+        return _BACKEND
     except ImportError:
         pass
 
-    # Option 2: outside Colab, use the Gemini API with a key from .env / the environment.
-    key = os.environ.get("GEMINI_API_KEY")
-    if key:
-        from google import genai
-        client = genai.Client(api_key=key)
-        # gemini-3.1-flash-lite has a far higher free daily quota (500/day vs 20/day
-        # for the plain flash models) - so it is the sensible default for a task that
-        # sends dozens of requests per run. Override with LLM_MODEL in your .env.
-        model = os.environ.get("LLM_MODEL", "gemini-3.1-flash-lite")
-
-        def call_model(prompt):
-            response = client.models.generate_content(model=model, contents=prompt)
-            return response.text
-
-        return _throttle_and_retry(call_model), "Gemini API (" + model + ")"
-
     # Option 3: nothing available - tell the user what to do.
     raise RuntimeError(
-        "No LLM backend found. Run this in Google Colab (free built-in Gemini), "
-        "or set GEMINI_API_KEY in a .env file / your environment."
+        "No LLM backend found. Either set GEMINI_API_KEY - in Colab via the Secrets "
+        "panel (the key icon in the sidebar), or in a .env file when running locally - "
+        "or run this notebook in Google Colab, which has a free built-in Gemini that "
+        "needs no key. See resources/tools/gemini-api-key.md."
     )
+
+
+def setup():
+    """Connect to the model and say what we connected to. Run this once, at the top.
+
+    Safe to re-run: the backend is built only the first time, so re-running this cell
+    will not reset the pacing clock.
+    """
+    generate_text, backend_name = make_backend()
+    print("LLM backend:", backend_name)
+
+
+def _default_backend():
+    """The backend to use when a caller did not pass one in explicitly."""
+    generate_text, backend_name = make_backend()
+    return generate_text
 
 
 # ----------------------------------------------------------------------------------
 # Reading data
 # ----------------------------------------------------------------------------------
-def load_gold(path_or_url):
+def load_gold(url_or_path):
     """Read a gold/pool file. Each item looks like {"id": 1, "text": "...", "label": "..."}."""
     # If the location is a web address, download it; otherwise open a local file.
-    if str(path_or_url).startswith("http"):
-        raw_bytes = urllib.request.urlopen(path_or_url).read()
+    if str(url_or_path).startswith("http"):
+        raw_bytes = urllib.request.urlopen(url_or_path).read()
         raw_text = raw_bytes.decode("utf-8")
         gold = json.loads(raw_text)
     else:
-        # Only cefr_pool.json ships with the template; other tracks are student-built.
-        # If the file is missing, say WHY and WHAT TO DO instead of a bare traceback.
-        if not Path(path_or_url).exists():
+        # Only the small CEFR demo ships with the template; every other file is one
+        # you build or make yourself. If it is missing, say WHY and WHAT TO DO
+        # instead of a bare traceback.
+        if not Path(url_or_path).exists():
             raise FileNotFoundError(
-                "Pool file not found: " + str(path_or_url) + "\n"
-                "Only the CEFR track ships with data. To run this track you must first "
-                "BUILD its pool file:\n"
-                "  1. Use the dataset download/preprocess notebooks (see the course repo's "
-                "sources/resources/datasets/ and data/gold/README.md).\n"
-                "  2. Save the result as data/gold/<track>_pool.json in the canonical "
-                '{"id", "text", "label"} shape.\n'
-                "  3. Make sure POOL_PATH in the CONFIG cell points at it.\n"
-                "To just see the pipeline run end to end, switch TRACK to 'cefr'."
+                "File not found: " + str(url_or_path) + "\n"
+                "Only data/gold/cefr_demo.json ships with the template. To get the "
+                "others:\n"
+                "  * A full-size POOL to sample from - build it once with\n"
+                "        python scripts/prep_datasets.py <track>\n"
+                "    (or run the matching notebooks/download_<track>.ipynb). It lands "
+                "in data/pools/.\n"
+                "  * YOUR OWN gold set - that is what step 2 of the notebook writes, "
+                "after you\n"
+                "    have annotated and adjudicated it.\n"
+                "Check that POOL_PATH in the CONFIG cell points at a file that exists. "
+                "To just see the pipeline run end to end, set TRACK = 'cefr' and use "
+                "the demo file."
             )
-        opened_file = open(path_or_url, encoding="utf-8")
+        opened_file = open(url_or_path, encoding="utf-8")
         gold = json.loads(opened_file.read())
         opened_file.close()
-    print("Loaded", len(gold), "items. The first one is:", gold[0])
+    print("Loaded", len(gold), "items. First one:", gold[0])
     return gold
 
 
@@ -210,6 +303,37 @@ def load_prompt(path):
 
 
 # ----------------------------------------------------------------------------------
+# Freezing predictions
+# ----------------------------------------------------------------------------------
+# A hosted LLM is only best-effort reproducible, even at temperature=0. So once your
+# prompt is final you run the model ONCE, save its predictions to a file, and do all
+# your evaluation off that file. Your reported numbers then hold still, and anyone
+# (including whoever grades it) can re-run your analysis on exactly the outputs you
+# saw. In Day 2 you loaded a frozen file we made for you; now you make your own.
+def save_predictions(predictions, path):
+    """Write a list of predicted labels to a JSON file - this is 'freezing' a run."""
+    output_path = Path(path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(
+        json.dumps(predictions, ensure_ascii=False, indent=2), encoding="utf-8")
+    print("Froze", len(predictions), "predictions to", str(output_path))
+    return output_path
+
+
+def load_predictions(url_or_path):
+    """Read a frozen predictions list back - a local path or a URL."""
+    if str(url_or_path).startswith("http"):
+        raw_bytes = urllib.request.urlopen(url_or_path).read()
+        predictions = json.loads(raw_bytes.decode("utf-8"))
+    else:
+        opened_file = open(url_or_path, encoding="utf-8")
+        predictions = json.loads(opened_file.read())
+        opened_file.close()
+    print("Loaded", len(predictions), "frozen predictions.")
+    return predictions
+
+
+# ----------------------------------------------------------------------------------
 # Sampling a balanced subset
 # ----------------------------------------------------------------------------------
 def reid(items):
@@ -224,7 +348,7 @@ def reid(items):
     return renumbered
 
 
-def sample_pool(pool, n_per_class, seed):
+def sample_pool(pool, n_per_class, seed=42):
     """Pick up to n_per_class items for EACH label, chosen at random.
 
     Rare labels simply give fewer items - that is a property of the data.
@@ -262,6 +386,16 @@ def sample_pool(pool, n_per_class, seed):
             counts[label] = 0
         counts[label] = counts[label] + 1
     print("Sampled", len(sampled), "items. Per-label counts:", counts)
+
+    # Step 5: warn if we took most of the pool. A sample is only meaningful if there
+    # is a pool left over - both because a near-total sample is not a sample, and
+    # because build_fewshot needs unused items to draw its examples from.
+    if len(pool) > 0 and len(sampled) > 0.5 * len(pool):
+        print("WARNING: you just took", len(sampled), "of", len(pool), "pool items.")
+        print("         That is most of the pool, which leaves few or no spare items")
+        print("         for few-shot examples. Are you pointing at a small DEMO file")
+        print("         instead of a full pool? Build the real one with:")
+        print("             python scripts/prep_datasets.py <track>")
     return sampled
 
 
@@ -317,8 +451,18 @@ def extract_label(reply, labels):
     return "??"
 
 
-def run_prompt(prompt, gold, labels, generate_text):
-    """Ask the model to label every item, and collect the predicted labels."""
+def run_prompt(prompt, gold, labels=None, generate_text=None):
+    """Ask the model to label every item, and collect the predicted labels.
+
+    Same call as Day 3: run_prompt(PROMPT, gold). The two optional arguments are
+    worked out for you - `labels` from the gold set, and the model connection from
+    the Setup cell - so you only pass them if you want something different.
+    """
+    if labels is None:
+        labels = label_set(gold)
+    if generate_text is None:
+        generate_text = _default_backend()
+
     predictions = []
     total = len(gold)
     position = 0
@@ -345,12 +489,16 @@ def run_prompt(prompt, gold, labels, generate_text):
 # ----------------------------------------------------------------------------------
 # Few-shot examples
 # ----------------------------------------------------------------------------------
-def build_fewshot(base_prompt, pool, gold, labels, shots_per_class, seed):
+def build_fewshot(base_prompt, pool, gold, labels=None, shots_per_class=1, seed=42):
     """Put a few labeled examples (taken from the pool) in front of the prompt.
 
     We NEVER use an item that is in the gold set as an example, otherwise we
-    would be showing the model the very answers we are testing it on.
+    would be showing the model the very answers we are testing it on. Items are
+    matched by their TEXT, not their id, because sampling renumbers the ids.
     """
+    if labels is None:
+        labels = label_set(gold)
+
     # Step 1: collect the texts that are already in the gold set.
     gold_texts = []
     for item in gold:
@@ -369,6 +517,7 @@ def build_fewshot(base_prompt, pool, gold, labels, shots_per_class, seed):
     # Step 3: for each label, shuffle and take a few examples.
     random_generator = random.Random(seed)
     lines = ["Here are labeled examples:"]
+    labels_with_no_examples = []
     for label in labels:
         if label in examples_by_label:
             examples = examples_by_label[label]
@@ -376,24 +525,34 @@ def build_fewshot(base_prompt, pool, gold, labels, shots_per_class, seed):
             examples = []
         random_generator.shuffle(examples)
         chosen_examples = examples[:shots_per_class]
+        if len(chosen_examples) < shots_per_class:
+            labels_with_no_examples.append(label)
         for item in chosen_examples:
             lines.append("Sentence: " + item["text"] + "\nLabel: " + label)
 
-    # Step 4: glue the example block in front of the base prompt.
+    # Step 4: if the pool could not supply enough spare examples, say so loudly -
+    # a few-shot prompt missing whole labels is not the prompt you think it is.
+    if len(labels_with_no_examples) > 0:
+        print("WARNING: not enough spare pool items for", shots_per_class,
+              "example(s) of:", ", ".join(labels_with_no_examples))
+        print("         Those labels get fewer examples (or none). This usually means")
+        print("         POOL_PATH points at a small DEMO file rather than a full pool.")
+
+    # Step 5: glue the example block in front of the base prompt.
     example_block = "\n\n".join(lines)
     return example_block + "\n\nNow classify this one.\n\n" + base_prompt
 
 
 # ----------------------------------------------------------------------------------
-# Plotting (drawing only — the counts come from evaluate.py)
+# Plotting (drawing only — the counts come from metrics.py)
 # ----------------------------------------------------------------------------------
-def plot_confusion_matrix(matrix, labels, title):
+def plot_confusion_matrix(matrix, labels, title, xlabel="Predicted", ylabel="Gold"):
     """Draw a confusion matrix as a heatmap (rows = gold, columns = predicted)."""
     plt.figure(figsize=(1.2 * len(labels) + 2, 1.0 * len(labels) + 1.5))
     sns.heatmap(matrix, annot=True, fmt="d", cmap="Blues",
                 xticklabels=labels, yticklabels=labels)
-    plt.xlabel("Predicted")
-    plt.ylabel("Gold")
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
     plt.title(title)
     plt.tight_layout()
     plt.show()
@@ -402,11 +561,27 @@ def plot_confusion_matrix(matrix, labels, title):
 # ----------------------------------------------------------------------------------
 # Writing the report
 # ----------------------------------------------------------------------------------
-def export_results(track, gold, predictions, macro_f1_by_round, out_dir):
-    """Write a predictions CSV and a one-page report with the five required sections."""
+def export_results(track, gold, predictions, macro_f1_by_round, out_dir, group=""):
+    """Write your gold set, a predictions CSV, and a one-page report scaffold.
+
+    `group` is added to every filename, so several groups can drop their results in
+    one folder without overwriting each other. These files are what you submit.
+    """
     output_folder = Path(out_dir)
     output_folder.mkdir(parents=True, exist_ok=True)
     labels = label_set(gold)
+
+    # Every file we write starts with the same stem, e.g. "cefr_groupA".
+    if group == "":
+        stem = track
+    else:
+        stem = track + "_" + group
+
+    # Save the gold set alongside the results: the numbers below mean nothing
+    # without the exact items they were computed on.
+    gold_path = output_folder / (stem + "_gold.json")
+    gold_path.write_text(
+        json.dumps(gold, ensure_ascii=False, indent=2), encoding="utf-8")
 
     # Build one row per item for the CSV.
     records = []
@@ -421,7 +596,7 @@ def export_results(track, gold, predictions, macro_f1_by_round, out_dir):
         }
         records.append(record)
     table = pd.DataFrame(records)
-    csv_path = output_folder / (track + "_predictions.csv")
+    csv_path = output_folder / (stem + "_predictions.csv")
     table.to_csv(csv_path, index=False)
 
     # Count how many gold items carry each label.
@@ -461,35 +636,45 @@ def export_results(track, gold, predictions, macro_f1_by_round, out_dir):
     else:
         error_examples = "\n".join(error_lines)
 
-    # Assemble the one-page report, section by section.
+    # Assemble the one-page report, section by section. Anything in _italics_ is a
+    # placeholder YOU replace - a section left as the placeholder scores zero.
     report = ""
     report = report + "# One-page report - " + track + "\n\n"
+    if group != "":
+        report = report + "Group: " + group + "\n\n"
     report = report + "## 1. Scheme & gold\n"
     report = report + "- **Labels:** " + ", ".join(labels) + "\n"
     report = report + ("- **Gold set:** " + str(len(gold))
                        + " items sampled from the pool; per-label counts: "
                        + str(label_counts) + "\n")
-    report = report + ("- **QC / adjudication:** _<what your independent re-check changed; "
-                       "disagreements with the published label>_\n\n")
+    report = report + ("- **QC / adjudication:** _<your percent agreement and kappa, how "
+                       "many labels your adjudication changed, which label pair caused "
+                       "the most disagreement, and what your scheme now says about it>_\n\n")
     report = report + "## 2. Prompt iterations\n"
     report = report + "| Round | Macro-F1 |\n|---|---|\n" + round_rows + "\n\n"
+    report = report + ("_For each round: what did you change, and WHY did you expect it to "
+                       "help?_\n\n")
     report = report + "## 3. Evaluation\n"
     report = report + ("- **Final macro-F1:** " + format(final_f1, ".3f") + " on "
-                       + str(len(gold)) + " held-out gold items.\n")
+                       + str(len(gold)) + " gold items.\n")
     report = report + ("- Per-class precision/recall/F1 and the confusion matrix are in "
-                       "the notebook output.\n\n")
+                       "the notebook output.\n")
+    report = report + "- _Which class did worst, and what did it get confused with?_\n\n"
     report = report + "## 4. Error analysis\n"
     report = report + error_examples + "\n\n"
     report = report + ("_For each miss: is it the **model's** fault or the **scheme's** "
-                       "(a genuinely borderline item)?_\n\n")
+                       "(a genuinely borderline item)? Give a reason, not a verdict._\n\n")
     report = report + "## 5. Limitations\n"
+    report = report + ("_Replace these three generic lines with at least two limitations "
+                       "that apply to YOUR run._\n")
     report = report + "- LLM output is stochastic; a re-run can shift the numbers.\n"
     report = report + ("- Contamination risk: these are published datasets the model may "
                        "have seen.\n")
     report = report + ("- " + str(len(gold)) + " items is a small sample - treat per-class "
                        "scores for rare labels with caution.\n")
 
-    report_path = output_folder / (track + "_report.md")
+    report_path = output_folder / (stem + "_report.md")
     report_path.write_text(report, encoding="utf-8")
-    print("Wrote", csv_path.name, "and", report_path.name, "to", str(output_folder) + "/")
-    return {"csv": csv_path, "report": report_path}
+    print("Wrote", gold_path.name + ",", csv_path.name, "and", report_path.name,
+          "to", str(output_folder) + "/")
+    return {"gold": gold_path, "csv": csv_path, "report": report_path}

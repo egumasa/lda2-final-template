@@ -1,0 +1,54 @@
+LICENCE FOR THE DATA IN THIS FOLDER
+===================================
+
+The code in this repository (scripts/, notebooks/) is MIT-licensed — see the LICENSE
+file at the repository root. The DATA in this folder is not: it is derived from third-
+party corpora and carries their licences instead. That is the whole reason this
+separate file exists.
+
+Full provenance, notes and citations: ../SOURCES.md
+
+
+Per-file licences
+-----------------
+
+cefr_demo.json
+    Derived from CEFR-SP (Arase, Uchida & Kajiwara, EMNLP 2022), Wiki-Auto portion.
+    Licence: CREATIVE COMMONS ATTRIBUTION-SHAREALIKE 3.0 (CC BY-SA 3.0)
+    https://creativecommons.org/licenses/by-sa/3.0/
+
+    SHARE-ALIKE: if you redistribute this file, or anything derived from it, you must
+    release it under CC BY-SA 3.0 as well. This obligation does NOT extend to the
+    repository's code, which is why the data lives under its own licence.
+
+raamove_demo.json
+    Derived from RAAMove (Liu et al., LREC-COLING 2024).
+    Licence: CREATIVE COMMONS ATTRIBUTION 4.0 (CC BY 4.0)
+    https://creativecommons.org/licenses/by/4.0/
+
+cars50_demo.json
+    Derived from CaRS-50 (Lam & Nnamoko, 2025), Mendeley Data V1,
+    doi:10.17632/kwr9s5c4nk.1.
+    Licence: CREATIVE COMMONS ATTRIBUTION 4.0 (CC BY 4.0)
+    https://creativecommons.org/licenses/by/4.0/
+
+l2_errors_demo.json
+    Derived from AutoErrorAnalyzer (Mizumoto, 2025, Studies in Second Language
+    Acquisition 47(3)), OSF project jyf3r.
+    Licence: CREATIVE COMMONS ATTRIBUTION 4.0 (CC BY 4.0)
+    https://creativecommons.org/licenses/by/4.0/
+
+
+All of the above have been RESHAPED from their original formats into this course's
+canonical schema, [{"id", "text", "label"}], and in most cases sub-sampled. They are
+not the original distributions. Cite the original source, and say that the data were
+reshaped.
+
+
+NOT IN THIS FOLDER, AND NOT REDISTRIBUTABLE
+-------------------------------------------
+
+ICNALE GRA (Ishikawa) is available for research use only, via registration, and may
+NOT be redistributed. No ICNALE-derived file may be committed to this repository or
+included in a submission bundle. Both .gitignore and scripts/make_submission.py
+exclude it by name — please do not work around them.

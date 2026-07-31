@@ -1,0 +1,322 @@
+[
+  {
+    "id": 1,
+    "text": "Our results show that strategic fine-tuning using datasets from other high-resource dialects is beneficial for a low-resource dialect.",
+    "label": "Conclusion"
+  },
+  {
+    "id": 2,
+    "text": "However, these adaptive DA methods: (1) are computationally expensive and not sample-efficient, and (2) are designed merely for a specific setting. In this work, we present a universal DA technique, called Glitter, to overcome both issues.",
+    "label": "Method"
+  },
+  {
+    "id": 3,
+    "text": "Therefore, instructors should consider choosing more gender-neutral projects or make appropriate adjustments in project descriptions to minimize gender bias.",
+    "label": "Implication"
+  },
+  {
+    "id": 4,
+    "text": "While it is common to treat pre-training data as public, it may still contain personally identifiable information (PII), such as names, phone numbers, and copyrighted material.",
+    "label": "Gap"
+  },
+  {
+    "id": 5,
+    "text": "Thus, we recommend that future selective prediction approaches should be evaluated across tasks and settings for reliable estimation of their capabilities.",
+    "label": "Implication"
+  },
+  {
+    "id": 6,
+    "text": "Questioner raises the sub questions using an extending HRED model, and Oracle answers them one-by-one.",
+    "label": "Method"
+  },
+  {
+    "id": 7,
+    "text": "To automate data preparation, training and evaluation steps,",
+    "label": "Purpose"
+  },
+  {
+    "id": 8,
+    "text": "The generated explanations also help users make informed decisions about the correctness of answers.",
+    "label": "Implication"
+  },
+  {
+    "id": 9,
+    "text": "This results in a better understanding of flexure oscillators and an alternative way of tuning isochronism by acting on inertia instead of stiffness.",
+    "label": "Contribution"
+  },
+  {
+    "id": 10,
+    "text": "To the best of our knowledge, this is the first work to have transformer models generate responses by reasoning over differentiable knowledge graphs.",
+    "label": "Contribution"
+  },
+  {
+    "id": 11,
+    "text": "In C3DP, collision-free scheduling is critical to the realization of cooperation and parallel operation among mobile printers.",
+    "label": "Background"
+  },
+  {
+    "id": 12,
+    "text": "Stability-preserving constraints are included in the optimization problem solved offline by the predictive parameterized Pareto genetic algorithm (P3GA), a constrained nonlinear parametric optimization algorithm.",
+    "label": "Background"
+  },
+  {
+    "id": 13,
+    "text": "In this paper, we propose to use definitions retrieved in traditional dictionaries to produce word embeddings for rare words.",
+    "label": "Purpose"
+  },
+  {
+    "id": 14,
+    "text": "We consider the uplink transmission between a multi-antenna ground station and an unmanned aerial vehicle (UAV) swarm.",
+    "label": "Purpose"
+  },
+  {
+    "id": 15,
+    "text": "We show that black-box models struggle to learn this task from scratch (accuracy under 50%) even with access to each agent's knowledge and gold facts supervision.",
+    "label": "Result"
+  },
+  {
+    "id": 16,
+    "text": "While behavioural tests capture human prior knowledge and insights, there has been little exploration on how to leverage them for model training and development.",
+    "label": "Gap"
+  },
+  {
+    "id": 17,
+    "text": "and show that weakly supervised normalizing flows compare favorably to standard weak supervision baselines.",
+    "label": "Conclusion"
+  },
+  {
+    "id": 18,
+    "text": "However, NMT models still face various challenges including fragility and lack of style flexibility.",
+    "label": "Gap"
+  },
+  {
+    "id": 19,
+    "text": "Moreover, it is cloud-agnostic, i.e., DTM does not engage Cloud Service Providers (CSPs) into management procedures.",
+    "label": "Method"
+  },
+  {
+    "id": 20,
+    "text": "We also point out potential directions for future research to further enhance the communication efficiency of distributed learning in various scenarios.",
+    "label": "Implication"
+  },
+  {
+    "id": 21,
+    "text": "Contrary to fixed shape robots, the design of reconfigurable robots presents unique challenges in designing their system, subsystems, and functionalities with the scope for innovative operational scenarios and achieving high performance in multiple modalities without compromise.",
+    "label": "Background"
+  },
+  {
+    "id": 22,
+    "text": "The optimal control policy is approximated from P3GA output using radial basis function (RBF) metamodeling.",
+    "label": "Background"
+  },
+  {
+    "id": 23,
+    "text": "A Flexure field-effect transistor (FET) based MC receiver, providing high sensitivity by utilizing nonlinear electromechanical coupling, has recently been proposed.",
+    "label": "Background"
+  },
+  {
+    "id": 24,
+    "text": "These 23 AM design principles, as a foundation for AM design and Industry 4.0, are provided in a common framework; expressed for ready use by designers, developers, and researchers; and illustrated through some contemporary designs.",
+    "label": "Method"
+  },
+  {
+    "id": 25,
+    "text": "We show that using a combination of multiple single-physics data in the training improves the prediction of GAN for multiphysics problems.",
+    "label": "Conclusion"
+  },
+  {
+    "id": 26,
+    "text": "Extensive simulations validate the superiority of the proposed sensing framework over prior methods in terms of signal-to-IN ratios in RDMs, detecting performance and flexibility.",
+    "label": "Conclusion"
+  },
+  {
+    "id": 27,
+    "text": "Such a task is crucial for many downstream tasks in natural language processing.",
+    "label": "Contribution"
+  },
+  {
+    "id": 28,
+    "text": "Our new dataset consists of 7,089 meta-reviews and all its 45k meta-review sentences are manually annotated with one of the 9 carefully defined categories, including abstract, strength, decision, etc.",
+    "label": "Method"
+  },
+  {
+    "id": 29,
+    "text": "We solve this problem by proposing a Transformational Biencoder that incorporates a transformation into BERT to perform a zero-shot transfer from the source domain during training.",
+    "label": "Purpose"
+  },
+  {
+    "id": 30,
+    "text": "In this work, we investigate an interactive semantic parsing framework that explains the predicted LF step by step in natural language and enables the user to make corrections through natural-language feedback for individual steps.",
+    "label": "Purpose"
+  },
+  {
+    "id": 31,
+    "text": "In addition to training with the masked language modeling objective, we propose two novel self-supervised pre-training tasks on word and sentence-level alignment between input text sequence and rare word definitions to enhance language modeling representation with dictionary.",
+    "label": "Method"
+  },
+  {
+    "id": 32,
+    "text": "We increase the accuracy in PCM by more than 0.80, making it on par with state-of-the-art PCM methods that use millions of sentence pairs to train their models",
+    "label": "Result"
+  },
+  {
+    "id": 33,
+    "text": "We show through ablation studies that each of the two auxiliary tasks increases performance, and that re-ranking is an important factor to the increase.",
+    "label": "Conclusion"
+  },
+  {
+    "id": 34,
+    "text": "Experimental results show that our contrastive method achieves consistent improvements in a variety of tasks, including grammatical error detection, entity tasks, structural probing and GLUE.",
+    "label": "Result"
+  },
+  {
+    "id": 35,
+    "text": "We find that explanations of individual predictions are prone to noise, but that stable explanations can be effectively identified through repeated training and explanation.",
+    "label": "Result"
+  },
+  {
+    "id": 36,
+    "text": "Furthermore, our results show that the proposed solution closely approaches a performance upper bound for mmWave FD-UAV systems.",
+    "label": "Result"
+  },
+  {
+    "id": 37,
+    "text": "For D2D we propose two schemes, one where compression of state information is separated from channel coding and one where it is integrated via a hybrid coding approach.",
+    "label": "Conclusion"
+  },
+  {
+    "id": 38,
+    "text": "We will release CommaQA, along with a compositional generalization test split, to advance research in this direction.",
+    "label": "Contribution"
+  },
+  {
+    "id": 39,
+    "text": "In order to be useful for CSS analysis, these categories must be fine-grained.",
+    "label": "Background"
+  },
+  {
+    "id": 40,
+    "text": "Next, by exploring the sparsity of channel in the delay-Doppler-angle domain, a two-dimensional pattern coupled hierarchical prior with the sparse Bayesian learning and covariance-free method (TDSBL-FM) is developed for the channel estimation.",
+    "label": "Method"
+  },
+  {
+    "id": 41,
+    "text": "This novel CFM is expected to be used in machines or robots to interact friendly with the environment.",
+    "label": "Implication"
+  },
+  {
+    "id": 42,
+    "text": "Our model is especially effective in low resource settings.",
+    "label": "Conclusion"
+  },
+  {
+    "id": 43,
+    "text": "Recently, graphene-based plasmonic nano-antenna arrays that can accommodate hundreds of antenna elements in a few millimeters have been proposed.",
+    "label": "Gap"
+  },
+  {
+    "id": 44,
+    "text": "Although artificial neural networks (ANNs) are often used to forecast time series because of their strong self-learning and nonlinear fitting capabilities, it is a challenging and time-consuming task to obtain the optimal ANN architecture.",
+    "label": "Gap"
+  },
+  {
+    "id": 45,
+    "text": "We propose that the benchmark dataset should develop social impact metadata and data curator should take a role in managing the social impact metadata.",
+    "label": "Implication"
+  },
+  {
+    "id": 46,
+    "text": "We conclude with recommended guidelines for resource development.",
+    "label": "Contribution"
+  },
+  {
+    "id": 47,
+    "text": "Extensive experiments demonstrate that our ASCM+SL significantly outperforms existing state-of-the-art techniques in few-shot settings.",
+    "label": "Result"
+  },
+  {
+    "id": 48,
+    "text": "While semantic communication succeeds in efficiently transmitting due to the strong capability to extract the essential semantic information, it is still far from the intelligent or human-like communications.",
+    "label": "Gap"
+  },
+  {
+    "id": 49,
+    "text": "The formulated problem is highly complicated, due to non-convex constraints and strong coupling among optimisation variables.",
+    "label": "Gap"
+  },
+  {
+    "id": 50,
+    "text": "Our dataset and evaluation script will be made publicly available to stimulate additional work in this area.",
+    "label": "Contribution"
+  },
+  {
+    "id": 51,
+    "text": "Through self-training and co-training with the two classifiers,",
+    "label": "Method"
+  },
+  {
+    "id": 52,
+    "text": "An important aspect of the proposed digital twin is the incorporation of model uncertainty and process variability.",
+    "label": "Background"
+  },
+  {
+    "id": 53,
+    "text": "The code for this paper is available at https://github.com/HongyangDu/SemSensing.",
+    "label": "Contribution"
+  },
+  {
+    "id": 54,
+    "text": "Our method outperforms previous work on three word alignment datasets and on a downstream task.",
+    "label": "Result"
+  },
+  {
+    "id": 55,
+    "text": "Additionally, this cost typically grows with the sample count.",
+    "label": "Gap"
+  },
+  {
+    "id": 56,
+    "text": "We find that although the Rayleigh fading process is band-limited, the quasi-static assumption is not safe for relay selection even well within a single coherence time.",
+    "label": "Result"
+  },
+  {
+    "id": 57,
+    "text": "Finally, our low-resource experimental results suggest that performance on the main task benefits from the knowledge learned by the auxiliary tasks, and not just from the additional training data.",
+    "label": "Implication"
+  },
+  {
+    "id": 58,
+    "text": "To this end, we systematically study selective prediction in a large-scale setup of 17 datasets across several NLP tasks.",
+    "label": "Purpose"
+  },
+  {
+    "id": 59,
+    "text": "We test our approach on over 600 unseen languages and demonstrate it significantly outperforms baselines.",
+    "label": "Implication"
+  },
+  {
+    "id": 60,
+    "text": "The design guidelines presented in this research can support the design of future innovative aerial robots.",
+    "label": "Contribution"
+  },
+  {
+    "id": 61,
+    "text": "Chinese Spelling Correction (CSC) is a task to detect and correct misspelled characters in Chinese texts. CSC is challenging since many Chinese characters are visually or phonologically similar but with quite different semantic meanings. Many recent works use BERT-based language models to directly correct each character of the input sentence",
+    "label": "Background"
+  },
+  {
+    "id": 62,
+    "text": "In this paper, we present a comprehensive survey of prevailing methodologies for communication-efficient distributed learning, including reduction of the number of communications, compression and quantization of the exchanged information, radio resource management for efficient learning, and game-theoretic mechanisms incentivizing user participation.",
+    "label": "Purpose"
+  },
+  {
+    "id": 63,
+    "text": "Strikingly, we find that a dominant winning ticket that takes up 0.05% of the parameters can already achieve satisfactory performance, indicating that the PLM is significantly reducible during fine-tuning.",
+    "label": "Conclusion"
+  },
+  {
+    "id": 64,
+    "text": "In order to reduce human cost and improve the scalability of QA systems, we propose and study an Open-domain Document Visual Question Answering (Open-domain DocVQA) task, which requires answering questions based on a collection of document images directly instead of only document texts, utilizing layouts and visual features additionally",
+    "label": "Purpose"
+  }
+]

@@ -17,7 +17,9 @@ dependencies = [
     "matplotlib",
     "scikit-learn",
     "google-genai",
-    "anthropic",
-    "openai",
     "python-dotenv",
+    # The Google Sheets annotation round-trip (step 2: annotate, measure agreement,
+    # adjudicate). Colab pre-installs both, so this matters only for a local run.
+    "gspread",
+    "google-auth",
 ]
