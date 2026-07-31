@@ -24,7 +24,7 @@ Exactly the strings that appear in your gold file:
 
 ## 3. Are the labels ORDERED?
 
-If yes, in what order? This decides `LABELS_ORDER` in `config.py`.
+If yes, in what order? This decides `labels_order` in `config.yaml`.
 
 > Watch out: labels that are ordered but not alphabetical (`Low`/`Mid`/`High`) will otherwise
 > be scored over `High < Low < Mid`, and the weighted κ reported to three decimal places
@@ -78,7 +78,7 @@ with the names your group actually used.
 | 05 report     | the gold set + the frozen run        | `outputs/…_report.md`          | |
 
 Every one of those files lives in your group's shared Drive folder, and every notebook
-finds it through `config.py` — so there is nothing to email, paste or re-upload between
+finds it through `config.yaml` — so there is nothing to email, paste or re-upload between
 steps. (The annotation Sheet in 03 is the one thing that is not a file; notebook 03
 writes its link to `data/gold/<track>_<group>_sheet.json` so that it behaves like one.)
 

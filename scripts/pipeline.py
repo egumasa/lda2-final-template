@@ -24,6 +24,7 @@ and sensible values are worked out automatically when they are left off.
 -------------------------------------------------------------------------------
 """
 
+import datetime
 import json
 import os
 import random
@@ -305,6 +306,45 @@ def load_prompt(path):
 
 
 # ----------------------------------------------------------------------------------
+# Not overwriting work you already did
+# ----------------------------------------------------------------------------------
+# Re-running a cell is the most ordinary thing you can do in a notebook, and until this
+# check existed it silently replaced whatever was already in the file. A gold set is a
+# morning of two people's annotation; nothing warned you it had gone. So every save in
+# this file stops instead, and tells you the two ways forward.
+def _refuse_to_overwrite(path, overwrite, what):
+    """Stop rather than replace a file that already exists."""
+    if overwrite:
+        return None
+    if not path.exists():
+        return None
+    written = datetime.datetime.fromtimestamp(path.stat().st_mtime)
+    raise FileExistsError(
+        "\n" + path.name + " already exists.\n"
+        "  written: " + written.strftime("%Y-%m-%d %H:%M") + "\n"
+        "  holds:   " + _describe_contents(path, what) + "\n"
+        "\n"
+        "Saving now would replace it, and what is in it cannot be got back.\n"
+        "\n"
+        "  * Want to KEEP it? Open config.yaml and change  run: to the next version\n"
+        "    (v1 -> v2). Everything you save from then on gets a new name, and this\n"
+        "    file stays where it is. Then re-run the SETUP cell.\n"
+        "  * Meant to REPLACE it? Add overwrite=True inside the brackets of the call\n"
+        "    you just ran."
+    )
+
+
+def _describe_contents(path, what):
+    """Say what is in a file, for the message above - how many items, or how big."""
+    try:
+        existing = json.loads(path.read_text(encoding="utf-8"))
+        return str(len(existing)) + " " + what
+    except Exception:
+        # Not JSON, or unreadable. The size still tells you it is not empty.
+        return str(path.stat().st_size) + " bytes"
+
+
+# ----------------------------------------------------------------------------------
 # Freezing predictions
 # ----------------------------------------------------------------------------------
 # A hosted LLM is only best-effort reproducible, even at temperature=0. So once your
@@ -312,9 +352,10 @@ def load_prompt(path):
 # your evaluation off that file. Your reported numbers then hold still, and anyone
 # (including whoever grades it) can re-run your analysis on exactly the outputs you
 # saw. In Day 2 you loaded a frozen file we made for you; now you make your own.
-def save_predictions(predictions, path):
+def save_predictions(predictions, path, overwrite=False):
     """Write a list of predicted labels to a JSON file - this is 'freezing' a run."""
     output_path = Path(path)
+    _refuse_to_overwrite(output_path, overwrite, "predictions")
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(
         json.dumps(predictions, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -342,9 +383,10 @@ def load_predictions(url_or_path):
 # people's runtimes. Anything one of them produces and another needs has to go through
 # a FILE - a variable in someone else's Colab is not a handoff. These two do that for
 # any JSON-able thing: your sample, your gold set, your per-round F1 table.
-def save_json(data, path, what="items"):
+def save_json(data, path, what="items", overwrite=False):
     """Write anything JSON-able to a file, making the folder if it is missing."""
     output_path = Path(path)
+    _refuse_to_overwrite(output_path, overwrite, what)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(
         json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -600,25 +642,37 @@ def plot_confusion_matrix(matrix, labels, title, xlabel="Predicted", ylabel="Gol
 # ----------------------------------------------------------------------------------
 # Writing the report
 # ----------------------------------------------------------------------------------
-def export_results(track, gold, predictions, macro_f1_by_round, out_dir, group=""):
+def export_results(track, gold, predictions, macro_f1_by_round, out_dir, group="",
+                   run="", overwrite=False):
     """Write your gold set, a predictions CSV, and a one-page report scaffold.
 
-    `group` is added to every filename, so several groups can drop their results in
-    one folder without overwriting each other. These files are what you submit.
+    `group` and `run` are added to every filename, so several groups can drop their
+    results in one folder without overwriting each other, and a second attempt does not
+    replace your first. These files are what you submit.
     """
     output_folder = Path(out_dir)
     output_folder.mkdir(parents=True, exist_ok=True)
     labels = label_set(gold)
 
-    # Every file we write starts with the same stem, e.g. "raamove_groupA".
-    if group == "":
-        stem = track
-    else:
-        stem = track + "_" + group
+    # Every file we write starts with the same stem, e.g. "cars50_kimura_v1".
+    stem = track
+    if group != "":
+        stem = stem + "_" + group
+    if run != "":
+        stem = stem + "_" + run
+
+    gold_path = output_folder / (stem + "_gold.json")
+    csv_path = output_folder / (stem + "_predictions.csv")
+    report_path = output_folder / (stem + "_report.md")
+
+    # Check all three BEFORE writing any of them. Stopping halfway would leave a report
+    # that describes one run sitting beside the gold set of another.
+    _refuse_to_overwrite(gold_path, overwrite, "items")
+    _refuse_to_overwrite(csv_path, overwrite, "rows")
+    _refuse_to_overwrite(report_path, overwrite, "sections")
 
     # Save the gold set alongside the results: the numbers below mean nothing
     # without the exact items they were computed on.
-    gold_path = output_folder / (stem + "_gold.json")
     gold_path.write_text(
         json.dumps(gold, ensure_ascii=False, indent=2), encoding="utf-8")
 
@@ -635,7 +689,6 @@ def export_results(track, gold, predictions, macro_f1_by_round, out_dir, group="
         }
         records.append(record)
     table = pd.DataFrame(records)
-    csv_path = output_folder / (stem + "_predictions.csv")
     table.to_csv(csv_path, index=False)
 
     # Count how many gold items carry each label.
@@ -712,7 +765,6 @@ def export_results(track, gold, predictions, macro_f1_by_round, out_dir, group="
     report = report + ("- " + str(len(gold)) + " items is a small sample - treat per-class "
                        "scores for rare labels with caution.\n")
 
-    report_path = output_folder / (stem + "_report.md")
     report_path.write_text(report, encoding="utf-8")
     print("Wrote", gold_path.name + ",", csv_path.name, "and", report_path.name,
           "to", str(output_folder) + "/")

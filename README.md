@@ -22,7 +22,8 @@ LLM is the thing being measured by it.
 
 ```
 lda2-final-template/
-├── config.py                       # ✏️ the ONE file you edit first: track, group, seed
+├── config.yaml                     # ✏️ the ONE file you edit first: track, group, seed
+├── config.py                       # turns config.yaml into every path (you do not edit it)
 ├── notebooks/                      # YOUR five notebooks. Run them in order.
 │   ├── 01_build_pool_<track>.ipynb #   corpus → data/pools/<track>_pool.json
 │   ├── 02_sample.ipynb             #   pool → a balanced sample
@@ -45,7 +46,7 @@ lda2-final-template/
 └── outputs/                        # predictions, report, figures
 ```
 
-You edit **`config.py`**, the **✏️ cells** in the notebooks, and your **prompt file**.
+You edit **`config.yaml`**, the **✏️ cells** in the notebooks, and your **prompt file**.
 Nothing in `scripts/`.
 
 ## The notebooks are skeletons, on purpose
@@ -126,7 +127,7 @@ once. Two things do not work that way:
 
 The **annotation Sheet in notebook 03 is the exception** — a real Google Sheet, so
 annotate it together. Notebook 03 shares it with the addresses you put in `MEMBERS` in
-`config.py`; leave that list empty and the sheet sits in one person's Drive where the
+`config.yaml`; leave that list empty and the sheet sits in one person's Drive where the
 second coder cannot open it. And your final run has to be *one* run by one person anyway, frozen
 to a file.
 

@@ -120,11 +120,14 @@ def setup_cell(extra_imports=()):
 
 
 CONFIG_MD = md(
-    "> **Everything above comes from `config.py`** — one file at the top of the repo, "
-    "which you edit once as a group. That is deliberate: the seed in notebook 02 has to "
-    "be the seed in notebook 03, and five copies of a number in five notebooks is five "
-    "chances for them to disagree. If the line it just printed is not your track, your "
-    "group and your seed, fix `config.py` and re-run this cell.")
+    "> **Everything above comes from `config.yaml`** — one small file at the top of the "
+    "repo, which you edit once as a group, and the only file in the plumbing you touch. "
+    "That is deliberate: the seed in notebook 02 has to be the seed in notebook 03, and "
+    "five copies of a number in five notebooks is five chances for them to disagree. "
+    "Your settings are also the filenames — `track: cars50`, `group: kimura`, `run: v1` "
+    "means this notebook reads and writes `cars50_kimura_v1_...`. If the line it just "
+    "printed is not your track, your group and your seed, fix `config.yaml` and re-run "
+    "this cell.")
 
 
 def handoff_md(what, target, next_notebook, why):
@@ -190,7 +193,7 @@ cells = [
         1, "Load the pool",
         "open what notebook 01 wrote, and see its natural imbalance.",
         ["load_gold(path)  ->  a list of {id, text, label}",
-         "POOL_PATH · DEMO_POOL_PATH   (both come from config.py)"],
+         "POOL_PATH · DEMO_POOL_PATH   (both come from config.yaml)"],
         "Day 2 S5 step F · Day 3 setup — the same call.",
         "pool",
         extra=["Try       : from collections import Counter",
@@ -212,7 +215,7 @@ cells = [
         "you have to annotate by hand in notebook 03. Around 40 items total is the "
         "size this project is built for.",
         "",
-        "Set `N_PER_CLASS` in `config.py` and re-run the setup cell if you change it."),
+        "Set `n_per_class` in `config.yaml` and re-run the setup cell if you change it."),
     step(
         2, "Draw the balanced sample",
         "turn the big pool into ~40 items, balanced across your labels.",
@@ -292,7 +295,7 @@ cells_03 = [
         1, "Load your sample",
         "open the forty items notebook 02 drew.",
         ["load_gold(path)  ->  a list of {id, text, label}",
-         "SAMPLE_PATH   (from config.py)"],
+         "SAMPLE_PATH   (from config.yaml)"],
         "Day 2 S5 step F — the same call.",
         "sampled · LABELS",
         extra=["Note      : it still carries the published label. Do not read it, and do",
@@ -319,7 +322,7 @@ cells_03 = [
         "account. That is `gspread` authorising against your own Drive.",
         "",
         "The sheet is created in the Drive of whoever runs the cell, so pass "
-        "`share_with=MEMBERS` — the Google accounts you put in `config.py` — or your "
+        "`share_with=MEMBERS` — the Google accounts you put in `config.yaml` — or your "
         "second coder will open the link and be told they need access. Pass "
         "`remember=SHEET_PATH` too, and the link is written to a file instead of living "
         "in this cell's output, where a runtime reset can lose it."),
@@ -328,7 +331,7 @@ cells_03 = [
         "make a blind annotation sheet, shared with your group, one row per item.",
         ["create_annotation_sheet(title, items, labels,",
          "                        share_with=..., remember=...)  ->  the sheet URL",
-         "MEMBERS · SHEET_PATH   (from config.py)"],
+         "MEMBERS · SHEET_PATH   (from config.yaml)"],
         "Day 2 S5 step A — the same call, plus the two sharing arguments.",
         "a sheet URL — and a note of it on disk, for the step after next",
         extra=["Note      : give it a title with your group and track in it. You will",
@@ -516,7 +519,7 @@ cells_04 = [
         1, "Load your gold set and your pool",
         "the answers you score against, and the spare items few-shot draws from.",
         ["load_gold(path)  ->  a list of {id, text, label}",
-         "GOLD_PATH · POOL_PATH   (from config.py)"],
+         "GOLD_PATH · POOL_PATH   (from config.yaml)"],
         "Day 3 setup — the same call, twice.",
         "gold · pool · LABELS",
         extra=["Note      : LABELS comes from your GOLD set, not the pool. If a label",
@@ -588,7 +591,7 @@ cells_04 = [
         "A hosted model is only *best-effort* reproducible, even at `temperature=0`. So "
         "once your best prompt is settled:",
         "",
-        "1. Raise `N_PER_CLASS` in `config.py` to full size — and re-run notebooks 02 "
+        "1. Raise `n_per_class` in `config.yaml` to full size — and re-run notebooks 02 "
         "and 03 if that changes your sample. (If it does, you have more annotating to "
         "do. This is why you decide the size **before** you annotate.)",
         "2. Run the model **once**, on your best prompt.",
@@ -706,7 +709,8 @@ cells_05 = [
     step(
         4, "Export",
         "write the gold set, the predictions CSV, and the report scaffold.",
-        ["export_results(TRACK, gold, pred_final, f1_by_round, OUT_DIR, group=GROUP)"],
+        ["export_results(TRACK, gold, pred_final, f1_by_round, OUT_DIR, group=GROUP,",
+         "               run=RUN)"],
         "new — but it only writes down what you already have.",
         "three files in ../outputs/"),
     md(

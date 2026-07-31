@@ -1,0 +1,78 @@
+# config.yaml — the one file you edit before running the notebooks.
+#
+# Six settings. Every notebook reads this file, so you set them ONCE, as a group,
+# and notebooks 01-05 all agree with each other: same track, same seed, same file
+# names. That is the point of a shared file — five copies of a seed is five chances
+# for the sample in notebook 03 not to be the sample notebook 02 drew.
+#
+# Edit it, save it, and re-run the SETUP cell of whichever notebook you are in.
+# It should match your PLAN.md.
+#
+# ----------------------------------------------------------------------------------
+# WHERE THESE END UP
+# ----------------------------------------------------------------------------------
+# You never type a file path in this project. Every file is named from the settings
+# below, which is why notebook 03 opens exactly the file notebook 02 wrote:
+#
+#     data/pools/<track>_pool.json                       <- notebook 01 writes
+#     data/gold/<track>_<group>_<run>_sample.json        <- notebook 02 writes
+#     data/gold/<track>_<group>_<run>_gold.json          <- notebook 03 writes
+#     outputs/<track>_<group>_<run>_predictions.json     <- notebook 04 writes
+#     prompts/<track>.txt                                <- notebook 04 reads
+#
+# So `track: cars50` + `group: kimura` + `run: v1` means notebook 03 writes
+# data/gold/cars50_kimura_v1_gold.json. Change a setting, change every filename.
+
+
+# ----------------------------------------------------------------------------------
+# YOU EDIT — these six
+# ----------------------------------------------------------------------------------
+
+# Which corpus and annotation scheme. It comes from your PLAN.md.
+# One of:  raamove · cars50 · cars50_step · l2_errors · l2_error_detection
+# This picks the pool AND the prompt file. Set it wrong and the notebooks still run
+# perfectly — on another track's data, without complaining.
+track: cars50
+
+# Your group's name. Goes in every filename above, and on your report.
+# Lower-case, no spaces: kimura, tanaka-b, group3
+group: yourgroup
+
+# Which attempt this is. Leave it at v1 until something makes you start over —
+# you redraw the sample, or you revise the scheme and re-annotate. Then change it
+# to v2, and v1's files stay on disk where you can still open them.
+# Saving will REFUSE to overwrite a file that already exists, and will point you here.
+run: v1
+
+# Any number. Its job is that someone else can redraw your exact sample, so once you
+# have annotated anything, do NOT change it — your gold set would stop matching the
+# sample it came from. Notebook 05 reports this number.
+seed: 42
+
+# How many items per label to sample.
+#   2      while you are still fixing prompts — keeps every run fast
+#   10-15  for the final run (about 40 items total)
+# A rare label returns fewer than you asked for. That is the data, not a bug, and it
+# belongs in your limitations.
+n_per_class: 2
+
+# The Google accounts of everyone in your group. Notebook 03 gives each of them edit
+# access to the annotation sheet it creates. Leave this empty and the sheet lives in
+# one person's Drive where the second coder cannot open it — which is the whole of
+# step 3.
+members:
+  # - b1234567@dc.tohoku.ac.jp
+  # - b7654321@dc.tohoku.ac.jp
+
+
+# ----------------------------------------------------------------------------------
+# ONE MORE, only if your labels are a SCALE
+# ----------------------------------------------------------------------------------
+# Are your labels ordered, and if so in what order?
+#   Move 1..3 is ordered AND alphabetical, so leaving this empty is fine.
+#   Low/Mid/High is ordered but NOT alphabetical — write it out, or the weighted
+#   kappa gets computed over "High < Low < Mid", which means nothing.
+labels_order:
+  # - Low
+  # - Mid
+  # - High

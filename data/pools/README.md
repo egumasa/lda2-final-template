@@ -79,7 +79,7 @@ Build them all with `python scripts/prep_datasets.py --demos`:
 > `build_fewshot` will both warn you when this happens. Build the real pool first.
 
 Point at one by using `DEMO_POOL_PATH` instead of `POOL_PATH` — both come from
-[`config.py`](../../config.py).
+[`config.yaml`](../../config.yaml).
 
 ## ICNALE is different
 

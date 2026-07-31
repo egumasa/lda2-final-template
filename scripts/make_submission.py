@@ -78,9 +78,11 @@ def main(argv):
     parser = argparse.ArgumentParser(
         description="Collect your mini-project files into a submission folder.")
     parser.add_argument("--group", required=True,
-                        help="your group name — must match GROUP in config.py")
+                        help="your group name — must match group in config.yaml")
     parser.add_argument("--track", default=None,
                         help="track name; inferred from your output files if omitted")
+    parser.add_argument("--run", default=None,
+                        help="which run to bundle, e.g. v1; inferred (newest) if omitted")
     parser.add_argument("--out", default=None,
                         help="where to write the folder (default: next to this repo)")
     args = parser.parse_args(argv)
@@ -91,24 +93,34 @@ def main(argv):
     else:
         bundle = ROOT.parent / ("lda2_project_" + group)
 
-    # Work out the track from whatever the export step wrote, unless told.
+    # Work out the track and the run from whatever the export step wrote, unless told.
+    # Report files are named <track>_<group>_<run>_report.md, so both are in the name.
+    # Sorting puts the newest run last when they are v1, v2, v3 - so take the last one
+    # rather than the first, and say which, because a group that ran twice should not
+    # have to guess which attempt got submitted.
     track = args.track
-    if track is None:
-        for path in sorted((ROOT / "outputs").glob("*_" + group + "_report.md")):
-            track = path.name.split("_" + group + "_")[0]
-            break
-    if track is None:
-        print("Could not work out which track this is. Either run step 6 "
-              "(export_results) first, or pass --track.")
+    run = args.run
+    reports = sorted((ROOT / "outputs").glob("*_" + group + "_*_report.md"))
+    if reports:
+        newest = reports[-1].name
+        if track is None:
+            track = newest.split("_" + group + "_")[0]
+        if run is None:
+            run = newest.split("_" + group + "_")[1][:-len("_report.md")]
+        if len(reports) > 1:
+            print("Found", len(reports), "runs. Bundling the newest:", newest)
+    if track is None or run is None:
+        print("Could not work out which track and run this is. Either run step 6 "
+              "(export_results) first, or pass --track and --run.")
         return 1
 
-    print("Track:", track, " Group:", group)
+    print("Track:", track, " Group:", group, " Run:", run)
     print("Building:", bundle)
     if bundle.exists():
         shutil.rmtree(bundle)          # rebuild from scratch, so nothing stale survives
     bundle.mkdir(parents=True)
 
-    stem = track + "_" + group
+    stem = track + "_" + group + "_" + run
     found = {}
     missing = []
 
@@ -168,15 +180,20 @@ def main(argv):
     scripts = copy_matching(ROOT / "scripts", bundle / "scripts", "*.py")
     found["scripts/"] = scripts
 
-    # config.py is your group's settings AND every path in the notebooks. Without it the
-    # bundle is a set of notebooks that die on their first line, and the track, seed and
-    # N_PER_CLASS the numbers came from are nowhere in the submission.
+    # config.yaml is your group's settings; config.py turns them into every path the
+    # notebooks use. Without both, the bundle is a set of notebooks that die on their
+    # first line, and the track, seed and n_per_class the numbers came from are nowhere
+    # in the submission.
+    if copy_file(ROOT / "config.yaml", bundle / "config.yaml"):
+        found["config.yaml"] = ["config.yaml"]
+    else:
+        missing.append("config.yaml — your group's track, seed and n_per_class. It "
+                       "records the settings your results came from.")
     if copy_file(ROOT / "config.py", bundle / "config.py"):
         found["config.py"] = ["config.py"]
     else:
-        missing.append("config.py — your group's track, seed and N_PER_CLASS. Every "
-                       "notebook imports it, and it records the settings your results "
-                       "came from.")
+        missing.append("config.py — reads config.yaml and builds every path. Every "
+                       "notebook imports it.")
 
     # --- slides ------------------------------------------------------------------------
     slides = []

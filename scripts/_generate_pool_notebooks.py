@@ -260,29 +260,30 @@ def setup(track):
 def save_cell(track, note="", variants=()):
     """Write the pool to POOL_PATH — the exact path notebook 02 opens.
 
-    Note the track guard. POOL_PATH is built from TRACK in config.py, so running this
-    notebook with config.py still set to another track would write, say, a RAAMove pool
-    into cars50_pool.json. Everything downstream would then run perfectly on the wrong
-    data, and the first sign of trouble would be labels that make no sense in notebook
-    03 - by which point two people have annotated forty items.
+    Note the track guard. POOL_PATH is built from `track` in config.yaml, so running
+    this notebook with config.yaml still set to another track would write, say, a
+    RAAMove pool into cars50_pool.json. Everything downstream would then run perfectly
+    on the wrong data, and the first sign of trouble would be labels that make no sense
+    in notebook 03 - by which point two people have annotated forty items.
 
-    `variants` are the other TRACK values this notebook may legitimately be run under -
-    the second granularity a couple of tracks offer ("cars50_step"). Setting TRACK to
+    `variants` are the other track values this notebook may legitimately be run under -
+    the second granularity a couple of tracks offer ("cars50_step"). Setting `track` to
     the variant is what puts the pool in its own file, so the guard has to allow it.
     """
     allowed = [track] + list(variants)
     lines = [
         "# Save the pool into your group's Drive folder, under the exact name notebook",
-        "# 02 will look for. POOL_PATH comes from config.py, so the two cannot drift.",
+        "# 02 will look for. POOL_PATH comes from config.yaml, so the two cannot drift.",
         "import json",
         "",
         "if TRACK not in " + repr(allowed) + ":",
         '    raise RuntimeError(',
-        '        "config.py says TRACK = " + repr(TRACK) + ", but this is the ' + track
+        '        "config.yaml says  track: " + str(TRACK) + "  but this is the ' + track
         + ' "',
-        '        "notebook. POOL_PATH points at " + POOL_PATH.name + ", so saving now "',
-        '        "would put ' + track + ' data in another track\'s file. Set TRACK to one "',
-        '        "of ' + " · ".join(allowed) + ' in config.py, then re-run the SETUP cell.")',
+        '        "notebook, so saving now would put ' + track + ' data into "',
+        '        + POOL_PATH.name + ", which belongs to another track.\\n"',
+        '        "Open config.yaml, set  track: to one of ' + " · ".join(allowed) + ',"',
+        '        " save it, then re-run the SETUP cell at the top of this notebook.")',
         "",
         "POOL_PATH.parent.mkdir(parents=True, exist_ok=True)",
         'with open(POOL_PATH, "w", encoding="utf-8") as f:',
@@ -320,7 +321,7 @@ def handoff(track):
         "**Next:** open `02_sample.ipynb`. It reads `POOL_PATH` — the file the cell "
         "above just wrote, in your group's Drive folder. Nothing to copy, nothing to "
         "paste: that path is the handoff, and both notebooks get it from the same "
-        "`config.py`.")
+        "`config.yaml`.")
 
 
 # ===================================================================== RAAMove
@@ -618,7 +619,7 @@ save("01_build_pool_cars50.ipynb", [
     inspect_cell(),
     md("## Step 5 — Save it"),
     save_cell("cars50",
-              'If you chose steps, set TRACK = "cars50_step" in config.py before running '
+              'If you chose steps, set  track: cars50_step  in config.yaml before running '
               "this: POOL_PATH then becomes cars50_step_pool.json, and the finer scheme "
               "gets its own file rather than overwriting the 3-move one. You will need "
               "prompts/cars50_step.txt too — copy cars50.txt and rewrite the labels.",
@@ -754,7 +755,7 @@ save("01_build_pool_l2_errors.ipynb", [
     inspect_cell(),
     md("## Step 5 — Save it"),
     save_cell("l2_errors",
-              'For the binary version, set TRACK = "l2_error_detection" in config.py '
+              'For the binary version, set  track: l2_error_detection  in config.yaml '
               "before running this, so POOL_PATH becomes l2_error_detection_pool.json "
               "and the two versions do not overwrite each other. You will need "
               "prompts/l2_error_detection.txt too.",
@@ -865,8 +866,9 @@ save("01_build_pool_icnale.ipynb", [
        "scheme.",
        "",
        "⚠️ These labels are **ordered** (Low < Mid < High) but they are *not* "
-       "alphabetical. Set `LABELS_ORDER = [\"Low\", \"Mid\", \"High\"]` in `config.py`, "
-       "or the weighted κ gets computed over `High < Low < Mid`, which means nothing."),
+       "alphabetical. List them under `labels_order:` in `config.yaml` — Low, then Mid, "
+       "then High — or the weighted κ gets computed over `High < Low < Mid`, which "
+       "means nothing."),
     code(embed(reshape.reid, reshape.reshape_icnale, imports=["import csv"])),
     blank(
         "Step 3a · Cut the scale",

@@ -108,14 +108,15 @@ def remembered_sheet(path):
         return ""            # step 2 has not been run yet; that is not an error
 
 
-def create_annotation_sheet(title, items, labels, share_with=(), remember=None):
+def create_annotation_sheet(title, items, labels, share_with=(), remember=None,
+                            overwrite=False):
     """Create a Sheet in YOUR Drive: one row per item, blank columns to label.
 
     `items` are {"id", "text", ...} dicts - any existing label is deliberately NOT
     copied across, so you annotate blind. Returns the sheet URL.
 
     `share_with` is a list of Google account addresses - your group, from MEMBERS in
-    config.py. The sheet is created in the Drive of whoever runs this cell, so without
+    config.yaml. The sheet is created in the Drive of whoever runs this cell, so without
     this the second coder cannot open it, and step 3 needs two coders.
 
     `remember` is a path to write the URL to, so the notebook can find the sheet again
@@ -125,6 +126,27 @@ def create_annotation_sheet(title, items, labels, share_with=(), remember=None):
     showing the passage, so the two coders judge the sentence on the same evidence the
     model will get.
     """
+    ### Step 0: is there already a sheet from an earlier run? ###
+    # Checked BEFORE the sheet is created, not after. Overwriting the remembered URL
+    # would strand the sheet your group has already been annotating in - it would still
+    # exist in Drive, but nothing in the project would point at it any more.
+    if remember is not None and not overwrite and pathlib.Path(remember).exists():
+        raise FileExistsError(
+            "\n" + pathlib.Path(remember).name + " already exists, so your group has "
+            "made an annotation sheet before.\n"
+            "  it points at: " + remembered_sheet(remember) + "\n"
+            "\n"
+            "Making a new one would lose that link, and any annotation already in that "
+            "sheet with it.\n"
+            "\n"
+            "  * Going back to the sheet you already have? You do not need this cell —\n"
+            "    open the link above.\n"
+            "  * Starting a fresh round on purpose? Open config.yaml and change\n"
+            "    run: to the next version (v1 -> v2), then re-run the SETUP cell.\n"
+            "  * Really want to forget the old sheet? Add overwrite=True inside the\n"
+            "    brackets of this call."
+        )
+
     ### Step 1: make an empty spreadsheet in your own Drive ###
     sheet = _sheets_client().create(title)
     worksheet = sheet.sheet1

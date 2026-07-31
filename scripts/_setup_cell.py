@@ -111,7 +111,13 @@ def setup_lines(extra_imports=(), workdir=None):
         "sys.path.append(PROJECT)",
         'sys.path.append(PROJECT + "/scripts")',
         "",
-        "from config import *      # TRACK, GROUP, SEED, N_PER_CLASS, and every path",
+        "# Re-read config.yaml every time this cell runs. Without the reload, Python",
+        "# hands back the settings it read the FIRST time, and editing config.yaml",
+        "# would appear to do nothing until you restarted the runtime.",
+        "import importlib",
+        "import config",
+        "importlib.reload(config)",
+        "from config import *      # TRACK, GROUP, RUN, SEED, N_PER_CLASS, every path",
     ]
     lines = lines + list(extra_imports)
     lines = lines + ["", "describe()                  # what this notebook is working on",

@@ -6,7 +6,7 @@ changes easy to see, save, and compare.
 
 There is one starter prompt per track — `raamove.txt`, `cars50.txt`,
 `l2_errors.txt` (write your own `icnale.txt` if you take that track). `04_prompt.ipynb`
-loads the one matching `config.py`: `PROMPT_FILE = ROOT / "prompts" / (TRACK + ".txt")`.
+loads the one matching `track:` in `config.yaml`: `PROMPT_FILE = ROOT / "prompts" / (TRACK + ".txt")`.
 
 ## How it works
 

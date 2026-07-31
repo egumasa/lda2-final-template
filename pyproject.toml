@@ -22,4 +22,6 @@ dependencies = [
     # adjudicate). Colab pre-installs both, so this matters only for a local run.
     "gspread",
     "google-auth",
+    # config.py reads config.yaml. Colab pre-installs this one too.
+    "pyyaml",
 ]
