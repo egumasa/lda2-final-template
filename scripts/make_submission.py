@@ -168,6 +168,16 @@ def main(argv):
     scripts = copy_matching(ROOT / "scripts", bundle / "scripts", "*.py")
     found["scripts/"] = scripts
 
+    # config.py is your group's settings AND every path in the notebooks. Without it the
+    # bundle is a set of notebooks that die on their first line, and the track, seed and
+    # N_PER_CLASS the numbers came from are nowhere in the submission.
+    if copy_file(ROOT / "config.py", bundle / "config.py"):
+        found["config.py"] = ["config.py"]
+    else:
+        missing.append("config.py — your group's track, seed and N_PER_CLASS. Every "
+                       "notebook imports it, and it records the settings your results "
+                       "came from.")
+
     # --- slides ------------------------------------------------------------------------
     slides = []
     for candidate in ("slides.pdf", "slides.pptx", "slides.key"):
