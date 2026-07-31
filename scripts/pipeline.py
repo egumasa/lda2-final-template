@@ -552,8 +552,8 @@ def record_test_scoring(log_path, macro_f1, attempt, pred_path, prompt, prompt_f
         "pred_file": Path(pred_path).name,
         "n_test": len(gold_items),
         "prompt_file": Path(prompt_file).name,
-        # The point of the whole log. Scoring test twice with the SAME prompt is a
-        # re-roll of the dice; scoring it twice with a DIFFERENT one is a prompt tuned
+        # The point of the whole log. Scoring test twice with the SAME prompt is that
+        # prompt run twice; scoring it twice with a DIFFERENT one is a prompt tuned
         # after seeing the held-out set. Nothing else in your submission tells them
         # apart, and the difference is the whole reason the split exists.
         "prompt_sha1": fingerprint,

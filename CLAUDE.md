@@ -19,6 +19,29 @@ line does and cannot tell a bug from something they typed wrong.
 That audience is the design constraint. It outranks robustness, generality, and
 cleverness.
 
+## Say it plainly — no metaphors
+
+Follows from the audience above. Many readers are working in a second language, and a
+figure of speech costs them a translation step and buys nothing.
+
+**Never dress a technical statement up as an image, a wager, or a piece of equipment.**
+Say what the thing is and what it is for.
+
+- ❌ "get one honest number to beat" → ✅ "a first score, before you change anything"
+- ❌ "your steering wheel, not your result" → ✅ "use it to decide what to change next; do
+  not report it"
+- ❌ "a re-roll of the dice" → ✅ "the same prompt run a second time"
+- ❌ "reading it back is not superstition" → ✅ "reading it back checks that the file you
+  will report from is the file you think it is"
+- ❌ "F1 is the scoreboard" · "the model's blind spot" · "the prompt is a contract"
+
+The same rule covers flourishes that carry no information: no "and that is the whole
+trick", no "here is where it gets interesting", no one-word sentences for emphasis.
+Emphasis is **bold**, not drama.
+
+This binds every kind of text here — markdown cells, code comments, error messages,
+docstrings a student reads, and README prose.
+
 ## Simplicity comes first
 
 Prefer the fewest moving parts that work.
