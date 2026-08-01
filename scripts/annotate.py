@@ -51,11 +51,15 @@ from sklearn.metrics import cohen_kappa_score, confusion_matrix
 
 from pipeline import plot_confusion_matrix
 
+# The sheet's column names and the two functions that read a judgment out of it live in
+# _study.py, which is the one copy the notebook generators render into cells. They are
+# re-exported here so that `from annotate import disagreements` - the Day 2 S5 call -
+# keeps working unchanged.
+from _study import (COL_ID, COL_TEXT, COL_A, COL_B, COL_FINAL, COL_NOTES,
+                    column, percent_agreement, disagreements)
+
 # Sheet column headers (the annotation template uses these exact names):
-COL_ID, COL_TEXT = "ID", "Text"
-COL_A, COL_B = "CoderA", "CoderB"
 COL_LABEL = "Label"
-COL_FINAL, COL_NOTES = "Final", "Note"
 COL_CONTEXT = "Context"
 COL_SOURCE = "SourceID"
 ANNOTATION_HEADER = [COL_ID, COL_TEXT, COL_A, COL_B, COL_FINAL, COL_NOTES]
@@ -1533,83 +1537,6 @@ def annotator_agreement(rows: list[dict[str, str]],
     # against either the tutorials or metrics.agreement() keeps working.
     return {"n": len(a_labels), "percent_agreement": percent,
             "kappa": kappa, "cohen_kappa": kappa}
-
-
-def disagreements(rows: list[dict[str, str]],
-                  a: str = COL_A,
-                  b: str = COL_B,
-                  coders: list[str] | None = None) -> pd.DataFrame:
-    """The rows your annotators labelled differently - your adjudication list.
-
-    Args:
-        rows: the merged rows, one per item.
-        a: the column holding the first annotator's labels.
-        b: the column holding the second annotator's labels.
-        coders: for groups of three or more. A row needs adjudicating when they do
-            not ALL agree. With two coders the behaviour is unchanged.
-
-    Returns:
-        A table of the rows to adjudicate. The columns are named even when your
-        coders agreed on everything.
-
-    Example:
-        >>> disagreements(rows, coders=CODERS)
-    """
-    if coders is not None and len(coders) > 2:
-        out = _disagreements_for_many(rows, coders)
-    else:
-        if coders is not None and len(coders) == 2:
-            a, b = coders[0], coders[1]
-        out = _disagreements_for_two(rows, a, b)
-    print(len(out), "rows to adjudicate. Agree on a `Final` label for each in the sheet.")
-    # Name the columns even when no rows come back, so that a group whose coders agreed
-    # on everything gets an empty table rather than a table with nothing in it at all.
-    return pd.DataFrame(out, columns=list(rows[0]) if rows else None)
-
-
-def _disagreements_for_two(rows: list[dict[str, str]], a: str,
-                           b: str) -> list[dict[str, str]]:
-    """The rows where two coders both labelled, and chose differently.
-
-    Args:
-        rows: the merged rows, one per item.
-        a: the column holding the first coder's labels.
-        b: the column holding the second coder's labels.
-
-    Returns:
-        The rows to adjudicate. Half-finished rows are left out.
-    """
-    out = []
-    for row in rows:
-        label_a = str(row.get(a, "")).strip()
-        label_b = str(row.get(b, "")).strip()
-        if label_a and label_b and label_a != label_b:
-            out.append(row)
-    return out
-
-
-def _disagreements_for_many(rows: list[dict[str, str]],
-                            coders: list[str] | tuple) -> list[dict[str, str]]:
-    """The rows where everyone labelled, and they did not all choose the same label.
-
-    Args:
-        rows: the merged rows, one per item.
-        coders: the coder names, three or more.
-
-    Returns:
-        The rows to adjudicate. Half-finished rows are left out.
-    """
-    names, _ = _coder_columns(rows, coders)
-    out = []
-    for row in rows:
-        labels = []
-        for name in names:
-            labels.append(str(row.get(name, "")).strip())
-        everyone_labelled = all(labels)
-        they_differ = len(set(labels)) > 1
-        if everyone_labelled and they_differ:
-            out.append(row)
-    return out
 
 
 def compare_to_published(gold: list[dict[str, str]],

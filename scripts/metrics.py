@@ -33,6 +33,11 @@ import pandas as pd
 from pipeline import (plot_confusion_matrix, label_set, triage_category,
                       TRIAGE_CATEGORIES)
 
+# show_errors and labels_of live in _study.py, the one copy the notebook generators
+# render into cells. Re-exported here so that `from metrics import show_errors` - the
+# Day 3 call - keeps working unchanged.
+from _study import show_errors, labels_of
+
 
 def evaluate(gold: list[dict[str, str]],
              predictions: list[str],
@@ -161,7 +166,9 @@ def agreement(labels_a: list[str], labels_b: list[str]) -> dict[str, float]:
 
 
 def triage_counts(triage: dict[int, str],
-                  errors: pd.DataFrame | None = None) -> dict[str, int]:
+                  errors: pd.DataFrame | None = None,
+                  categories: list[str] | tuple = TRIAGE_CATEGORIES,
+                  what: str = "errors") -> dict[str, int]:
     """Count a triage by category, and say what it adds up to.
 
     The categories are fixed (model / scheme / wording / ambiguous) so that the counts
@@ -172,6 +179,11 @@ def triage_counts(triage: dict[int, str],
         triage: the dict your group writes by hand, {item id: "category - reason"}.
         errors: the table from show_errors. Pass it and this also tells you how much
             of the error set you have been through.
+        categories: the words that count. Left out, the four for the MODEL's errors;
+            pass CODER_CATEGORIES when the table is your own coders' disagreements.
+        what: what the rows are, for the printout. "errors" reads wrong when the rows
+            are two coders disagreeing, and a printout that names the wrong thing is
+            how a number ends up in a report meaning something else.
 
     Returns:
         How many errors fell into each category.
@@ -180,29 +192,29 @@ def triage_counts(triage: dict[int, str],
         >>> triage_counts(triage, errors)
     """
     counts = {}
-    for category in TRIAGE_CATEGORIES:
+    for category in categories:
         counts[category] = 0
 
     unrecognised = []
     for item_id in triage:
-        category = triage_category(triage[item_id])
+        category = triage_category(triage[item_id], categories)
         if category is None:
             unrecognised.append(item_id)
         else:
             counts[category] = counts[category] + 1
 
     parts = []
-    for category in TRIAGE_CATEGORIES:
+    for category in categories:
         if counts[category] > 0:
             parts.append(str(counts[category]) + " " + category)
     if parts:
-        print("Triaged " + str(len(triage)) + " errors: " + " / ".join(parts))
+        print("Triaged " + str(len(triage)) + " " + what + ": " + " / ".join(parts))
     else:
-        print("Triaged 0 errors.")
+        print("Triaged 0 " + what + ".")
 
     if unrecognised:
         print("NOTE: these lines do not start with one of",
-              ", ".join(TRIAGE_CATEGORIES) + ":", unrecognised)
+              ", ".join(categories) + ":", unrecognised)
         print("      Start each line with the category word, then the reason:")
         print('        7: "scheme - Move 1/Move 2 boundary, our coders split too"')
 
@@ -211,8 +223,8 @@ def triage_counts(triage: dict[int, str],
     if errors is not None and hasattr(errors, "shape"):
         total = errors.shape[0]
         if len(triage) < total:
-            print("You have triaged", len(triage), "of", total, "errors. Say so in the",
-                  "report, or work through the rest.")
+            print("You have triaged", len(triage), "of", total, what + ". Say so in",
+                  "the report, or work through the rest.")
     return counts
 
 
@@ -285,35 +297,3 @@ def errors_on_disagreed(errors: pd.DataFrame,
         print("  those ids:", overlap)
         print("  Read those items again before you blame the model.")
     return overlap
-
-
-def show_errors(gold: list[dict[str, str]],
-                predictions: list[str]) -> pd.DataFrame:
-    """The items the model got wrong, as a table you can read and argue about.
-
-    Args:
-        gold: the gold items, each with "id", "text" and "label".
-        predictions: one predicted label per gold item, in the same order.
-
-    Returns:
-        A table with one row per mistake: id, gold, pred, text. The columns are
-        named even when there are no mistakes.
-
-    Example:
-        >>> errors = show_errors(gold, predictions)
-    """
-    rows = []
-    for item, predicted in zip(gold, predictions):
-        if item["label"] != predicted:
-            row = {
-                "id": item["id"],
-                "gold": item["label"],
-                "pred": predicted,
-                "text": item["text"],
-            }
-            rows.append(row)
-    print(f"{len(rows)} of {len(gold)} wrong.")
-    # Name the columns even when there are no rows. A table built from an empty list
-    # has no columns at all, and then errors["gold"] in notebook 05 fails for the one
-    # group whose model got everything right - the least deserving group to break on.
-    return pd.DataFrame(rows, columns=["id", "gold", "pred", "text"])
