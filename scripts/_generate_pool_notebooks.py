@@ -58,22 +58,22 @@ OUT = Path(__file__).resolve().parent.parent / "notebooks"
 # ----------------------------------------------------------------------------------
 # Notebook building blocks
 # ----------------------------------------------------------------------------------
-def _src(lines):
+def _src(lines: list[str] | tuple) -> list[str]:
     text = "\n".join(lines)
     parts = text.split("\n")
     return [line + "\n" for line in parts[:-1]] + [parts[-1]]
 
 
-def md(*lines):
+def md(*lines: str) -> dict:
     return {"cell_type": "markdown", "metadata": {}, "source": _src(lines)}
 
 
-def code(*lines):
+def code(*lines: str) -> dict:
     return {"cell_type": "code", "metadata": {}, "execution_count": None,
             "outputs": [], "source": _src(lines)}
 
 
-def save(name, cells):
+def save(name: str, cells: list[dict]) -> None:
     notebook = {
         "cells": cells,
         "metadata": {
@@ -93,7 +93,7 @@ def save(name, cells):
     print("wrote", name, "(" + str(len(cells)), "cells,", blanks, "blank)")
 
 
-def lead(*lines):
+def lead(*lines: str) -> dict:
     """A markdown signpost immediately above a code cell: what we are about to do.
 
     Every code cell in these notebooks has one. A cell a student meets with no idea
@@ -103,7 +103,7 @@ def lead(*lines):
     return md(*lines)
 
 
-def reading_note(what):
+def reading_note(what: str) -> dict:
     """The markdown that introduces a run of embedded-source cells."""
     return md(
         "### The code that does it — read it, then run it",
@@ -119,7 +119,8 @@ def reading_note(what):
         "which calls one.")
 
 
-def source_cells(described, imports=()):
+def source_cells(described: list[tuple],
+                 imports: list[str] | tuple = ()) -> list[dict]:
     """One cell per embedded function, each with its own one-line signpost.
 
     `described` is a list of (object, sentence) pairs. Splitting them up matters: the
@@ -142,7 +143,9 @@ def source_cells(described, imports=()):
     return cells
 
 
-def blank(signpost, title, does, produces, hints=(), notes=(), starter=None):
+def blank(signpost: str, title: str, does: list[str], produces: str,
+          hints: list[str] | tuple = (), notes: list[str] | tuple = (),
+          starter: list[str] | None = None) -> list[dict]:
     """A decision cell, with a markdown signpost above it. Returns BOTH cells.
 
     The header says what the cell does and what it names for later cells. Everything
@@ -220,7 +223,8 @@ WHERE_THIS_FITS = (
 )
 
 
-def header(title, subtitle, what, licence_line, citation, difficulty):
+def header(title: str, subtitle: str, what: str, licence_line: str,
+           citation: str, difficulty: str) -> list[dict]:
     return md(
         "# 01 · " + title,
         "",
@@ -245,7 +249,7 @@ def header(title, subtitle, what, licence_line, citation, difficulty):
     )
 
 
-def inspect_cells():
+def inspect_cells() -> bool:
     """Two cells: how big the pool is and how it is balanced, then what an item looks
     like. Two questions, so two cells."""
     return [
@@ -278,7 +282,9 @@ def inspect_cells():
     ]
 
 
-def parser_note(heading, intro, structure, api_steps, demos=()):
+def parser_note(heading: str, intro: str, structure: list[str],
+                api_steps: list[str],
+                demos: list[tuple] | tuple = ()) -> list[dict]:
     """Teach the library this track's raw format needs, before the reshaping code.
 
     Every track hands you a different format, and the reshaping function further down
@@ -306,16 +312,23 @@ def parser_note(heading, intro, structure, api_steps, demos=()):
     return cells
 
 
-def setup(track):
+def setup(track: str) -> list[dict]:
     """The SETUP cell, plus the markdown that explains the shared folder.
 
     01 imports `config.py` for the same reason 02-05 do: POOL_PATH is where notebook
     02 will come looking. A pool written anywhere else is a pool nobody reads.
+
+    `Path` is imported because the reshape functions shown below carry it in their
+    type hints, and a hint is evaluated when the `def` line runs - so without the
+    import those cells raise NameError before a student has done anything wrong.
     """
-    return [md(*SETUP_MD_LINES), code(*setup_lines(workdir=SCRATCH))]
+    return [md(*SETUP_MD_LINES),
+            code(*setup_lines(extra_imports=["from pathlib import Path"],
+                              workdir=SCRATCH))]
 
 
-def save_cell(track, note="", variants=()):
+def save_cell(track: str, note: str = "",
+              variants: list | tuple = ()) -> list[dict]:
     """Write the pool to POOL_PATH — the exact path notebook 02 opens.
 
     Note the track guard. POOL_PATH is built from `track` in config.yaml, so running
@@ -378,7 +391,7 @@ def save_cell(track, note="", variants=()):
     return cells
 
 
-def handoff(track):
+def handoff(track: str) -> dict:
     return md(
         "## What you just built, and what happens to it",
         "",

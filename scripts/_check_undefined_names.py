@@ -32,7 +32,7 @@ NOTEBOOKS = HERE.parent / "notebooks"
 COLAB_NAMES = {"get_ipython", "display", "In", "Out", "exit", "quit"}
 
 
-def config_names():
+def config_names() -> bool:
     """The names `from config import *` brings in.
 
     config.py mounts Drive on import in Colab, so it cannot simply be imported here.
@@ -58,7 +58,7 @@ def config_names():
     return names
 
 
-def bound_and_used(tree):
+def bound_and_used(tree: ast.AST) -> tuple:
     """The names this cell defines, and the names it reads."""
     bound = set()
     used = []
@@ -84,7 +84,7 @@ def bound_and_used(tree):
     return bound, used
 
 
-def star_imported(tree):
+def star_imported(tree: ast.AST) -> list[str]:
     """The modules this cell star-imports."""
     modules = []
     for node in ast.walk(tree):
@@ -95,7 +95,7 @@ def star_imported(tree):
     return modules
 
 
-def runnable_source(cell):
+def runnable_source(cell: dict) -> str:
     """The cell's code, minus the IPython magics and shell lines ast cannot parse."""
     lines = []
     for line in "".join(cell["source"]).split("\n"):
@@ -105,7 +105,7 @@ def runnable_source(cell):
     return "\n".join(lines)
 
 
-def check_notebook(path, from_config):
+def check_notebook(path: Path, from_config: set[str]) -> int:
     """Report every name read before anything defines it. Returns the problems."""
     known = set(dir(builtins)) | COLAB_NAMES
     problems = []
@@ -140,7 +140,7 @@ def check_notebook(path, from_config):
     return problems
 
 
-def main():
+def main() -> bool:
     from_config = config_names()
     total = 0
     for path in sorted(NOTEBOOKS.glob("*.ipynb")):

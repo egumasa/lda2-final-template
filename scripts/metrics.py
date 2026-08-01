@@ -34,7 +34,11 @@ from pipeline import (plot_confusion_matrix, label_set, triage_category,
                       TRIAGE_CATEGORIES)
 
 
-def evaluate(gold, predictions, ordered=False, labels=None, title="Confusion matrix"):
+def evaluate(gold: list[dict[str, str]],
+             predictions: list[str],
+             ordered: bool = False,
+             labels: list[str] | None = None,
+             title: str = "Confusion matrix") -> float:
     """Score predictions against gold: per-class P/R/F1 + macro, Cohen's kappa, and a
     confusion-matrix heatmap. Returns the macro-F1 as a number.
 
@@ -47,6 +51,20 @@ def evaluate(gold, predictions, ordered=False, labels=None, title="Confusion mat
     correct for A1..C2 and Move 1..3, but wrong for something like Low/Mid/High
     (alphabetical puts High first). If your labels are ordered and not alphabetical,
     pass them yourself: evaluate(gold, pred, ordered=True, labels=LABELS_ORDER).
+
+    Args:
+        gold: the gold items, each with a "label" key.
+        predictions: one predicted label per gold item, in the same order.
+        ordered: True when the labels sit on a scale.
+        labels: the labels to score, in scale order. Left out, they are read off the
+            gold set and sorted alphabetically.
+        title: the heading to put on the confusion matrix.
+
+    Returns:
+        The macro-F1, so you can collect it round by round.
+
+    Example:
+        >>> f1_by_round["1 zero-shot"] = evaluate(gold, predictions, ordered=True)
     """
     ### Step 1: line the two label lists up, gold first ###
     y_true = []                          # the correct labels, from the gold set
@@ -83,12 +101,27 @@ def evaluate(gold, predictions, ordered=False, labels=None, title="Confusion mat
     return macro_f1
 
 
-def agreement(labels_a, labels_b):
+def agreement(labels_a: list[str], labels_b: list[str]) -> dict[str, float]:
     """Compare two annotators: percent agreement and Cohen's kappa.
 
     Takes two plain lists of labels, in the same item order. (If your labels are
     still sitting in a Google Sheet, use annotator_agreement() from annotate.py
     instead — it pulls the two columns out for you and also draws the matrix.)
+
+    Args:
+        labels_a: the first annotator's labels.
+        labels_b: the second annotator's labels, for the same items in the same order.
+
+    Returns:
+        {"percent_agreement", "kappa", "cohen_kappa"} — the last two are the same
+        number under two names. Kappa is nan when only one label was used.
+
+    Raises:
+        ValueError: when the two lists are different lengths, which would pair the
+            wrong sentences together.
+
+    Example:
+        >>> agreement(coder_a_labels, coder_b_labels)
     """
     a = list(labels_a)
     b = list(labels_b)
@@ -127,16 +160,24 @@ def agreement(labels_a, labels_b):
             "cohen_kappa": kappa}
 
 
-def triage_counts(triage, errors=None):
+def triage_counts(triage: dict[int, str],
+                  errors: pd.DataFrame | None = None) -> dict[str, int]:
     """Count a triage by category, and say what it adds up to.
 
-    `triage` is the dict your group writes by hand: {item id: "category - reason"}.
     The categories are fixed (model / scheme / wording / ambiguous) so that the counts
     mean the same thing across groups, and so this is a judgment you make from a menu
     rather than an essay you write.
 
-    Pass `errors` (the table from show_errors) and it will also tell you how much of
-    the error set you have actually been through.
+    Args:
+        triage: the dict your group writes by hand, {item id: "category - reason"}.
+        errors: the table from show_errors. Pass it and this also tells you how much
+            of the error set you have been through.
+
+    Returns:
+        How many errors fell into each category.
+
+    Example:
+        >>> triage_counts(triage, errors)
     """
     counts = {}
     for category in TRIAGE_CATEGORIES:
@@ -175,7 +216,8 @@ def triage_counts(triage, errors=None):
     return counts
 
 
-def errors_on_disagreed(errors, disagreed):
+def errors_on_disagreed(errors: pd.DataFrame,
+                        disagreed: pd.DataFrame | list[dict[str, str]]) -> list[int]:
     """How many of the model's errors land on items YOUR OWN coders disagreed about.
 
     This is the most interesting number in the project. If the model's misses cluster
@@ -186,6 +228,18 @@ def errors_on_disagreed(errors, disagreed):
     Both tables carry the same ids: the sheet was built from the sampled items, and
     the gold set was rebuilt from the sheet, so nothing has been renumbered in between.
     The sheet returns its ID column as text, though, so it is converted here.
+
+    Args:
+        errors: the table from show_errors, with an "id" column.
+        disagreed: the table from disagreements, with an "ID" column. Notebook 03
+            saves it to a file and notebook 05 loads it back as a list of dicts, so
+            either form is accepted.
+
+    Returns:
+        The ids that appear in both, sorted. Empty when either table is empty.
+
+    Example:
+        >>> errors_on_disagreed(errors, disagreed)
     """
     # Both of these tables are empty in the HAPPY case - no model errors, or no coder
     # disagreements - and an empty table has no columns at all, so reading errors["id"]
@@ -233,8 +287,21 @@ def errors_on_disagreed(errors, disagreed):
     return overlap
 
 
-def show_errors(gold, predictions):
-    """The items the model got wrong, as a table you can read and argue about."""
+def show_errors(gold: list[dict[str, str]],
+                predictions: list[str]) -> pd.DataFrame:
+    """The items the model got wrong, as a table you can read and argue about.
+
+    Args:
+        gold: the gold items, each with "id", "text" and "label".
+        predictions: one predicted label per gold item, in the same order.
+
+    Returns:
+        A table with one row per mistake: id, gold, pred, text. The columns are
+        named even when there are no mistakes.
+
+    Example:
+        >>> errors = show_errors(gold, predictions)
+    """
     rows = []
     for item, predicted in zip(gold, predictions):
         if item["label"] != predicted:

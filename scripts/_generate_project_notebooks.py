@@ -60,26 +60,28 @@ from _setup_cell import REPO, setup_lines, setup_md
 
 OUT = Path(__file__).resolve().parent.parent / "notebooks"
 
-NOTEBOOKS = ["01_build_pool_<track>", "02_sample", "03_annotate", "04_prompt",
-             "05_report"]
+NOTEBOOKS = ["01_build_pool_<track>", "02_sample", "02b_add_samples", "03_annotate",
+             "04_prompt", "05_report"]
 
 
-def _src(lines):
+def _src(lines: list[str] | tuple) -> list[str]:
     text = "\n".join(lines)
     parts = text.split("\n")
     return [line + "\n" for line in parts[:-1]] + [parts[-1]]
 
 
-def md(*lines):
+def md(*lines: str) -> dict:
     return {"cell_type": "markdown", "metadata": {}, "source": _src(lines)}
 
 
-def code(*lines):
+def code(*lines: str) -> dict:
     return {"cell_type": "code", "metadata": {}, "execution_count": None,
             "outputs": [], "source": _src(lines)}
 
 
-def step(number, title, does, creates="", extra=(), starter=(), signpost=""):
+def step(number: int, title: str, does: list[str], creates: str = "",
+         extra: list[str] | tuple = (), starter: list[str] | tuple = (),
+         signpost: str = "") -> list[dict]:
     """A step cell: complete, runnable code, and a two-line header over it.
 
     The header says what the cell does when you run it, and what it leaves behind for
@@ -129,7 +131,7 @@ def step(number, title, does, creates="", extra=(), starter=(), signpost=""):
     return [code(*lines)]
 
 
-def embed(*objects, imports=(), why=""):
+def embed(*objects, imports: list[str] | tuple = (), why: str = "") -> list[dict]:
     """Render the real pipeline functions into the notebook, from the live source.
 
     Read straight out of scripts/ with `inspect.getsource`, so what the notebook shows
@@ -156,7 +158,7 @@ def embed(*objects, imports=(), why=""):
     return code(*("\n\n".join(blocks)).split("\n"))
 
 
-def lead(*lines):
+def lead(*lines: str) -> dict:
     """A markdown signpost immediately above a code cell: what we are about to do.
 
     Every code cell in these notebooks has one. A cell a student meets with no idea
@@ -165,7 +167,8 @@ def lead(*lines):
     return md(*lines)
 
 
-def source_cells(described, imports=()):
+def source_cells(described: list[tuple],
+                 imports: list[str] | tuple = ()) -> list[dict]:
     """One cell per embedded function, each with its own one-line signpost.
 
     `described` is a list of (object, sentence) pairs. Splitting them up matters: the
@@ -185,7 +188,7 @@ def source_cells(described, imports=()):
 MODULE_ALIAS = {"pandas": "pd", "numpy": "np"}
 
 
-def _preamble(objects):
+def _preamble(objects: tuple) -> list[str]:
     """The import lines a block of redefined functions needs to be able to run.
 
     A function defined in a notebook cell looks its globals up in the NOTEBOOK, not
@@ -236,7 +239,8 @@ def _preamble(objects):
     return lines
 
 
-def study_cells(what, described, check=None):
+def study_cells(what: str, described: list[tuple],
+                check: list[str] | None = None) -> list[dict]:
     """The functions a group has to defend, as runnable cells ABOVE their first use.
 
     These used to be rendered after the call that used them, as markdown, which put
@@ -254,7 +258,7 @@ def study_cells(what, described, check=None):
     cannot drift from what the rest of the pipeline runs.
 
     `described` is a list of (object, sentence) pairs; `check` is an optional one-line
-    cell - `show(sample)` - to confirm the definitions took.
+    cell - `help(sample)` - to confirm the definitions took.
     """
     objects = [obj for obj, _ in described]
     cells = [md(what),
@@ -266,13 +270,13 @@ def study_cells(what, described, check=None):
         cells.append(code(*inspect.getsource(obj).rstrip("\n").split("\n")))
     if check:
         cells.append(lead("Run this to check the definitions above took effect. It "
-                          "prints the file, the line and the source of the function "
-                          "the notebook will actually use."))
+                          "prints the first line of the function the notebook will "
+                          "actually use, and the description of each argument."))
         cells.append(code(check))
     return cells
 
 
-def read_me_md(what, points):
+def read_me_md(what: str, points: list[str]) -> dict:
     lines = ["### The code that does it — read it, then run it",
              "",
              what,
@@ -288,18 +292,23 @@ def read_me_md(what, points):
     return md(*lines)
 
 
-def spine(current):
-    """The five-notebook map, with the one you are in marked."""
+def spine(current: int) -> dict:
+    """The notebook map, with the one you are in marked.
+
+    Matched on the number in front of the first underscore, and matched WHOLE: "02"
+    must not also mark "02b_add_samples", which is what a startswith would do.
+    """
     parts = []
     for name in NOTEBOOKS:
-        if name.startswith(current):
+        if name.split("_")[0] == current:
             parts.append("▶ " + name)
         else:
             parts.append("  " + name)
     return "```\n" + "  →".join(parts) + "\n```"
 
 
-def title_cell(number, name, title, one_line, reads, writes, body):
+def title_cell(number: int, name: str, title: str, one_line: str, reads: str,
+               writes: str, body: list[str]) -> list[dict]:
     """Every notebook opens the same way: where am I, what do I read, what do I write."""
     lines = [
         "# " + number + " · " + title,
@@ -327,7 +336,7 @@ def title_cell(number, name, title, one_line, reads, writes, body):
 SETUP_MD = setup_md("save_json")
 
 
-def setup_cell(extra_imports=()):
+def setup_cell(extra_imports: list[str] | tuple = ()) -> list[dict]:
     return code(*setup_lines(extra_imports))
 
 
@@ -343,7 +352,7 @@ CONFIG_MD = md(
     "this cell.")
 
 
-def handoff_md(what, target, next_notebook, why):
+def handoff_md(what: str, target: str, next_notebook: str, why: str) -> dict:
     return md(
         "## Save it — this is the handoff",
         "",
@@ -398,8 +407,7 @@ cells = [
         "# they are imported. The sampling itself is a method you have to defend, so",
         "# it is not imported at all — you define it further down, in cells you can",
         "# read and change, just before the step that calls it.",
-        "# `show` prints the source of any of these: show(save_json)",
-        "from pipeline import load_gold, save_json, label_set, show",
+        "from pipeline import load_gold, save_json, label_set",
         "from annotate import create_annotation_sheet",
     ]),
     CONFIG_MD,
@@ -502,7 +510,10 @@ cells = [
           "you want per label. Out: up to that many of each. Step 1 sorts the pool "
           "into one bucket per label; step 2 takes up to `n_per_class` from each. A "
           "label with fewer than that gives all it has, which is why a rare class "
-          "comes back short — that is data, not a bug."),
+          "comes back short — that is data, not a bug. Step 3 gives the sample its own "
+          "ids, 1, 2, 3 …, and keeps the id each item had in the pool as `source_id`. "
+          "That second number is what lets `02b_add_samples.ipynb` add more items "
+          "later without drawing one you already have."),
          (pipeline.sample_random,
           "**`sample_random` — the corpus as it is.** In: the pool and one total. Out: "
           "that many items, drawn without looking at the labels at all, so the draw "
@@ -514,7 +525,7 @@ cells = [
           "four, and most of the length is the check it opens with: on a track whose "
           "items are loose sentences there are no documents to stratify by, so it "
           "stops and says so rather than inventing an answer.")],
-        check="show(sample)"),
+        check="help(sample)"),
     *step(
         2, "Draw your sample",
         ["Draws the sample using whichever of the three strategies you name, and prints",
@@ -743,8 +754,7 @@ cells_03 = [
         "# The Google Sheets round trip is plumbing, so it is imported. The judgment it",
         "# exists to support is not in any of these files. The dev/test split is not",
         "# imported either — you define it further down, just before you use it.",
-        "# `show` prints the source of any of these: show(save_json)",
-        "from pipeline import load_gold, label_set, save_json, show",
+        "from pipeline import load_gold, label_set, save_json",
         "from annotate import (remembered_sheet, load_coder_sheets, to_canonical,",
         "                      annotator_agreement, disagreements,",
         "                      compare_to_published)",
@@ -990,7 +1000,7 @@ cells_03 = [
           "type of the number carries the decision, which is why one `dev:` setting "
           "can mean two things and there is no second config key to keep consistent "
           "with the first.")],
-        check="show(split_dev_test)"),
+        check="help(split_dev_test)"),
     *step(
         4, "Split dev / test",
         ["Splits your gold set in two, keeping every label on both sides wherever the",
@@ -1080,9 +1090,8 @@ cells_04 = [
     setup_cell([
         "",
         "# Files in, files out, and the connection to the model: all plumbing.",
-        "# `show` prints the source of any of these: show(save_json)",
         "from pipeline import (load_gold, label_set, load_prompt, save_json,",
-        "                      load_predictions, setup, freeze_test_run, show)",
+        "                      load_predictions, setup, freeze_test_run)",
         "",
         "# Asking the model and scoring the answers is what this notebook is FOR, so",
         "# those five functions are not imported here at all. You define them yourself,",
@@ -1229,7 +1238,7 @@ cells_04 = [
           "adds a weighted κ, which counts a near miss as a smaller error than a far "
           "one — use it only if your labels sit on a scale, and pass "
           "`labels=LABELS_ORDER` so it knows what that scale is.")],
-        check="show(run_prompt)"),
+        check="help(run_prompt)"),
     md("### Now send it to the model",
        "",
        "This is the slow cell: one API call per dev item, paced a few seconds apart to "
@@ -1455,10 +1464,9 @@ cells_05 = [
     setup_cell([
         "",
         "# Loading files is plumbing.",
-        "# `show` prints the source of any of these: show(save_json)",
         "from pipeline import (load_gold, load_predictions, load_json, save_json,",
         "                      export_results, read_test_log, triage_category,",
-        "                      TRIAGE_CATEGORIES, show)",
+        "                      TRIAGE_CATEGORIES)",
         "",
         "# Scoring and the error table you defined and read in notebook 04, so here",
         "# they are just imported. The two functions that turn those errors into an",
@@ -1538,7 +1546,7 @@ cells_05 = [
           "dictionary and the error table. Out: how many errors you put in each "
           "category, and how much of the error set you have actually been through. "
           "\"We looked at 3 of 40\" and \"we looked at all 12\" are different claims.")],
-        check="show(errors_on_disagreed)"),
+        check="help(errors_on_disagreed)"),
     md(
         "## Step 2 — The headline number",
         "",
@@ -1766,7 +1774,7 @@ cells_05 = [
 
 
 # ==================================================================================
-def write(name, cells):
+def write(name: str, cells: list[dict]) -> None:
     notebook = {
         "cells": cells,
         "metadata": {
@@ -1786,7 +1794,280 @@ def write(name, cells):
     print("wrote", name, "(" + str(len(cells)), "cells,", blank_cells, "blank)")
 
 
+# ==================================================================================
+# 02b — add more items to a sample you have already started annotating
+# ==================================================================================
+cells_02b = [
+    title_cell(
+        "02b", "02b_add_samples", "Add more items to the sample you already have",
+        "More annotated items is more evidence — drawn without repeating what you have.",
+        "`data/pools/<track>_pool.json`, `data/gold/<track>_<group>_sample.json`, "
+        "and the sheet link from 02",
+        "the same `_sample.json`, enlarged, and new rows in the sheet you are "
+        "already annotating in",
+        ["**Open this only if you have time left over**, and only once the first draw "
+         "is annotated or nearly so. It does not replace `02_sample.ipynb` and it does "
+         "not make a second sheet — it adds rows to the bottom of the one your group is "
+         "already working in.",
+         "",
+         "Nothing already in the sheet is renumbered, moved or overwritten. The new "
+         "items get ids that carry on from the highest one you have.",
+         "",
+         "**One person runs this.** Everyone else can keep annotating in the sheet "
+         "while it runs; the new rows appear below the ones they are working on.",
+         "",
+         "> If you moved columns around in the sheet, or added your own, that is fine — "
+         "every column is found by the name in row 1. What is not fine is renaming "
+         "`ID`, `Text`, `Label` or `Note`: notebook 03 needs those names too."]),
+    md(*SETUP_MD),
+    setup_cell([
+        "",
+        "# Same split as notebook 02: reading and writing files is plumbing, so it is",
+        "# imported, and the sampling you have to defend is defined further down.",
+        "from pipeline import load_gold, save_json, label_set",
+        "from annotate import (append_to_annotation_sheet, remembered_sheet,",
+        "                      tab_names, load_coder_sheets)",
+    ]),
+    CONFIG_MD,
+    md(
+        "## What a second draw does, and what it does not",
+        "",
+        "More annotated items is more evidence: your F1 rests on a bigger sample and "
+        "your agreement number gets steadier. That is real, and it is why this notebook "
+        "exists.",
+        "",
+        "Be careful about one thing when you write it up. Your gold set was now built "
+        "in **two draws**, and they are only one sample of the pool if you drew them the "
+        "same way, for the same reason. So:",
+        "",
+        "- **Same strategy, more items.** Say how many you drew in each round and why "
+        "you stopped where you did. This is the simple case.",
+        "- **A different strategy the second time.** That is a two-stage design, and "
+        "your report has to describe it as one. It is a legitimate choice — starting "
+        "balanced and topping up by document is a real thing to want — but it is not "
+        "something to leave for the reader to notice from the counts.",
+        "",
+        "Either way, both rounds go in `PLAN.md`: strategy, size, seed, and the reason.",
+        "",
+        "> **A label that has run out.** If the pool has no items left under some label, "
+        "a balanced top-up simply will not contain it and your combined sample stops "
+        "being balanced. The cells below say so when it happens. That belongs in your "
+        "limitations — do not switch strategy to hide it."),
+    lead("First we open the pool and the sample you already have. Both come off disk: "
+         "the session that drew the first sample is long gone, and this is what it left "
+         "behind."),
+    code("pool = load_gold(POOL_PATH)",
+         "sampled = load_gold(SAMPLE_PATH)",
+         "",
+         "highest = 0",
+         "for item in sampled:",
+         '    highest = max(highest, int(item["id"]))',
+         "",
+         'print("pool:", len(pool), "items")',
+         'print("already sampled:", len(sampled), "items, ids 1 to", highest)'),
+    lead("Now we find the sheet your group has been annotating in, and list its tabs. "
+         "Read that list before going on: the new rows are added to exactly these tabs, "
+         "and a coder whose tab is not named in `CODERS` in `config.yaml` would not get "
+         "them."),
+    code("SHEET_ID = remembered_sheet(SHEET_PATH)",
+         'print("sheet:", SHEET_ID)',
+         'print("tabs in it:", tab_names(SHEET_ID))',
+         'print("tabs the new rows will go in:", list(CODERS), "+ Final")'),
+    *study_cells(
+        "## The code that draws the extra items — read it, then run it\n\n"
+        "Two functions. Neither draws anything new by itself: the actual drawing is "
+        "done by the same `sample` you read and ran in notebook 02, over a smaller "
+        "pool.\n\n"
+        "Run `help(sample)` if you want the three strategies again — they have not "
+        "changed. To read the code itself, open `scripts/pipeline.py` from the "
+        "**Files** panel on the left.",
+        [(pipeline.remaining_pool,
+          "**`remaining_pool`** is the answer to *which items have we already got?* — "
+          "which is harder than it sounds, because the ids in your sample file are 1, "
+          "2, 3 … and the ids in the pool are not. It matches on `source_id`, the id "
+          "each item had in the pool, and on the text as well. An item that matches "
+          "either is left out, so nothing you have annotated can be drawn twice."),
+         (pipeline.sample_more,
+          "**`sample_more`** is the one you call. In: the pool, the items you already "
+          "have, and the same three arguments as notebook 02. Out: **only the new "
+          "items**, numbered on from your highest id. Step 3 is one call to the same "
+          "`sample` you already read; the rest is checking. Step 5 refuses outright if "
+          "any new item repeats an id, a `source_id` or a text you already have — two "
+          "rows sharing an id are merged into one when the sheet is read back, which "
+          "would cost you annotation you had already done.")],
+        check="help(sample_more)"),
+    md("### Choose a strategy again — the same decision as notebook 02",
+       "",
+       "| strategy | what it draws | what it means the second time |",
+       "|---|---|---|",
+       "| `balanced` | up to `n` more of **each** label | keeps the combined sample "
+       "level, as long as no label has run out |",
+       "| `random` | the same total, ignoring labels | keeps the pool's own imbalance; "
+       "the top-up looks like the corpus |",
+       "| `by_document` | whole passages (`cars50` · `raamove`) | new documents, so the "
+       "combined sample covers more texts |",
+       "",
+       "Use a **different seed** from your first draw. Both go in the report: a sample "
+       "nobody can redraw is a sample nobody can check, and there are two draws to "
+       "redraw now.",
+       "",
+       "Write the second strategy and the reason in `PLAN.md` §5, beside the first — "
+       "**even if it is the same word.** \"We drew 20 more the same way, because we had "
+       "time and wanted a steadier κ\" is a complete answer; leaving the section as it "
+       "was is not, because it now describes half of what you did."),
+    *step(
+        1, "Draw the extra items",
+        ["Draws more items from the part of the pool you have not already sampled, and",
+         "numbers them on from your highest id. Nothing is written yet."],
+        "extra",
+        signpost="This cell only draws. Nothing reaches the sheet or the disk until the "
+                 "steps below, so run it, read the counts, and run it again with "
+                 "different numbers if you do not like them.",
+        starter=[
+            "# The same one-word choice as notebook 02, made again.",
+            'STRATEGY = "balanced"     # "balanced" · "random" · "by_document"',
+            "N_MORE = 5                # how many MORE per label",
+            "",
+            "# A different seed from your first draw. Record both in the report.",
+            "extra = sample_more(pool, sampled, STRATEGY, N_MORE, SEED + 1)",
+        ]),
+    md("### Check the draw before it touches anything",
+       "",
+       "The same three questions as notebook 02, asked of the combined sample this "
+       "time. If the counts are not what you wanted, change the numbers above and run "
+       "that cell again — nothing has been written yet."),
+    *step(
+        2, "Check what you drew",
+        ["Prints the per-label counts of the new items, the ones you already had, and",
+         "the two together. Nothing new is named — this is a check."],
+        starter=[
+            "def count_labels(items):",
+            "    counts = {}",
+            "    for item in items:",
+            '        label = item["label"]',
+            "        if label not in counts:",
+            "            counts[label] = 0",
+            "        counts[label] = counts[label] + 1",
+            "    return counts",
+            "",
+            'print("you had: ", count_labels(sampled))',
+            'print("adding:  ", count_labels(extra))',
+            'print("total:   ", count_labels(sampled + extra))',
+            'print("left over for few-shot examples:",',
+            "      len(pool) - len(sampled) - len(extra))",
+        ]),
+    md(
+        "## Now write it down — sheet first, file second",
+        "",
+        "The next three cells do the writing, and the order matters.",
+        "",
+        "1. **Keep a copy** of the sample as it is now, so a top-up that goes wrong can "
+        "be undone.",
+        "2. **Add the rows to the sheet.** Every tab is checked first, and if any tab "
+        "cannot be written to safely then *no* tab is written to — you get the rows "
+        "printed out to paste in by hand instead.",
+        "3. **Save the enlarged sample file.**",
+        "",
+        "The sheet goes before the file on purpose. If the sheet write fails, nothing "
+        "on disk has changed and you can simply run these cells again. If it succeeds "
+        "and the file save then fails, the two disagree — but notebook 03 *tells you* "
+        "so, because it matches the sheet's rows against this file by id. The other "
+        "order would leave you with a file claiming rows the sheet never got, which "
+        "shows up as rows that stay blank forever and nothing saying why."),
+    *step(
+        3, "Keep a copy of the sample as it is",
+        ["Writes the sample as it stands now to a second file, before step 5 replaces",
+         "the original. This also refuses if you have run this notebook before."],
+        starter=[
+            "save_json(sampled, SAMPLE_BEFORE_TOPUP_PATH,",
+            '          what="the sample before the top-up")',
+        ]),
+    lead("If that cell refused, you have run this notebook before. Do not pass "
+         "`overwrite=True` to get past it without checking — read the sheet first and "
+         "work out whether the rows are already in there. Adding them twice is much "
+         "harder to undo than working out what happened."),
+    *step(
+        4, "Add the rows to the sheet",
+        ["Adds one row per new item to the bottom of every coder tab and the Final tab.",
+         "Checks every tab first: if any of them fails, nothing is written anywhere."],
+        starter=[
+            "append_to_annotation_sheet(SHEET_ID, extra,",
+            "                           coders=CODERS,",
+            "                           # catches a sheet that has drifted from the file",
+            "                           expected_rows=len(sampled))",
+        ]),
+    *step(
+        5, "Save the enlarged sample",
+        ["Replaces the sample file with the old items plus the new ones.",
+         "Overwriting is deliberate here — step 3 kept the copy."],
+        "sampled_all",
+        signpost="The rows are in the sheet, so now the file has to match them. This is "
+                 "the one cell in the project that overwrites a file you already have, "
+                 "and it is why step 3 kept a copy first.",
+        starter=[
+            "sampled_all = sampled + extra",
+            "save_json(sampled_all, SAMPLE_PATH, what=\"sampled items\",",
+            "          overwrite=True)   # step 3 kept the old one",
+        ]),
+    md("### Check the sheet and the file agree",
+       "",
+       "This reads both back and compares them. It is the one check that the file "
+       "notebook 03 will work from holds the same items as the sheet you are annotating "
+       "in.",
+       "",
+       "A ✗ on the last line is the serious one: two rows sharing an id are merged into "
+       "one when the sheet is read back, so it would quietly cost you annotation."),
+    *step(
+        6, "Read both back and compare",
+        ["Reads the sheet and the sample file off disk and checks they hold the same",
+         "ids. Prints a ✓ or a ✗ per check. Nothing new is named — this is a check."],
+        starter=[
+            "rows = load_coder_sheets(SHEET_ID, CODERS)",
+            "on_disk = load_gold(SAMPLE_PATH)",
+            "",
+            "sheet_ids = []",
+            "for row in rows:",
+            '    sheet_ids.append(int(row["ID"]))',
+            "file_ids = []",
+            "for item in on_disk:",
+            '    file_ids.append(int(item["id"]))',
+            "",
+            "def tick(passed):",
+            '    return "✓" if passed else "✗"',
+            "",
+            'print(tick(len(sheet_ids) == len(file_ids)),',
+            '      "sheet has", len(sheet_ids), "rows · file has", len(file_ids))',
+            'print(tick(set(sheet_ids) == set(file_ids)),',
+            '      "the sheet and the file hold the same ids")',
+            'print(tick(len(sheet_ids) == len(set(sheet_ids))),',
+            '      "no id appears twice in the sheet")',
+        ]),
+    md(
+        "---",
+        "",
+        "## 🛑 This notebook is finished. Go and annotate the new rows.",
+        "",
+        "- **Annotate the new rows only.** Everything above them is already done.",
+        "- **Spell the labels the same way** as the first round. `to_canonical` will "
+        "tell you about a typo, but a label spelled two ways is two labels until then.",
+        "- **Check the drop-down reached the new rows.** If your `Label` column has one, "
+        "click a `Label` cell in a new row. Google Sheets does not always carry a "
+        "drop-down down to rows added later; if it is missing, copy a `Label` cell from "
+        "a row above and paste it over the new ones. Same for any colour rules you set "
+        "up.",
+        "- **Both coders again.** A row labelled by one person does not contribute to "
+        "agreement, and a gold set where half the items were double-coded and half were "
+        "not is one you have to explain.",
+        "",
+        "> **Do not run this notebook again**, and do not run `02_sample.ipynb` again "
+        "either. When the new rows are annotated, go back to `03_annotate.ipynb` — it "
+        "needs no changes at all, and picks up the enlarged sample and the same sheet.",
+        "",
+        "**Next:** `03_annotate.ipynb`, once the new rows are labelled too."),
+]
+
 write("02_sample.ipynb", cells)
+write("02b_add_samples.ipynb", cells_02b)
 write("03_annotate.ipynb", cells_03)
 write("04_prompt.ipynb", cells_04)
 write("05_report.ipynb", cells_05)

@@ -59,6 +59,73 @@ Prefer the fewest moving parts that work.
 When in doubt, cut it. A student who reads a short file and understands it is further
 along than one protected by code they cannot read.
 
+## Signatures — type hints and docstrings
+
+Students call these functions from a notebook and cannot see the file. The signature and
+the docstring are the only description they get, so both are written for `Shift+Tab`.
+
+Every `def` in `config.py` and `scripts/*.py` carries a type hint on **every** parameter
+and on the return. Builtin generics, spelled out in full — no `typing` import, no
+aliases, no `Any`. `-> None` when the function only prints. The recurring shapes:
+
+| Thing | Hint |
+|--|--|
+| one item | `dict[str, str]` (`{"id", "text", "label"}`; id may be `int`) |
+| gold, a pool, a sample | `list[dict[str, str]]` |
+| predictions | `list[str]` — one label per gold item, in the same order |
+| a label list | `list[str]` |
+| a path | `str` |
+
+This is an addition to the functional-style rule above, not an exception to it: hints
+describe the data, they do not introduce classes, generics of our own, or protocols.
+
+Three things are left unannotated, because writing them costs an import and a concept
+without telling a student anything they can act on:
+
+- **A parameter that takes a function** (`generate_text=`, `check(description,
+  function)`) — would need `collections.abc.Callable`.
+- **A third-party object we only pass through** — a gspread worksheet, an ElementTree
+  element, sklearn's confusion matrix. Naming these means importing them for the
+  annotation alone, and guessing (`list[list[int]]` for a matrix) would be wrong.
+- **A value whose type depends on which key was asked for** — `_setting` reads
+  config.yaml, where `seed` is an int and `members` is a list.
+
+Their `Args:` and `Returns:` lines say what to pass and what comes back instead.
+
+Docstrings are Google style, so Colab renders a parameter list rather than one run-on
+paragraph. The existing plain second-person register stays as the summary and the
+"why / what goes wrong" paragraphs; the sections go below them:
+
+```python
+def sample_pool(pool: list[dict[str, str]],
+                n_per_class: int,
+                seed: int = 42) -> list[dict[str, str]]:
+    """Pick up to n_per_class items for EACH label, chosen at random.
+
+    Rare labels simply give fewer items - that is a property of the data.
+    The same seed always gives the same sample.
+
+    Args:
+        pool: items to draw from, each {"id", "text", "label"}.
+        n_per_class: how many to take per label.
+        seed: same seed gives the same draw; a different seed gives a different one.
+
+    Returns:
+        The drawn items, in pool order.
+
+    Example:
+        >>> sample = sample_pool(pool, 5)
+    """
+```
+
+Order: summary · blank line · existing prose · `Args:` · `Returns:` · `Raises:` (only
+where the function raises deliberately) · `Example:`. `Example:` is required on every
+helper listed on the pipeline cheat-sheet; private `_helpers` do not need one.
+
+**A hinting pass may not change a call form.** Hints must not move, rename, or add a
+parameter — see the call-form rule below. Run `python scripts/_check_call_forms.py`
+after touching any signature.
+
 ## Errors are teaching text
 
 Every message a student can actually hit must say three things: what happened, which file

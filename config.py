@@ -44,8 +44,18 @@ except yaml.YAMLError:
         "again.")
 
 
-def _setting(name):
-    """One setting out of config.yaml, or a message naming the line to go and add."""
+def _setting(name: str):
+    """One setting out of config.yaml, or a message naming the line to go and add.
+
+    Args:
+        name: the key to read.
+
+    Returns:
+        Whatever config.yaml has under that key.
+
+    Raises:
+        ValueError: when the key is not there.
+    """
     if name not in settings:
         # A ValueError, not a KeyError: KeyError prints its message as a quoted repr,
         # which turns these two lines into one unreadable string with a \n in it.
@@ -176,12 +186,24 @@ if IN_COLAB and not ON_DRIVE:
 # The pool is the one file with no group and no run in its name: it is the corpus as it
 # comes, the same for every group on the track, and it does not change as you iterate.
 # Everything downstream is your group's own work, so it carries both.
-def stem_for(track, group, run):
+def stem_for(track: str, group: str, run: str) -> str:
     """The front of every filename your group produces: track_group_run.
 
     One function, so that the name notebook 02 writes and the name notebook 05 looks
     for cannot drift apart. Anything that needs to build one of these filenames calls
     this rather than joining the three pieces itself.
+
+    Args:
+        track: which dataset track you are on.
+        group: your group's name.
+        run: which version of the study this is.
+
+    Returns:
+        The three joined with underscores.
+
+    Example:
+        >>> stem_for("cars50", "g1", "v1")
+        'cars50_g1_v1'
     """
     return str(track) + "_" + str(group) + "_" + str(run)
 
@@ -191,6 +213,13 @@ STEM = stem_for(TRACK, GROUP, RUN)
 POOL_PATH = ROOT / "data" / "pools" / (TRACK + "_pool.json")           # 01 writes
 SAMPLE_PATH = ROOT / "data" / "gold" / (STEM + "_sample.json")         # 02 writes
 GOLD_PATH = ROOT / "data" / "gold" / (STEM + "_gold.json")             # 03 writes
+
+# Notebook 02b adds more items to a sample you have already started annotating, which
+# means overwriting the file above. This is the copy of it from before that happened, so
+# a top-up that goes wrong can be undone. It is written with the usual refusal to
+# overwrite, which is also what stops 02b being run twice by accident.
+SAMPLE_BEFORE_TOPUP_PATH = (ROOT / "data" / "gold"
+                            / (STEM + "_sample_before_topup.json"))   # 02b writes
 
 # The two halves of that gold set. Both are gold — the same adjudicated items, with a
 # line drawn through them: dev is what notebook 04 iterates against, test is opened once
@@ -231,8 +260,16 @@ SHEET_PATH = ROOT / "data" / "gold" / (STEM + "_sheet.json")
 DEMO_POOL_PATH = ROOT / "data" / "pools" / (TRACK + "_demo_pool.json")
 
 
-def describe():
-    """Print the settings, so every notebook can show what it is working on."""
+def describe() -> None:
+    """Print the settings, so every notebook can show what it is working on.
+
+    Returns:
+        Nothing. It prints the track, group, run, seed, split, coders, labels and
+        the folder everything is written to.
+
+    Example:
+        >>> describe()
+    """
     print("track", TRACK, "· group", GROUP, "· run", RUN, "· seed", SEED,
           "· n_per_class", N_PER_CLASS)
     # Two per-class counts in one config file are easy to mix up, so print the split as

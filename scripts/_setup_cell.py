@@ -51,28 +51,33 @@ SETUP_MD_LINES = [
 ]
 
 
-def setup_md(show_example=None):
+def setup_md(show_example: str | None = None) -> dict:
     """The markdown above the SETUP cell.
 
     `show_example` names a function the notebook imports, and adds the paragraph on
-    reading a helper's source. Leave it off for a notebook that imports nothing from
+    reading a helper. Leave it off for a notebook that imports nothing from
     `scripts/` — a 01 notebook has the code it uses written out in front of it, so
-    there is nothing there for `show` to open.
+    there is nothing there to go and look up.
     """
     if show_example is None:
         return list(SETUP_MD_LINES)
     return SETUP_MD_LINES + [
         "",
         "**Looking inside a helper.** The functions this cell imports are defined in "
-        "`scripts/`. Colab cannot jump to a function's definition the way an editor "
-        "can, so to read one, call `show` on it — for example "
-        "`show(" + show_example + ")`. It prints the file, the line the function "
-        "starts on, and the code that runs. You can also open `scripts/pipeline.py` "
-        "yourself from the **Files** panel on the left.",
+        "`scripts/`. Two ways to read one, both the same ones you used on Day 2:",
+        "",
+        "- `help(" + show_example + ")` prints its first line — what to pass in and "
+        "what comes back — and the description of each argument. Typing "
+        "`" + show_example + "(` and pressing **Shift+Tab** shows the same thing in a "
+        "pop-up.",
+        "- To read the code itself, open `scripts/pipeline.py` from the **Files** "
+        "panel on the left. Colab lists the functions in that file down the side, so "
+        "you can click straight to the one you want.",
     ]
 
 
-def setup_lines(extra_imports=(), workdir=None):
+def setup_lines(extra_imports: list[str] | tuple = (),
+                workdir: str | None = None) -> list[str]:
     """The source of the SETUP cell.
 
     `extra_imports` are appended after `from config import *`.
@@ -148,6 +153,7 @@ def setup_lines(extra_imports=(), workdir=None):
         "from config import (TRACK, GROUP, RUN, SEED, N_PER_CLASS, DEV, CODERS,",
         "                    MEMBERS, LABELS_ORDER, ROOT, OUT_DIR,",
         "                    POOL_PATH, DEMO_POOL_PATH, SAMPLE_PATH, GOLD_PATH,",
+        "                    SAMPLE_BEFORE_TOPUP_PATH,",
         "                    DEV_PATH, TEST_PATH, DISAGREED_PATH, PRED_PATH,",
         "                    ROUNDS_PATH, TESTLOG_PATH,",
         "                    PROMPT_FILE, SHEET_PATH, TRIAGE_PATH, describe)",

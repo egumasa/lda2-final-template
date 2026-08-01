@@ -26,7 +26,6 @@ and sensible values are worked out automatically when they are left off.
 
 import datetime
 import hashlib
-import inspect
 import json
 import os
 import random
@@ -57,12 +56,18 @@ MODEL_ID = "gemini-3.1-flash-lite"
 # ----------------------------------------------------------------------------------
 # LLM backend
 # ----------------------------------------------------------------------------------
-def _looks_like_rate_limit(error):
+def _looks_like_rate_limit(error: Exception) -> bool:
     """True if an exception looks like a 'too many requests' / quota error.
 
     We match on the text rather than a specific exception class, so the SAME guard
     works for both backends (the Colab built-in Gemini and the Gemini API), which
     raise different exception types.
+
+    Args:
+        error: the exception the model call raised.
+
+    Returns:
+        True when the message names a rate limit or a quota.
     """
     text = str(error).lower()
     for signal in ["429", "resource_exhausted", "rate limit", "quota", "too many requests"]:
@@ -71,22 +76,35 @@ def _looks_like_rate_limit(error):
     return False
 
 
-def _looks_like_daily_quota(error):
+def _looks_like_daily_quota(error: Exception) -> bool:
     """True if the rate-limit error is the PER-DAY cap (not the per-minute one).
 
     A daily cap cannot be waited out in a single sitting, so retrying is pointless -
     we want to stop immediately and tell the user how to actually get unblocked.
     Gemini names the daily quota 'GenerateRequestsPerDay...' / 'PerDay' in the error.
+
+    Args:
+        error: the exception the model call raised.
+
+    Returns:
+        True when the message names a per-day limit.
     """
     text = str(error).lower()
     return "perday" in text or "per day" in text or "requests_per_day" in text
 
 
-def _suggested_delay(error, fallback):
+def _suggested_delay(error: Exception, fallback: float) -> float:
     """Pull the server's own 'please retry in Ns' hint out of the error, if present.
 
     Gemini includes a RetryInfo like 'Please retry in 7.17s.' - honoring it is more
-    accurate than a guessed backoff. Falls back to `fallback` seconds when absent.
+    accurate than a guessed backoff.
+
+    Args:
+        error: the exception the model call raised.
+        fallback: seconds to wait when the error names no delay.
+
+    Returns:
+        Seconds to wait before trying again.
     """
     match = re.search(r"retry in ([0-9]+(?:\.[0-9]+)?)s", str(error).lower())
     if match:
@@ -107,7 +125,7 @@ _MIN_INTERVAL = 4.4       # seconds to leave between calls
 _LAST_CALL_TIME = 0.0     # when the last call went out (time.monotonic)
 
 
-def _wait_our_turn():
+def _wait_our_turn() -> None:
     """Sleep until at least _MIN_INTERVAL seconds have passed since the last call."""
     global _LAST_CALL_TIME
     wait = _MIN_INTERVAL - (time.monotonic() - _LAST_CALL_TIME)
@@ -116,7 +134,7 @@ def _wait_our_turn():
     _LAST_CALL_TIME = time.monotonic()
 
 
-def generate_text(prompt):
+def generate_text(prompt: str) -> str:
     """Send one prompt to the model and return its text reply.
 
     Three guards, in order:
@@ -125,6 +143,18 @@ def generate_text(prompt):
          suggests, when it gives one) and try again a few times
       3) on a PER-DAY quota error, stop at once - retrying cannot help today - and say
          how to get unblocked.
+
+    Args:
+        prompt: the text to send to the model.
+
+    Returns:
+        The model's reply, as text.
+
+    Raises:
+        RuntimeError: when the daily quota is exhausted, or after the last retry.
+
+    Example:
+        >>> reply = generate_text("Label this sentence: I like cats.")
     """
     max_retries = int(os.environ.get("LLM_MAX_RETRIES", "5"))
     for attempt in range(max_retries + 1):
@@ -159,12 +189,15 @@ def generate_text(prompt):
             time.sleep(backoff)
 
 
-def _resolve_gemini_key():
+def _resolve_gemini_key() -> str | None:
     """Find a Gemini API key: Colab Secrets first, then the environment.
 
     The Colab Secrets panel (the little key icon in the sidebar) is where Day 3 tells
     you to put your key - but Colab does NOT copy secrets into the environment, so we
     have to ask for it explicitly. That is the only reason this function exists.
+
+    Returns:
+        The key, or None when neither place has one.
     """
     try:
         from google.colab import userdata      # only exists inside Colab
@@ -181,12 +214,18 @@ def _resolve_gemini_key():
 _MODEL_IN_USE = ""
 
 
-def _connect_to_gemini_api(key):
-    """Set up the API-key connection. Returns the model id we will be using.
+def _connect_to_gemini_api(key: str) -> str:
+    """Set up the API-key connection.
 
     temperature=0 + a fixed seed = the same prompt gives the same answer every run.
     That is what "reproducible" means in practice, and it is the whole reason we prefer
     the key path over Colab's built-in model.
+
+    Args:
+        key: your Gemini API key.
+
+    Returns:
+        The model id the connection will use.
     """
     global _GENAI_CLIENT, _GENAI_CONFIG
     from google import genai
@@ -200,21 +239,21 @@ _GENAI_CLIENT = None
 _GENAI_CONFIG = None
 
 
-def _call_gemini_api(prompt):
+def _call_gemini_api(prompt: str) -> str:
     """Send one prompt through the API-key connection."""
     response = _GENAI_CLIENT.models.generate_content(
         model=_MODEL_IN_USE, contents=prompt, config=_GENAI_CONFIG)
     return response.text
 
 
-def _call_colab_gemini(prompt):
+def _call_colab_gemini(prompt: str) -> str:
     """Send one prompt through Colab's built-in, keyless Gemini."""
     from google.colab import ai
     return ai.generate_text(prompt)
 
 
-def make_backend():
-    """Connect to the model. Returns (generate_text, backend_name).
+def make_backend() -> tuple:
+    """Connect to the model.
 
     We prefer an API KEY, because the API lets us pin temperature=0 and a fixed seed,
     which is what makes a run reproducible. Colab's keyless built-in Gemini is only a
@@ -225,6 +264,12 @@ def make_backend():
     Safe to call more than once: after the first time it just hands back the connection
     it already made, so re-running the SETUP cell does not reset the pacing clock and
     let a burst of calls through.
+
+    Returns:
+        Two things: the generate_text function, and the name of what we connected to.
+
+    Raises:
+        RuntimeError: when there is no key and no Colab built-in model.
     """
     global _CALL_MODEL, _BACKEND_NAME, _MIN_INTERVAL, _MODEL_IN_USE
     if _CALL_MODEL is not None:
@@ -267,14 +312,28 @@ def make_backend():
     )
 
 
-def setup():
-    """Connect to the model and say what we connected to. Run this once, at the top."""
+def setup() -> None:
+    """Connect to the model and say what we connected to. Run this once, at the top.
+
+    Returns:
+        Nothing. It prints the name of the backend it connected to.
+
+    Example:
+        >>> setup()
+    """
     _, backend_name = make_backend()
     print("LLM backend:", backend_name)
 
 
-def model_in_use():
-    """The model id the current connection is using, for the test log."""
+def model_in_use() -> str:
+    """The model id the current connection is using, for the test log.
+
+    Returns:
+        The model id, or the pinned default when nothing is connected yet.
+
+    Example:
+        >>> model_in_use()
+    """
     if not _MODEL_IN_USE:
         return MODEL_ID
     return _MODEL_IN_USE
@@ -284,6 +343,9 @@ def _default_backend():
     """The function that sends a prompt, for when a caller did not pass one in.
 
     This is generate_text - the paced, retrying one - never the raw connection.
+
+    Returns:
+        The function to call with a prompt.
     """
     sender, _ = make_backend()
     return sender
@@ -292,8 +354,23 @@ def _default_backend():
 # ----------------------------------------------------------------------------------
 # Reading data
 # ----------------------------------------------------------------------------------
-def load_gold(url_or_path):
-    """Read a gold/pool file. Each item looks like {"id": 1, "text": "...", "label": "..."}."""
+def load_gold(url_or_path: str) -> list[dict[str, str]]:
+    """Read a gold/pool file. Each item looks like {"id": 1, "text": "...", "label": "..."}.
+
+    Args:
+        url_or_path: a web address, or the path to a file on this machine.
+
+    Returns:
+        The items, each with "id", "text" and "label".
+
+    Raises:
+        FileNotFoundError: when the file is not there. The message says which
+            notebook writes it.
+        ValueError: when the file opened but has nothing in it.
+
+    Example:
+        >>> gold = load_gold(GOLD_PATH)
+    """
     # If the location is a web address, download it; otherwise open a local file.
     if str(url_or_path).startswith("http"):
         raw_bytes = urllib.request.urlopen(url_or_path).read()
@@ -333,13 +410,22 @@ def load_gold(url_or_path):
     return gold
 
 
-def load_prompt(path):
+def load_prompt(path: str) -> str:
     """Read a prompt template from a text file in the prompts/ folder.
 
     Keeping the prompt in its own file (instead of pasting it into the notebook)
     means you iterate by editing the file — and each version is easy to save and
-    compare. The file must contain the placeholder {text}, where each sentence
-    is slotted in.
+    compare.
+
+    Args:
+        path: the prompt file to read. It must contain the placeholder {text},
+            where each sentence is slotted in.
+
+    Returns:
+        The prompt text, with leading and trailing blank space removed.
+
+    Example:
+        >>> prompt = load_prompt(PROMPT_FILE)
     """
     prompt = Path(path).read_text(encoding="utf-8").strip()
     if "{text}" not in prompt:
@@ -356,8 +442,17 @@ def load_prompt(path):
 # check existed it silently replaced whatever was already in the file. A gold set is a
 # morning of two people's annotation; nothing warned you it had gone. So every save in
 # this file stops instead, and tells you the two ways forward.
-def _refuse_to_overwrite(path, overwrite, what):
-    """Stop rather than replace a file that already exists."""
+def _refuse_to_overwrite(path: Path, overwrite: bool, what: str) -> None:
+    """Stop rather than replace a file that already exists.
+
+    Args:
+        path: the file about to be written.
+        overwrite: True to allow the replacement and do nothing here.
+        what: the word for the contents, used in the message ("predictions").
+
+    Raises:
+        FileExistsError: when the file is there and overwrite is False.
+    """
     if overwrite:
         return None
     if not path.exists():
@@ -381,12 +476,20 @@ def _refuse_to_overwrite(path, overwrite, what):
     )
 
 
-def _refuse_to_load_missing(path, what, made_by):
+def _refuse_to_load_missing(path: str | Path, what: str, made_by: str) -> None:
     """Explain a missing handoff file: which notebook makes it, and what to do.
 
     Notebooks 04 and 05 read files that an EARLIER notebook wrote. Arriving at 05
     without having finished 04 is the ordinary way to meet this, and a bare
     FileNotFoundError pointing into open() does not say that.
+
+    Args:
+        path: the file about to be read.
+        what: the word for the contents ("frozen predictions").
+        made_by: which notebook writes it ("notebook 04_prompt").
+
+    Raises:
+        FileNotFoundError: when the file is not there.
     """
     if Path(path).exists():
         return
@@ -405,8 +508,16 @@ def _refuse_to_load_missing(path, what, made_by):
     )
 
 
-def _describe_contents(path, what):
-    """Say what is in a file, for the message above - how many items, or how big."""
+def _describe_contents(path: Path, what: str) -> str:
+    """Say what is in a file, for the message above - how many items, or how big.
+
+    Args:
+        path: the file to look at.
+        what: the word for the contents ("predictions").
+
+    Returns:
+        A short phrase like "40 predictions", or a byte count when it is not JSON.
+    """
     try:
         existing = json.loads(path.read_text(encoding="utf-8"))
         return str(len(existing)) + " " + what
@@ -423,8 +534,26 @@ def _describe_contents(path, what):
 # your evaluation off that file. Your reported numbers then hold still, and anyone
 # (including whoever grades it) can re-run your analysis on exactly the outputs you
 # saw. In Day 2 you loaded a frozen file we made for you; now you make your own.
-def save_predictions(predictions, path, overwrite=False):
-    """Write a list of predicted labels to a JSON file - this is 'freezing' a run."""
+def save_predictions(predictions: list[str],
+                     path: str | Path,
+                     overwrite: bool = False) -> Path:
+    """Write a list of predicted labels to a JSON file - this is 'freezing' a run.
+
+    Args:
+        predictions: one predicted label per gold item, in gold order.
+        path: where to write the file.
+        overwrite: True to replace a file that is already there. Left False, an
+            existing file stops the save instead.
+
+    Returns:
+        The path it wrote.
+
+    Raises:
+        FileExistsError: when the file is there and overwrite is False.
+
+    Example:
+        >>> save_predictions(predictions, PRED_PATH)
+    """
     output_path = Path(path)
     _refuse_to_overwrite(output_path, overwrite, "predictions")
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -434,8 +563,18 @@ def save_predictions(predictions, path, overwrite=False):
     return output_path
 
 
-def load_predictions(url_or_path):
-    """Read a frozen predictions list back - a local path or a URL."""
+def load_predictions(url_or_path: str | Path) -> list[str]:
+    """Read a frozen predictions list back - a local path or a URL.
+
+    Args:
+        url_or_path: a web address, or the path to a file on this machine.
+
+    Returns:
+        One predicted label per gold item, in gold order.
+
+    Example:
+        >>> predictions = load_predictions(PRED_PATH)
+    """
     if str(url_or_path).startswith("http"):
         raw_bytes = urllib.request.urlopen(url_or_path).read()
         predictions = json.loads(raw_bytes.decode("utf-8"))
@@ -461,11 +600,24 @@ def load_predictions(url_or_path):
 # So instead: nothing is overwritten, every attempt is kept, and every scoring writes a
 # line to a log that goes in your submission. A second attempt is allowed. It is just
 # not invisible.
-def save_test_run(predictions, path, overwrite=False):
-    """Freeze a run on the TEST set. Returns (path_written, attempt_number).
+def save_test_run(predictions: list[str],
+                  path: str | Path,
+                  overwrite: bool = False) -> tuple:
+    """Freeze a run on the TEST set.
 
     First call writes the path you gave it. A second call does not replace that file -
     it writes ..._predictions_attempt2.json beside it, and says so.
+
+    Args:
+        predictions: one predicted label per test item, in test order.
+        path: where to write the first attempt.
+        overwrite: True to replace the first attempt rather than write a new one.
+
+    Returns:
+        Two things: the path it wrote, and which attempt number this was.
+
+    Example:
+        >>> path, attempt = save_test_run(predictions, TEST_PRED_PATH)
     """
     first_path = Path(path)
     first_path.parent.mkdir(parents=True, exist_ok=True)
@@ -494,8 +646,15 @@ def save_test_run(predictions, path, overwrite=False):
     return output_path, attempt
 
 
-def _next_attempt_number(first_path):
-    """Find the lowest attempt number that is not on disk yet."""
+def _next_attempt_number(first_path: Path) -> int:
+    """Find the lowest attempt number that is not on disk yet.
+
+    Args:
+        first_path: the path the first attempt was written to.
+
+    Returns:
+        The number to give the next attempt.
+    """
     highest = 1
     pattern = first_path.stem + "_attempt*" + first_path.suffix
     for existing in first_path.parent.glob(pattern):
@@ -505,12 +664,19 @@ def _next_attempt_number(first_path):
     return highest + 1
 
 
-def log_test_run(log_path, record):
+def log_test_run(log_path: str | Path, record: dict) -> Path:
     """Append one record to the test log. Never refuses, never replaces.
 
     One JSON object per line (a .jsonl file), rather than one JSON list, because a list
     would have to be read and rewritten whole every time - and a rewrite interrupted
     halfway loses exactly the history this file exists to keep.
+
+    Args:
+        log_path: the .jsonl log file to append to.
+        record: what to write as one line.
+
+    Returns:
+        The path it appended to.
     """
     output_path = Path(log_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -521,8 +687,18 @@ def log_test_run(log_path, record):
     return output_path
 
 
-def read_test_log(log_path):
-    """Read the test log back as a table, oldest scoring first."""
+def read_test_log(log_path: str | Path) -> pd.DataFrame:
+    """Read the test log back as a table, oldest scoring first.
+
+    Args:
+        log_path: the .jsonl log file written by record_test_scoring.
+
+    Returns:
+        One row per scoring. An empty table when the log does not exist yet.
+
+    Example:
+        >>> read_test_log(TESTLOG_PATH)
+    """
     output_path = Path(log_path)
     if not output_path.exists():
         print("No test log at", str(output_path), "- notebook 04 writes it when you")
@@ -535,10 +711,35 @@ def read_test_log(log_path):
     return pd.DataFrame(records)
 
 
-def record_test_scoring(log_path, macro_f1, attempt, pred_path, prompt, prompt_file,
-                        gold_items, dev_f1=None, round_key="", note="",
-                        predictions=None):
-    """Write down one scoring of the held-out set, and print it back."""
+def record_test_scoring(log_path: str | Path,
+                        macro_f1: float,
+                        attempt: int,
+                        pred_path: str | Path,
+                        prompt: str,
+                        prompt_file: str | Path,
+                        gold_items: list[dict[str, str]],
+                        dev_f1: float | None = None,
+                        round_key: str = "",
+                        note: str = "",
+                        predictions: list[str] | None = None) -> dict:
+    """Write down one scoring of the held-out set, and print it back.
+
+    Args:
+        log_path: the .jsonl test log to append to.
+        macro_f1: the score this run got.
+        attempt: which test-scoring attempt this was.
+        pred_path: the frozen predictions file the score came from.
+        prompt: the prompt text, fingerprinted so two attempts can be told apart.
+        prompt_file: the file the prompt was read from.
+        gold_items: the held-out items, counted into the record.
+        dev_f1: the dev score, when you have one to compare against.
+        round_key: the name this round has in the rounds table.
+        note: why there was more than one attempt, in your own words.
+        predictions: the predicted labels, so "??" replies can be counted.
+
+    Returns:
+        The record it wrote.
+    """
     # How many replies no label could be read out of. A macro-F1 computed over a run
     # with eight "??" in it is a different claim from the same number with none.
     unparseable = 0
@@ -587,18 +788,49 @@ def record_test_scoring(log_path, macro_f1, attempt, pred_path, prompt, prompt_f
 #
 # The paths are passed in rather than read from config.yaml, so that this file stays
 # runnable on its own - _check_call_forms.py exercises it against synthetic data.
-def freeze_test_run(prompt, test, f1_by_round, pred_path, log_path, rounds_path,
-                    prompt_file, dev_f1=None, note="", ordered=False, labels=None,
-                    key="FINAL test (held out)", generate_text=None):
+def freeze_test_run(prompt: str,
+                    test: list[dict[str, str]],
+                    f1_by_round: dict[str, float],
+                    pred_path: str | Path,
+                    log_path: str | Path,
+                    rounds_path: str | Path,
+                    prompt_file: str | Path,
+                    dev_f1: float | None = None,
+                    note: str = "",
+                    ordered: bool = False,
+                    labels: list[str] | None = None,
+                    key: str = "FINAL test (held out)",
+                    generate_text=None) -> float:
     """Run `prompt` on the held-out set, freeze it, score it, and log the attempt.
 
-    Returns the macro-F1. `f1_by_round` is updated in place, with the test score added
-    LAST so the table reads as the dev rounds in order with the held-out score at the
-    bottom, and then written to `rounds_path` for notebook 05.
+    `f1_by_round` is updated in place, with the test score added LAST so the table
+    reads as the dev rounds in order with the held-out score at the bottom, and then
+    written to `rounds_path` for notebook 05.
 
-    `note` is not decoration. A second attempt with the SAME prompt is that prompt run
-    twice; a second attempt with a DIFFERENT one is a prompt tuned after seeing the
-    held-out set. Say which it was.
+    Args:
+        prompt: the final prompt, containing {text}.
+        test: the held-out items.
+        f1_by_round: your per-round scores. The test score is added to it in place.
+        pred_path: where to freeze the predictions.
+        log_path: the .jsonl test log to append to.
+        rounds_path: where to write the rounds table for notebook 05.
+        prompt_file: the file the prompt was read from.
+        dev_f1: the dev score, when you have one to compare against.
+        note: why there was more than one attempt. A second attempt with the SAME
+            prompt is that prompt run twice; with a DIFFERENT one it is a prompt
+            tuned after seeing the held-out set. Say which it was.
+        ordered: True when the labels sit on a scale.
+        labels: the labels to score, in scale order.
+        key: the name to give this round in the table.
+        generate_text: the function that sends a prompt. Left out, the connected
+            backend is used.
+
+    Returns:
+        The macro-F1 on the held-out set.
+
+    Example:
+        >>> freeze_test_run(prompt, test, f1_by_round, PRED_PATH, TESTLOG_PATH,
+        ...                 ROUNDS_PATH, PROMPT_FILE, dev_f1=dev_score)
     """
     from metrics import evaluate      # imported here: metrics imports this module
 
@@ -634,8 +866,26 @@ def freeze_test_run(prompt, test, f1_by_round, pred_path, log_path, rounds_path,
 # people's runtimes. Anything one of them produces and another needs has to go through
 # a FILE - a variable in someone else's Colab is not a handoff. These two do that for
 # any JSON-able thing: your sample, your gold set, your per-round F1 table.
-def save_json(data, path, what="items", overwrite=False):
-    """Write anything JSON-able to a file, making the folder if it is missing."""
+def save_json(data: list | dict, path: str | Path, what: str = "items",
+              overwrite: bool = False) -> Path:
+    """Write anything JSON-able to a file, making the folder if it is missing.
+
+    Args:
+        data: what to write - a list of items, or a dict of scores.
+        path: where to write it.
+        what: the word for the contents, used when printing and in the refusal
+            message ("items", "gold", "rounds").
+        overwrite: True to replace a file that is already there.
+
+    Returns:
+        The path it wrote.
+
+    Raises:
+        FileExistsError: when the file is there and overwrite is False.
+
+    Example:
+        >>> save_json(sample, SAMPLE_PATH, what="sampled items")
+    """
     output_path = Path(path)
     _refuse_to_overwrite(output_path, overwrite, what)
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -645,11 +895,24 @@ def save_json(data, path, what="items", overwrite=False):
     return output_path
 
 
-def load_json(path, what="items", made_by=None):
+def load_json(path: str | Path, what: str = "items",
+              made_by: str | None = None) -> list | dict:
     """Read back what save_json wrote.
 
-    `made_by` names the notebook that writes this file, so that a missing one says
-    where it comes from. Leave it off and the message stays general.
+    Args:
+        path: the file to read.
+        what: the word for the contents, used when printing.
+        made_by: which notebook writes this file, so a missing one says where it
+            comes from. Left out, the message stays general.
+
+    Returns:
+        Whatever was saved - a list of items, or a dict of scores.
+
+    Raises:
+        FileNotFoundError: when the file is not there.
+
+    Example:
+        >>> gold = load_json(GOLD_PATH, what="gold items", made_by="notebook 03")
     """
     if made_by is None:
         made_by = "an earlier notebook"
@@ -662,36 +925,39 @@ def load_json(path, what="items", made_by=None):
 
 
 # ----------------------------------------------------------------------------------
-# Looking inside a helper
-# ----------------------------------------------------------------------------------
-# The notebooks import their helpers from this folder, and Colab cannot jump to a
-# function's definition the way an editor can. This prints the code of any of them.
-def show(func):
-    """Print the source of a helper, read from the file it lives in.
-
-    Pass the function itself, not its name:
-
-        show(save_json)
-
-    It prints the file, the line the function starts on, and the code that runs.
-    Works for anything the notebooks import - pipeline, metrics or annotate.
-    """
-    source_file = inspect.getsourcefile(func)
-    lines, first_line = inspect.getsourcelines(func)
-    print(f"{source_file}:{first_line}")
-    print()
-    print("".join(lines).rstrip("\n"))
-
-
-# ----------------------------------------------------------------------------------
 # Sampling a balanced subset
 # ----------------------------------------------------------------------------------
-def reid(items):
-    """Give the items fresh id numbers 1, 2, 3, ... in their current order."""
+def reid(items: list[dict[str, str]],
+         start: int = 1) -> list[dict[str, str]]:
+    """Give the items fresh id numbers start, start+1, ... in their current order.
+
+    The id an item had in the POOL is kept as `source_id`. The sample gets its own ids
+    1, 2, 3 ... because they are what you read in the annotation sheet, but that
+    renumbering is also what would otherwise make it impossible to tell later which pool
+    rows you have already drawn. `source_id` is that link, and notebook 02b uses it to
+    draw items you do not have yet.
+
+    An item that already carries a `source_id` keeps the one it has. sample_more
+    renumbers items that have been through here once already, and overwriting would
+    replace the pool id with a sample position.
+
+    Args:
+        items: the items to renumber. They are copied, not changed in place.
+        start: the number to give the first item. Left alone for a first draw;
+            sample_more passes the number after the ids you already have.
+
+    Returns:
+        The same items with new ids, each carrying the id it came in with.
+
+    Example:
+        >>> items = reid(items)
+    """
     renumbered = []
-    next_id = 1
+    next_id = start
     for item in items:
         new_item = dict(item)          # make a copy so we do not change the original
+        if "source_id" not in new_item and "id" in new_item:
+            new_item["source_id"] = new_item["id"]
         new_item["id"] = next_id
         renumbered.append(new_item)
         next_id = next_id + 1
@@ -703,13 +969,32 @@ def reid(items):
 # 4 sentences each) that had nothing to do with n_per_class in config.yaml - so
 # choosing "random" or "by_document" silently made that setting dead. Here every
 # strategy is sized from the same setting, and the choice stays one word.
-def sample(pool, strategy, n_per_class, seed=42, n_per_doc=4):
+def sample(pool: list[dict[str, str]],
+           strategy: str,
+           n_per_class: int,
+           seed: int = 42,
+           n_per_doc: int = 4) -> list[dict[str, str]]:
     """Draw a sample using one of the three strategies, all sized from n_per_class.
 
-        "balanced"      up to n_per_class items of EACH label
-        "random"        the same TOTAL, drawn without regard to label
-        "by_document"   whole passages, enough of them to reach that total
-                        (cars50 and raamove only - other tracks have no documents)
+    Args:
+        pool: the items to draw from.
+        strategy: which draw to make.
+            "balanced" - up to n_per_class items of EACH label.
+            "random" - the same TOTAL, drawn without regard to label.
+            "by_document" - whole passages, enough to reach that total. cars50 and
+            raamove only; the other tracks have no documents.
+        n_per_class: how many items per label. Every strategy is sized from this.
+        seed: same seed gives the same draw; a different seed gives a different one.
+        n_per_doc: how many sentences to take from each document, for "by_document".
+
+    Returns:
+        The drawn items, renumbered from 1.
+
+    Raises:
+        ValueError: when strategy is not one of the three names.
+
+    Example:
+        >>> items = sample(pool, "balanced", N_PER_CLASS, seed=SEED)
     """
     n_labels = len(label_set(pool))
     n_total = n_per_class * n_labels
@@ -729,17 +1014,29 @@ def sample(pool, strategy, n_per_class, seed=42, n_per_doc=4):
         + repr(strategy) + ". Fix the line above and run this cell again.")
 
 
-def sample_pool(pool, n_per_class, seed=42):
+def sample_pool(pool: list[dict[str, str]],
+                n_per_class: int,
+                seed: int = 42) -> list[dict[str, str]]:
     """Pick up to n_per_class items for EACH label, chosen at random.
 
     Rare labels simply give fewer items - that is a property of the data.
-    The same seed always gives the same sample; a different seed gives a
-    different draw (so different groups can get different subsets).
 
     This is the BALANCED strategy: it forces the classes level so that per-class
     precision and recall are readable and the confusion matrix is not dominated by
     one huge class. The cost is that your sample no longer looks like the corpus.
     See sample_random and sample_by_document for the other two positions.
+
+    Args:
+        pool: the items to draw from, each {"id", "text", "label"}.
+        n_per_class: how many to take per label.
+        seed: same seed gives the same draw; a different seed gives a different one,
+            so different groups can get different subsets.
+
+    Returns:
+        The drawn items, shuffled and renumbered from 1.
+
+    Example:
+        >>> items = sample_pool(pool, N_PER_CLASS, seed=SEED)
     """
     random_generator = random.Random(seed)
 
@@ -771,12 +1068,22 @@ def sample_pool(pool, n_per_class, seed=42):
     return sampled
 
 
-def _report_draw(sampled, pool, what):
+def _report_draw(sampled: list[dict[str, str]],
+                 pool: list[dict[str, str]],
+                 what: str) -> None:
     """Print what a draw produced, and warn if it swallowed the pool.
 
     Shared by all three sampling strategies, so that whichever one a group picks,
     they see the same two things: the per-label counts their choice produced, and a
     warning if there is no pool left for build_fewshot to draw examples from.
+
+    Args:
+        sampled: the items that were drawn.
+        pool: the items they were drawn from.
+        what: how to describe the draw ("Sampled at random").
+
+    Returns:
+        Nothing. It prints the counts and any warning.
     """
     counts = {}
     for item in sampled:
@@ -794,7 +1101,9 @@ def _report_draw(sampled, pool, what):
         print("             python scripts/prep_datasets.py <track>")
 
 
-def sample_random(pool, n_total, seed=42):
+def sample_random(pool: list[dict[str, str]],
+                  n_total: int,
+                  seed: int = 42) -> list[dict[str, str]]:
     """Draw n_total items at random, ignoring the labels entirely.
 
     The corpus as it actually is: every item equally likely, so each label turns up
@@ -804,6 +1113,17 @@ def sample_random(pool, n_total, seed=42):
     and recall on a class of one mean very little.
 
     Compare sample_pool, which forces the classes level instead.
+
+    Args:
+        pool: the items to draw from. It is copied, not shuffled in place.
+        n_total: how many items to draw altogether.
+        seed: same seed gives the same draw.
+
+    Returns:
+        The drawn items, renumbered from 1.
+
+    Example:
+        >>> items = sample_random(pool, 40, seed=SEED)
     """
     random_generator = random.Random(seed)
 
@@ -817,15 +1137,31 @@ def sample_random(pool, n_total, seed=42):
     return sampled
 
 
-def sample_by_document(pool, n_docs, n_per_doc, seed=42):
+def sample_by_document(pool: list[dict[str, str]],
+                       n_docs: int,
+                       n_per_doc: int,
+                       seed: int = 42) -> list[dict[str, str]]:
     """Pick whole documents first, then sentences inside them.
 
     Forty sentences drawn from forty abstracts and forty sentences drawn from three
     are both "forty sentences", and they support very different claims. This strategy
     makes that choice explicit: n_docs documents, n_per_doc sentences from each.
 
-    Only the tracks whose items remember where they came from can do this - cars50,
-    cars50_step and raamove carry `doc_id`. On the others it stops and says so.
+    Args:
+        pool: the items to draw from. Every item must carry a "doc_id".
+        n_docs: how many documents to draw.
+        n_per_doc: how many sentences to take from each of them.
+        seed: same seed gives the same draw.
+
+    Returns:
+        The drawn items, renumbered from 1.
+
+    Raises:
+        ValueError: when any item has no doc_id. Only cars50, cars50_step and
+            raamove record which document a sentence came from.
+
+    Example:
+        >>> items = sample_by_document(pool, 10, 4, seed=SEED)
     """
     # Say it here, in terms of the track, rather than dying on a KeyError inside the
     # loop below - which would read as "the code is broken" rather than "this corpus
@@ -884,8 +1220,218 @@ def sample_by_document(pool, n_docs, n_per_doc, seed=42):
     return sampled
 
 
-def label_set(gold):
-    """Return the sorted list of labels that appear in a gold set."""
+# --- Drawing a SECOND time, into a sheet you are already annotating in --------------
+# Notebook 02b. Your first draw is annotated, there is time left, and more annotated
+# items is more evidence. The whole difficulty is that by then the session that drew the
+# first sample is gone, so the only record of what you already have is the sample file -
+# and the ids in it are 1..N, not the ids those items had in the pool. That is what
+# `source_id` is for.
+def remaining_pool(pool: list[dict[str, str]],
+                   sampled: list[dict[str, str]]) -> list[dict[str, str]]:
+    """The pool items you have NOT already drawn.
+
+    Matched two ways, and an item is excluded if EITHER matches:
+
+      source_id  the id the item had in the pool, recorded when it was drawn.
+      text       for samples drawn before source_id was recorded, and as a check on
+                 a pool that has been rebuilt with different ids since you drew.
+
+    Args:
+        pool: the full pool for your track.
+        sampled: the items you already have, read back from your sample file.
+
+    Returns:
+        The pool items that are in neither of those, in pool order.
+
+    Example:
+        >>> left = remaining_pool(pool, sampled)
+    """
+    taken_ids = set()
+    taken_texts = set()
+    without_source_id = 0
+    for item in sampled:
+        if "source_id" in item:
+            taken_ids.add(item["source_id"])
+        else:
+            without_source_id = without_source_id + 1
+        taken_texts.add(str(item["text"]))
+
+    remaining = []
+    for item in pool:
+        if item.get("id") in taken_ids:
+            continue
+        if str(item["text"]) in taken_texts:
+            continue
+        remaining.append(item)
+
+    excluded = len(pool) - len(remaining)
+    print("pool:", len(pool), "· already drawn:", len(sampled),
+          "· left to draw from:", len(remaining))
+
+    if without_source_id > 0:
+        print("NOTE:", without_source_id, "of your", len(sampled), "sampled items carry")
+        print("      no source_id, so they were matched to the pool by their text.")
+
+    # More pool rows excluded than you drew means the pool holds the same text twice.
+    # Nothing you have annotated can be drawn again, which is the direction you want,
+    # but it does take items out of reach - so say it rather than let the count puzzle
+    # someone later.
+    if excluded > len(sampled):
+        print("NOTE:", excluded, "pool items were excluded but you have only",
+              len(sampled), "sampled.")
+        print("      The pool holds some texts more than once, so the copies of what")
+        print("      you already drew were excluded too.")
+    return remaining
+
+
+def sample_more(pool: list[dict[str, str]],
+                sampled: list[dict[str, str]],
+                strategy: str,
+                n_per_class: int,
+                seed: int = 42,
+                n_per_doc: int = 4) -> list[dict[str, str]]:
+    """Draw MORE items, from the part of the pool you have not drawn yet.
+
+    The same three strategies as your first draw, sized the same way from n_per_class.
+    The choice is yours again and it needs the same one-sentence reason in PLAN.md -
+    and if you pick a different strategy this time, your gold set was built in two
+    stages and the report has to say so.
+
+    Args:
+        pool: the full pool for your track.
+        sampled: the items you already have, read back from your sample file.
+        strategy: "balanced", "random" or "by_document", as in notebook 02.
+        n_per_class: how many more items per label.
+        seed: use a different one from your first draw, and record both.
+        n_per_doc: how many sentences per document, for "by_document".
+
+    Returns:
+        Only the NEW items. Their ids carry on from the highest id you already have,
+        so nothing in your sheet is renumbered and no two rows share an id.
+
+    Raises:
+        ValueError: when `sampled` is empty, when the pool is used up, or when the
+            new items collide with the ones you already have.
+
+    Example:
+        >>> extra = sample_more(pool, sampled, "balanced", 5, seed=SEED + 1)
+    """
+    if not sampled:
+        raise ValueError(
+            "sample_more adds to a draw you already have, and the list you passed is "
+            "empty.\n"
+            "If this is your first draw, use 02_sample.ipynb instead. If it is not, "
+            "the sample file did not load - check the cell above.")
+
+    ### Step 1: what is left ###
+    remaining = remaining_pool(pool, sampled)
+    if not remaining:
+        raise ValueError(
+            "Every item in the pool is already in your sample, so there is nothing "
+            "left to add.\n"
+            "This is the end of what this track can give you. Say so in the report - "
+            "a sample that is the whole pool is a census, not a sample.")
+
+    ### Step 2: has a label run out? ###
+    # Worth saying BEFORE the draw. A balanced top-up simply will not contain that
+    # label, and a random one is sized from the labels that are left, so it comes out
+    # smaller than the same call on the full pool would have given.
+    gone = []
+    labels_left = label_set(remaining)
+    for label in label_set(pool):
+        if label not in labels_left:
+            gone.append(label)
+    if gone:
+        print("NOTE: no items left in the pool for:", ", ".join(gone))
+        print("      A balanced top-up will not contain them, and a random one is")
+        print("      sized from the", len(labels_left), "labels that are left.")
+        print("      Your combined sample stops being balanced. That belongs in the")
+        print("      limitations of your report, not in a change of strategy.")
+
+    ### Step 3: the same draw you made the first time, over what is left ###
+    extra = sample(remaining, strategy, n_per_class, seed, n_per_doc)
+
+    ### Step 4: ids that carry on from the ones you already have ###
+    # Not from 1. Two rows sharing an id are merged into one when the sheet is read
+    # back, so a restart here would quietly cost you half your annotation.
+    highest = 0
+    for item in sampled:
+        highest = max(highest, int(item["id"]))
+    extra = reid(extra, start=highest + 1)
+
+    ### Step 5: check the new items really are new ###
+    _refuse_overlapping_draw(extra, sampled)
+
+    last = extra[len(extra) - 1]["id"]
+    print("")
+    print("Adding", len(extra), "items, ids", str(extra[0]["id"]) + ".." + str(last) +
+          ". The", len(sampled), "you already have keep theirs.")
+    return extra
+
+
+def _refuse_overlapping_draw(extra: list[dict[str, str]],
+                             sampled: list[dict[str, str]]) -> None:
+    """Stop if a new item repeats an id, a source_id or a text you already have.
+
+    Any of the three means the new rows would not be new. An id clash costs you rows
+    when the sheet is read back; a source_id or text clash means two rows of the same
+    item, annotated twice.
+
+    Args:
+        extra: the newly drawn items.
+        sampled: the items you already have.
+
+    Returns:
+        Nothing. It raises if anything overlaps.
+
+    Raises:
+        ValueError: naming what clashed.
+    """
+    old_ids = set()
+    old_sources = set()
+    old_texts = set()
+    for item in sampled:
+        old_ids.add(int(item["id"]))
+        if "source_id" in item:
+            old_sources.add(item["source_id"])
+        old_texts.add(str(item["text"]))
+
+    clashing_ids = []
+    repeated = []
+    for item in extra:
+        if int(item["id"]) in old_ids:
+            clashing_ids.append(item["id"])
+        if item.get("source_id") in old_sources or str(item["text"]) in old_texts:
+            repeated.append(item["id"])
+
+    if clashing_ids:
+        raise ValueError(
+            "The new items would reuse ids you already have: "
+            + str(clashing_ids[:10]) + "\n"
+            "Two rows with the same id are merged into one when the sheet is read "
+            "back, so this would cost you annotation. Are the ids in your sample file "
+            "still 1, 2, 3 ...? Nothing was written.")
+    if repeated:
+        raise ValueError(
+            "These new items are ones you have already drawn: "
+            + str(repeated[:10]) + "\n"
+            "Usually this means the pool was rebuilt after your first draw, so the "
+            "source_ids no longer point at the same rows. Nothing was written - "
+            "check that data/pools/ still holds the pool you sampled from.")
+
+
+def label_set(gold: list[dict[str, str]]) -> list[str]:
+    """Return the sorted list of labels that appear in a gold set.
+
+    Args:
+        gold: the items to look through, each with a "label" key.
+
+    Returns:
+        Every label that appears, once each, sorted alphabetically.
+
+    Example:
+        >>> label_set(gold)
+    """
     labels = []
     for item in gold:
         label = item["label"]
@@ -908,19 +1454,34 @@ def label_set(gold):
 #
 # The line is drawn after annotation, so it costs no extra coding - both halves were
 # double-coded in the same sheet. What it costs is items you are allowed to learn from.
-def split_dev_test(gold, dev, seed=42, by_document=False):
+def split_dev_test(gold: list[dict[str, str]],
+                   dev: int | float,
+                   seed: int = 42,
+                   by_document: bool = False) -> tuple:
     """Split an adjudicated gold set into (dev, test).
 
-    `dev` says how big the dev half is, and how you write it says which you meant:
+    Both forms stratify by label, so every label is represented on both sides of the
+    line wherever the data allows it. The ids are NOT renumbered: notebook 05 joins on
+    them to ask which of the model's errors are also items your coders disagreed about.
 
-        dev=3        a whole number — that many dev items per label
-        dev=0.35     a decimal between 0 and 1 — that proportion of each label's items
+    Args:
+        gold: the adjudicated gold items.
+        dev: how big the dev half is, and how you write it says which you meant.
+            A whole number (dev=3) is that many dev items per label. A decimal
+            between 0 and 1 (dev=0.35) is that proportion of each label's items.
+        seed: same seed gives the same split.
+        by_document: True if you drew your sample with sample_by_document, so that
+            no passage has some sentences in dev and the rest in test.
 
-    Both stratify by label, so every label is represented on both sides of the line
-    wherever the data allows it. The same seed always gives the same split.
+    Returns:
+        Two lists: the dev items and the test items.
 
-    Set by_document=True if you drew your sample with sample_by_document, so that no
-    passage has some of its sentences in dev and the rest in test.
+    Raises:
+        ValueError: when `dev` is neither a count nor a proportion, or when
+            by_document=True and the items carry no doc_id.
+
+    Example:
+        >>> dev, test = split_dev_test(gold, DEV, seed=SEED)
     """
     dev_per_class, dev_fraction = _read_dev_size(dev)
 
@@ -933,13 +1494,22 @@ def split_dev_test(gold, dev, seed=42, by_document=False):
     return dev, test
 
 
-def _read_dev_size(dev):
-    """Read one `dev` setting as (dev_per_class, dev_fraction) - exactly one of them set.
+def _read_dev_size(dev: int | float) -> tuple:
+    """Read one `dev` setting into a count and a proportion - exactly one of them set.
 
     A count and a proportion are one decision, so config.yaml holds one key and the way
     the number is written says which was meant: 3 is three items per label, 0.35 is a
     third of each label. The two names survive below this line only because the split
     functions need to tell the cases apart.
+
+    Args:
+        dev: the setting from config.yaml.
+
+    Returns:
+        Two things: the per-label count and the proportion. One of them is None.
+
+    Raises:
+        ValueError: when dev is neither a count nor a proportion, or is out of range.
     """
     # bool before int: True is an int in Python, and `dev: yes` in YAML would otherwise
     # be read as "1 dev item per label" without complaining.
@@ -968,8 +1538,21 @@ _DEV_HELP = (
 )
 
 
-def _dev_target(bucket_size, dev_per_class, dev_fraction):
-    """How many of a label's items should go to dev, before the rare-class clamp."""
+def _dev_target(bucket_size: int,
+                dev_per_class: int | None,
+                dev_fraction: float | None) -> int:
+    """How many of a label's items should go to dev, after the rare-class clamp.
+
+    Args:
+        bucket_size: how many items this label has.
+        dev_per_class: the per-label count, when that is what was set.
+        dev_fraction: the proportion, when that is what was set.
+
+    Returns:
+        How many to put in dev, never more than bucket_size - 1: a label missing
+        from TEST drops out of the macro average without saying so, and test is the
+        number you report, so test is served first.
+    """
     if dev_per_class is not None:
         wanted = dev_per_class
     else:
@@ -987,8 +1570,21 @@ def _dev_target(bucket_size, dev_per_class, dev_fraction):
     return max(0, min(wanted, bucket_size - 1))
 
 
-def _split_by_label(gold, dev_per_class, dev_fraction, seed):
-    """Stratified split: each label is divided in the same proportion."""
+def _split_by_label(gold: list[dict[str, str]],
+                    dev_per_class: int | None,
+                    dev_fraction: float | None,
+                    seed: int) -> tuple:
+    """Stratified split: each label is divided in the same proportion.
+
+    Args:
+        gold: the items to split.
+        dev_per_class: the per-label dev count, when that is what was set.
+        dev_fraction: the proportion, when that is what was set.
+        seed: same seed gives the same split.
+
+    Returns:
+        Two lists: the dev items and the test items. The ids are not renumbered.
+    """
     random_generator = random.Random(seed)
 
     # Same bucket-then-sorted-then-shuffle shape as sample_pool, so the two read alike
@@ -1027,8 +1623,25 @@ def _split_by_label(gold, dev_per_class, dev_fraction, seed):
     return dev, test
 
 
-def _split_by_document(gold, dev_per_class, dev_fraction, seed):
-    """Split whole documents, so no passage has sentences on both sides of the line."""
+def _split_by_document(gold: list[dict[str, str]],
+                       dev_per_class: int | None,
+                       dev_fraction: float | None,
+                       seed: int) -> tuple:
+    """Split whole documents, so no passage has sentences on both sides of the line.
+
+    Args:
+        gold: the items to split. Every item must carry a "doc_id".
+        dev_per_class: the per-label dev count, when that is what was set.
+        dev_fraction: the proportion, when that is what was set.
+        seed: same seed gives the same split.
+
+    Returns:
+        Two lists: the dev items and the test items. Whole documents cannot be cut,
+        so the dev size is a target to reach or pass, not a size to hit exactly.
+
+    Raises:
+        ValueError: when any item has no doc_id.
+    """
     items_without_doc = 0
     for item in gold:
         if "doc_id" not in item:
@@ -1075,8 +1688,20 @@ def _split_by_document(gold, dev_per_class, dev_fraction, seed):
     return dev, test
 
 
-def _report_split(dev, test, by_document=False):
-    """Print what the split produced, and warn about labels that fell off one side."""
+def _report_split(dev: list[dict[str, str]],
+                  test: list[dict[str, str]],
+                  by_document: bool = False) -> None:
+    """Print what the split produced, and warn about labels that fell off one side.
+
+    Args:
+        dev: the dev half.
+        test: the test half.
+        by_document: True when the split was made by document, which changes the
+            advice given for a label that is missing from test.
+
+    Returns:
+        Nothing. It prints the per-label counts and any warnings.
+    """
     dev_counts = _label_counts(dev)
     test_counts = _label_counts(test)
     print("Split:", len(dev), "dev ·", len(test), "test ·",
@@ -1101,8 +1726,15 @@ def _report_split(dev, test, by_document=False):
     print("        in the last step of that notebook, and scored once.")
 
 
-def _label_counts(items):
-    """Count items per label - the shared shape behind every 'per-label counts' line."""
+def _label_counts(items: list[dict[str, str]]) -> dict[str, int]:
+    """Count items per label - the shared shape behind every 'per-label counts' line.
+
+    Args:
+        items: the items to count, each with a "label" key.
+
+    Returns:
+        How many items carry each label.
+    """
     counts = {}
     for item in items:
         label = item["label"]
@@ -1115,10 +1747,19 @@ def _label_counts(items):
 # ----------------------------------------------------------------------------------
 # Asking the model and reading its answer
 # ----------------------------------------------------------------------------------
-def extract_label(reply, labels):
+def extract_label(reply: str, labels: list[str]) -> str:
     """Figure out which of the known labels the model's reply is pointing at.
 
-    Returns "??" when we cannot find any known label in the reply.
+    Args:
+        reply: whatever the model replied.
+        labels: the labels your scheme allows.
+
+    Returns:
+        The label it found - the longest one when several appear - or "??" when the
+        reply contains none of them.
+
+    Example:
+        >>> extract_label("I would say B2.", LEVELS)
     """
     reply_text = str(reply).strip()
     reply_lowercased = reply_text.lower()
@@ -1153,12 +1794,29 @@ def extract_label(reply, labels):
     return "??"
 
 
-def run_prompt(prompt, gold, labels=None, generate_text=None):
+def run_prompt(prompt: str,
+               gold: list[dict[str, str]],
+               labels: list[str] | None = None,
+               generate_text=None) -> list[str]:
     """Ask the model to label every item, and collect the predicted labels.
 
     Same call as Day 3: run_prompt(PROMPT, gold). The two optional arguments are
-    worked out for you - `labels` from the gold set, and the model connection from
-    the Setup cell - so you only pass them if you want something different.
+    worked out for you, so you only pass them if you want something different.
+
+    Args:
+        prompt: your prompt, containing {text} where the sentence should go, and
+            {context} for its passage on the tracks that carry one.
+        gold: the items to label.
+        labels: the labels your scheme allows. Left out, they are read off `gold`.
+        generate_text: the function that sends a prompt. Left out, the backend
+            connected by the Setup cell is used.
+
+    Returns:
+        One predicted label per gold item, in the same order. Replies no label
+        could be read out of come back as "??".
+
+    Example:
+        >>> predictions = run_prompt(prompt, dev)
     """
     if labels is None:
         labels = label_set(gold)
@@ -1202,12 +1860,31 @@ def run_prompt(prompt, gold, labels=None, generate_text=None):
 # ----------------------------------------------------------------------------------
 # Few-shot examples
 # ----------------------------------------------------------------------------------
-def build_fewshot(base_prompt, pool, gold, labels=None, shots_per_class=1, seed=42):
+def build_fewshot(base_prompt: str,
+                  pool: list[dict[str, str]],
+                  gold: list[dict[str, str]],
+                  labels: list[str] | None = None,
+                  shots_per_class: int = 1,
+                  seed: int = 42) -> str:
     """Put a few labeled examples (taken from the pool) in front of the prompt.
 
     We NEVER use an item that is in the gold set as an example, otherwise we
     would be showing the model the very answers we are testing it on. Items are
     matched by their TEXT, not their id, because sampling renumbers the ids.
+
+    Args:
+        base_prompt: the prompt to put the examples in front of.
+        pool: the items to draw examples from.
+        gold: the items being tested. None of these is used as an example.
+        labels: the labels to find examples for. Left out, read off `gold`.
+        shots_per_class: how many examples to show for each label.
+        seed: same seed gives the same examples.
+
+    Returns:
+        The example block followed by your prompt.
+
+    Example:
+        >>> prompt = build_fewshot(base_prompt, pool, gold, shots_per_class=2)
     """
     if labels is None:
         labels = label_set(gold)
@@ -1259,8 +1936,23 @@ def build_fewshot(base_prompt, pool, gold, labels=None, shots_per_class=1, seed=
 # ----------------------------------------------------------------------------------
 # Plotting (drawing only — the counts come from metrics.py)
 # ----------------------------------------------------------------------------------
-def plot_confusion_matrix(matrix, labels, title, xlabel="Predicted", ylabel="Gold"):
-    """Draw a confusion matrix as a heatmap (rows = gold, columns = predicted)."""
+def plot_confusion_matrix(matrix,
+                          labels: list[str],
+                          title: str,
+                          xlabel: str = "Predicted",
+                          ylabel: str = "Gold") -> None:
+    """Draw a confusion matrix as a heatmap (rows = gold, columns = predicted).
+
+    Args:
+        matrix: the counts, as sklearn's confusion_matrix returns them.
+        labels: the label names, in the same order as the matrix.
+        title: the heading to put above it.
+        xlabel: what the columns are.
+        ylabel: what the rows are.
+
+    Returns:
+        Nothing. It draws the picture.
+    """
     plt.figure(figsize=(1.2 * len(labels) + 2, 1.0 * len(labels) + 1.5))
     sns.heatmap(matrix, annot=True, fmt="d", cmap="Blues",
                 xticklabels=labels, yticklabels=labels)
@@ -1288,8 +1980,15 @@ def plot_confusion_matrix(matrix, labels, title, xlabel="Predicted", ylabel="Gol
 TRIAGE_CATEGORIES = ["model", "scheme", "wording", "ambiguous"]
 
 
-def triage_category(reason):
-    """The category word a triage line starts with, or None if it is not one of ours."""
+def triage_category(reason: str) -> str | None:
+    """The category word a triage line starts with, or None if it is not one of ours.
+
+    Args:
+        reason: one line of your triage, e.g. "scheme - Move 1/Move 2 boundary".
+
+    Returns:
+        The category word, or None when the line does not start with one.
+    """
     first_word = str(reason).strip().split(" ")[0]
     first_word = first_word.strip("-—:,.").lower()
     if first_word in TRIAGE_CATEGORIES:
@@ -1298,23 +1997,48 @@ def triage_category(reason):
 
 
 
-def export_results(track, gold, predictions, macro_f1_by_round, out_dir, group="",
-                   run="", overwrite=False, triage=None, dev=None):
+def export_results(track: str,
+                   gold: list[dict[str, str]],
+                   predictions: list[str],
+                   macro_f1_by_round: dict[str, float],
+                   out_dir: str | Path,
+                   group: str = "",
+                   run: str = "",
+                   overwrite: bool = False,
+                   triage: dict[int, str] | None = None,
+                   dev: list[dict[str, str]] | None = None) -> dict[str, Path]:
     """Write your gold set, a predictions CSV, and a one-page report scaffold.
 
-    `group` and `run` are added to every filename, so several groups can drop their
-    results in one folder without overwriting each other, and a second attempt does not
-    replace your first. These files are what you submit.
+    These three files are what you submit.
 
-    `triage` is your group's own reading of the errors - {item id: "category - reason"}.
-    Give it and section 4 becomes your analysis, with the counts at the top and your
-    reason beside each item. Leave it off and section 4 is a placeholder asking for
-    exactly that, which is worth less to you and to whoever reads the report.
+    Args:
+        track: which dataset track this is.
+        gold: whatever you scored - which, from notebook 05, is your TEST half.
+        predictions: one predicted label per item, in the same order.
+        macro_f1_by_round: your per-round scores, in the order you ran them.
+        out_dir: the folder to write the three files into.
+        group: added to every filename, so several groups can share one folder.
+        run: added to every filename, so a second attempt does not replace the first.
+        overwrite: True to replace files that are already there.
+        triage: your group's own reading of the errors,
+            {item id: "category - reason"}. Give it and section 4 becomes your
+            analysis, with the counts at the top and your reason beside each item.
+            Leave it off and section 4 is a placeholder asking for exactly that.
+        dev: your dev half. Pass it and the report says how many items you tuned on,
+            how many you reported on, and that the rounds table is a dev trail with
+            one test row at the bottom. A reader cannot tell those apart from the
+            numbers alone.
 
-    `gold` here is whatever you scored - which, from notebook 05, is your TEST half.
-    Pass `dev=` as well and the report says so: how many items you tuned on, how many
-    you reported on, and that the rounds table is a dev trail with one test row at the
-    bottom. A reader cannot tell those apart from the numbers alone.
+    Returns:
+        Where each of the three files was written: {"gold", "csv", "report"}.
+
+    Raises:
+        FileExistsError: when any of the three is already there and overwrite is
+            False. All three are checked before any is written.
+
+    Example:
+        >>> export_results(TRACK, test, predictions, f1_by_round, OUT_DIR,
+        ...                group=GROUP, run=RUN, triage=triage, dev=dev)
     """
     output_folder = Path(out_dir)
     output_folder.mkdir(parents=True, exist_ok=True)
@@ -1345,8 +2069,24 @@ def export_results(track, gold, predictions, macro_f1_by_round, out_dir, group="
     return {"gold": gold_path, "csv": csv_path, "report": report_path}
 
 
-def _export_paths(output_folder, track, group, run, dev):
-    """The three files export_results writes: the items, the CSV and the report."""
+def _export_paths(output_folder: Path,
+                  track: str,
+                  group: str,
+                  run: str,
+                  dev: list[dict[str, str]] | None) -> tuple:
+    """The three files export_results writes: the items, the CSV and the report.
+
+    Args:
+        output_folder: the folder they go in.
+        track: which dataset track this is.
+        group: the group name, or "" when called by hand.
+        run: the run name, or "" when called by hand.
+        dev: the dev half. With a split, the items saved beside the results are the
+            TEST half, so the file is named _test rather than _gold.
+
+    Returns:
+        Three paths: the items, the predictions CSV and the report.
+    """
     # The same stem config.py builds, from the same three pieces, so the names cannot
     # drift apart. Any of the three may be empty when export_results is called by hand.
     stem = track
@@ -1366,8 +2106,17 @@ def _export_paths(output_folder, track, group, run, dev):
             output_folder / (stem + "_report.md"))
 
 
-def _prediction_records(gold, predictions):
-    """One row per item: what it was, what the model said, and whether that matched."""
+def _prediction_records(gold: list[dict[str, str]],
+                        predictions: list[str]) -> list[dict]:
+    """One row per item: what it was, what the model said, and whether that matched.
+
+    Args:
+        gold: the scored items.
+        predictions: one predicted label per item, in the same order.
+
+    Returns:
+        One dict per item: id, gold, pred, correct, text.
+    """
     records = []
     for item, predicted in zip(gold, predictions):
         record = {
@@ -1381,8 +2130,15 @@ def _prediction_records(gold, predictions):
     return records
 
 
-def _count_labels(gold):
-    """How many gold items carry each label."""
+def _count_labels(gold: list[dict[str, str]]) -> dict[str, int]:
+    """How many gold items carry each label.
+
+    Args:
+        gold: the items to count.
+
+    Returns:
+        How many items carry each label.
+    """
     counts = {}
     for item in gold:
         label = item["label"]
@@ -1392,8 +2148,15 @@ def _count_labels(gold):
     return counts
 
 
-def _rounds_table(macro_f1_by_round):
-    """The rows of the "F1 per round" table, as Markdown."""
+def _rounds_table(macro_f1_by_round: dict[str, float]) -> str:
+    """The rows of the "F1 per round" table, as Markdown.
+
+    Args:
+        macro_f1_by_round: your per-round scores, in the order you ran them.
+
+    Returns:
+        The table rows, one per round, joined by newlines.
+    """
     lines = []
     for round_name in macro_f1_by_round:
         score = macro_f1_by_round[round_name]
@@ -1401,27 +2164,47 @@ def _rounds_table(macro_f1_by_round):
     return "\n".join(lines)
 
 
-def _final_f1(macro_f1_by_round):
-    """The score of the last round we ran."""
+def _final_f1(macro_f1_by_round: dict[str, float]) -> float:
+    """The score of the last round we ran.
+
+    Args:
+        macro_f1_by_round: your per-round scores, in the order you ran them.
+
+    Returns:
+        The last score, or nan when there are no rounds.
+    """
     if len(macro_f1_by_round) == 0:
         return float("nan")
     all_scores = list(macro_f1_by_round.values())
     return all_scores[-1]
 
 
-def _error_line(record):
-    """One wrong item, as a Markdown bullet."""
+def _error_line(record: dict) -> str:
+    """One wrong item, as a Markdown bullet.
+
+    Args:
+        record: one row from _prediction_records.
+
+    Returns:
+        The bullet, with the text cut to 120 characters.
+    """
     snippet = str(record["text"])[:120]
     return ("- **id " + str(record["id"]) + "** gold `" + str(record["gold"])
             + "` -> pred `" + str(record["pred"]) + "`: " + snippet)
 
 
-def _error_examples(wrong_records, triage):
+def _error_examples(wrong_records: list[dict],
+                    triage: dict[int, str] | None) -> str:
     """The wrong items, as Markdown.
 
-    With a triage, EVERY triaged one is listed with your group's reason beside it -
-    that judgment is the section. Without one, the first five are listed as a prompt to
-    go and make it.
+    Args:
+        wrong_records: the rows the model got wrong.
+        triage: your group's reading of them. With a triage, EVERY triaged one is
+            listed with your reason beside it - that judgment is the section.
+            Without one, the first five are listed as a prompt to go and make it.
+
+    Returns:
+        The bullets, joined by newlines.
     """
     lines = []
     if triage:
@@ -1444,10 +2227,18 @@ def _error_examples(wrong_records, triage):
     return "\n".join(lines)
 
 
-def _triage_summary(triage, wrong_records):
+def _triage_summary(triage: dict[int, str] | None,
+                    wrong_records: list[dict]) -> str:
     """The headline of the error section: what the errors were CAUSED by.
 
     "6 of 14 are the scheme's fault" is a finding; "F1 was 0.62" is not.
+
+    Args:
+        triage: your group's reading of the errors.
+        wrong_records: the rows the model got wrong, counted into the headline.
+
+    Returns:
+        The headline line, or "" when there is no triage.
     """
     if not triage:
         return ""
@@ -1468,11 +2259,29 @@ def _triage_summary(triage, wrong_records):
             + " errors:** " + " / ".join(parts) + "\n\n")
 
 
-def _build_report(track, group, gold, dev, records, macro_f1_by_round, triage):
+def _build_report(track: str,
+                  group: str,
+                  gold: list[dict[str, str]],
+                  dev: list[dict[str, str]] | None,
+                  records: list[dict],
+                  macro_f1_by_round: dict[str, float],
+                  triage: dict[int, str] | None) -> str:
     """The one-page report, section by section.
 
     Anything in _italics_ is a placeholder YOU replace - a section left as the
     placeholder scores zero.
+
+    Args:
+        track: which dataset track this is.
+        group: the group name.
+        gold: the scored items.
+        dev: the dev half, when there was a split.
+        records: the rows from _prediction_records.
+        macro_f1_by_round: your per-round scores.
+        triage: your group's reading of the errors.
+
+    Returns:
+        The whole report, as Markdown.
     """
     labels = label_set(gold)
     label_counts = _count_labels(gold)

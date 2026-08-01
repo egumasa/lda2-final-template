@@ -65,6 +65,13 @@ this is the part a script could not have done for you, and the part the Q&A goes
   from? Neighbouring sentences in one passage are not independent observations:
 - If you ticked `sample_by_document`, your split has to be by document too — see §6.
 
+**Did you add more items later** (`02b_add_samples.ipynb`)? Fill this in as well. Leaving
+it blank describes half of what you did.
+
+- Strategy the second time, and the reason — **even if it is the same word**:
+- How many more, and the `SEED` you used for that draw:
+- Any label the pool had run out of by then:
+
 > **About the size of this study.** A result that could support a claim about a corpus needs
 > hundreds of items per class. Forty in total is what four-and-a-bit seconds per API call and
 > five days buy you, and it is not enough to tell a five-point difference from noise. That is
@@ -126,6 +133,7 @@ with the names your group actually used.
 |---|---|---|---|
 | 01 build pool | the raw corpus + your ✏️ decisions | `data/pools/<track>_pool.json` | |
 | 02 sample     | the pool + your sampling choice     | `data/gold/…_sample.json`, and the sheet | |
+| 02b add samples *(only if you had time left)* | the pool + that same `…_sample.json` | the same file, enlarged, and new rows in the same sheet | |
 | 03 annotate   | the filled-in sheet + your adjudication | `data/gold/…_gold.json`, and its `…_dev.json` / `…_test.json` split | |
 | 04 prompt     | the **dev** half, the pool, your prompt | `outputs/…_predictions.json` (on **test**), `…_test_log.jsonl` | |
 | 05 report     | the **test** half + the frozen run   | `outputs/…_report.md`          | |

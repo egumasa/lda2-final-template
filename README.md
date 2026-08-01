@@ -28,6 +28,7 @@ lda2-final-template/
 ├── notebooks/                      # YOUR five notebooks. Run them in order.
 │   ├── 01_build_pool_<track>.ipynb #   corpus → data/pools/<track>_pool.json
 │   ├── 02_sample.ipynb             #   pool → your sample → the annotation sheet
+│   ├── 02b_add_samples.ipynb       #   time left over? more items into the SAME sheet
 │   ├── 03_annotate.ipynb           #   the filled-in sheet → YOUR gold standard,
 │   │                               #   split into dev and test
 │   ├── 04_prompt.ipynb             #   dev → iterate on errors → one frozen run on test

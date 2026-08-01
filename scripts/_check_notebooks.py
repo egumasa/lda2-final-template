@@ -35,15 +35,15 @@ MAX_CELL_LINES = 40
 problems = []
 
 
-def report(notebook, index, message):
+def report(notebook: str, index: int, message: str) -> None:
     problems.append(notebook + "  cell " + str(index) + ": " + message)
 
 
-def source_of(cell):
+def source_of(cell: dict) -> str:
     return "".join(cell["source"])
 
 
-def check_it_compiles(notebook, index, text):
+def check_it_compiles(notebook: str, index: int, text: str) -> None:
     """Would this cell run? Undefined names are fine; broken syntax is not."""
     # A line starting with ! or % is Colab shell/magic syntax, which is not Python and
     # which compile() would reject. Those cells are one line each; skip them.
@@ -57,7 +57,7 @@ def check_it_compiles(notebook, index, text):
                + " (line " + str(error.lineno) + ")")
 
 
-def is_the_setup_cell(text):
+def is_the_setup_cell(text: str) -> bool:
     """The one long cell that is allowed to stay long.
 
     It mounts Drive, finds the group folder and imports everything, and it says in its
@@ -68,7 +68,7 @@ def is_the_setup_cell(text):
     return text.lstrip().startswith("# ---") and "SETUP — run me first" in text
 
 
-def is_one_function(text):
+def is_one_function(text: str) -> bool:
     """Is this cell exactly one function definition and nothing else?
 
     The reshaping functions are embedded into notebook 01 from scripts/reshape.py, and
@@ -92,7 +92,7 @@ def is_one_function(text):
     return True
 
 
-def check_it_fits_on_a_screen(notebook, index, text):
+def check_it_fits_on_a_screen(notebook: str, index: int, text: str) -> None:
     if is_the_setup_cell(text) or is_one_function(text):
         return
     length = len(text.splitlines())
@@ -101,7 +101,7 @@ def check_it_fits_on_a_screen(notebook, index, text):
                "(the limit is " + str(MAX_CELL_LINES) + ")")
 
 
-def check_it_has_a_lead_in(notebook, index, cells):
+def check_it_has_a_lead_in(notebook: str, index: int, cells: list[dict]) -> None:
     """A code cell needs a markdown cell above it saying what is about to happen."""
     if index == 0:
         report(notebook, index, "is the first cell in the notebook, with no lead-in "
@@ -112,7 +112,7 @@ def check_it_has_a_lead_in(notebook, index, cells):
                                 "markdown lead-in of its own")
 
 
-def check_notebook(path):
+def check_notebook(path: Path) -> None:
     notebook = json.loads(path.read_text(encoding="utf-8"))
     cells = notebook["cells"]
     for index in range(len(cells)):
@@ -125,7 +125,7 @@ def check_notebook(path):
         check_it_has_a_lead_in(path.name, index, cells)
 
 
-def main():
+def main() -> bool:
     paths = sorted(NOTEBOOKS.glob("*.ipynb"))
     if not paths:
         print("No notebooks found in", NOTEBOOKS)

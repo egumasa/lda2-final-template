@@ -34,8 +34,19 @@ RAW = ROOT / "data" / "raw"
 POOLS = ROOT / "data" / "pools"
 
 
-def write_json(directory, name, items, allowed=None):
-    """Validate, write, and report. Every build goes through here."""
+def write_json(directory: Path, name: str, items: list[dict[str, str]],
+               allowed: set[str] | list[str] | None = None) -> Path:
+    """Validate, write, and report. Every build goes through here.
+
+    Args:
+        directory: the folder to write into, made if it is missing.
+        name: the filename.
+        items: the items to write.
+        allowed: the labels the scheme allows, checked before writing.
+
+    Returns:
+        The path it wrote.
+    """
     validate(items, allowed)
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / name
@@ -55,7 +66,12 @@ def write_json(directory, name, items, allowed=None):
 # ----------------------------------------------------------------------------------
 # One builder per track. Each returns nothing and prints what it wrote.
 # ----------------------------------------------------------------------------------
-def build_raamove(demos=False):
+def build_raamove(demos: bool = False) -> None:
+    """Download RAAMove and write its pool.
+
+    Args:
+        demos: True to also write a small demo pool beside it.
+    """
     source = download.download_raamove(RAW)
     pool = reshape.reshape_raamove(source)
     allowed = set(reshape.RAAMOVE_LABELS.values())
@@ -65,7 +81,12 @@ def build_raamove(demos=False):
         write_json(POOLS, "raamove_demo_pool.json", demo, allowed)
 
 
-def build_cars50(demos=False):
+def build_cars50(demos: bool = False) -> None:
+    """Download CaRS-50 and write both the move and the move+step pools.
+
+    Args:
+        demos: True to also write small demo pools beside them.
+    """
     source = download.download_cars50(RAW)
     move_rows, step_rows = reshape.reshape_cars50(source)
     if not move_rows:
@@ -79,7 +100,12 @@ def build_cars50(demos=False):
         write_json(POOLS, "cars50_demo_pool.json", reid(balanced_sample(move_rows, per_label=20)))
 
 
-def build_l2_errors(demos=False):
+def build_l2_errors(demos: bool = False) -> None:
+    """Download the L2 error annotations and write the category and detection pools.
+
+    Args:
+        demos: True to also write small demo pools beside them.
+    """
     source = download.download_l2_errors(RAW)
     category_rows, detection_rows = reshape.reshape_l2_errors(source)
     write_json(POOLS, "l2_errors_pool.json", category_rows, reshape.L2_LABELS)
@@ -91,7 +117,12 @@ def build_l2_errors(demos=False):
                    reid(balanced_sample(category_rows, per_label=15)), reshape.L2_LABELS)
 
 
-def build_icnale(demos=False):
+def build_icnale(demos: bool = False) -> None:
+    """Write the ICNALE pool from the CSV you prepared by hand.
+
+    Args:
+        demos: True to also write a small demo pool beside it.
+    """
     source = download.download_icnale(RAW)     # raises with instructions if not prepared
     pool = reshape.reshape_icnale(source)
     # NOTE: ICNALE is research-use-only. .gitignore keeps this file out of git and
@@ -109,7 +140,15 @@ BUILDERS = {
 }
 
 
-def main(argv):
+def main(argv: list[str]) -> int:
+    """Build the pools named on the command line.
+
+    Args:
+        argv: the command-line arguments, e.g. ["cars50", "--demos"].
+
+    Returns:
+        0 when every requested build worked, 1 otherwise.
+    """
     demos = False
     targets = []
     for argument in argv:

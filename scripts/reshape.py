@@ -28,8 +28,15 @@ SEED = 42            # fixed, so every rebuild gives the same sample
 # ----------------------------------------------------------------------------------
 # Shared utilities
 # ----------------------------------------------------------------------------------
-def reid(items):
-    """Renumber ids sequentially from 1, keeping the current order."""
+def reid(items: list[dict[str, str]]) -> list[dict[str, str]]:
+    """Renumber ids sequentially from 1, keeping the current order.
+
+    Args:
+        items: the items to renumber. They are copied, not changed in place.
+
+    Returns:
+        The same items with new ids.
+    """
     renumbered = []
     next_id = 1
 
@@ -45,8 +52,18 @@ def reid(items):
     return renumbered
 
 
-def balanced_sample(items, per_label, seed=SEED):
-    """Up to `per_label` items for each label, drawn with a fixed seed."""
+def balanced_sample(items: list[dict[str, str]], per_label: int,
+                    seed: int = SEED) -> list[dict[str, str]]:
+    """Up to `per_label` items for each label, drawn with a fixed seed.
+
+    Args:
+        items: the items to draw from.
+        per_label: how many to take per label.
+        seed: same seed gives the same draw.
+
+    Returns:
+        The drawn items, renumbered from 1.
+    """
     random_generator = random.Random(seed)
     by_label = {}
     for item in items:
@@ -65,12 +82,24 @@ def balanced_sample(items, per_label, seed=SEED):
     return out
 
 
-def validate(items, allowed=None):
+def validate(items: list[dict[str, str]],
+             allowed: list[str] | None = None) -> None:
     """Check the canonical schema, and raise on the first problem found.
 
     Deliberately explicit rather than `assert`: assertions vanish under `python -O`,
     and a silently unvalidated dataset is exactly the kind of thing that surfaces as a
     baffling metric three days later.
+
+    Args:
+        items: the items to check, each needing "id", "text" and "label".
+        allowed: the labels the scheme allows. Left out, any label passes.
+
+    Returns:
+        Nothing.
+
+    Raises:
+        ValueError: on the first item that is missing a field, has a repeated id, or
+            carries a label outside `allowed`.
     """
     seen_ids = set()
     for position, item in enumerate(items):
@@ -111,8 +140,15 @@ def validate(items, allowed=None):
                 "cell where you wrote your label mapping.")
 
 
-def label_counts(items):
-    """How many items carry each label - the first thing to look at after a build."""
+def label_counts(items: list[dict[str, str]]) -> dict[str, int]:
+    """How many items carry each label - the first thing to look at after a build.
+
+    Args:
+        items: the items to count.
+
+    Returns:
+        How many items carry each label.
+    """
     counts = {}
     for item in items:
         label = item["label"]
@@ -131,7 +167,7 @@ RAAMOVE_LABELS = {
 }
 
 
-def reshape_raamove(raamove_dir):
+def reshape_raamove(raamove_dir: str | Path) -> list[dict[str, str]]:
     """Read RAAMove's per-domain JSON files and expand the 3-letter move codes.
 
     The corpus ships two domains (Intelligence, Engineering) as separate files. We pool
@@ -139,8 +175,12 @@ def reshape_raamove(raamove_dir):
     discipline-specific one - but that IS an assumption, and comparing the two domains
     separately would be a perfectly good extension.
 
-    A move is a rhetorical function WITHIN an abstract, so each item also carries the
-    abstract it came from - see the note on the two-pass loop below.
+    Args:
+        raamove_dir: the folder holding the downloaded per-domain JSON files.
+
+    Returns:
+        The items in canonical form. A move is a rhetorical function WITHIN an
+        abstract, so each item also carries the abstract it came from.
     """
     source_dir = Path(raamove_dir)
     rows = []
@@ -191,11 +231,16 @@ def reshape_raamove(raamove_dir):
 # ----------------------------------------------------------------------------------
 # CaRS-50 -> Swales CARS Move (3 classes) or Move+Step (11 classes)
 # ----------------------------------------------------------------------------------
-def _tag_text(element):
+def _tag_text(element) -> str:
     """The text inside an XML tag, tidied - or "" when the tag is missing or empty.
 
-    ElementTree gives you None for a tag that is not there, and ALSO None for a tag that
-    is there but empty. Both mean "nothing to read", so both come back as "" here.
+    Args:
+        element: the ElementTree element, which may be None.
+
+    Returns:
+        The text, with blank space trimmed. ElementTree gives None both for a tag
+        that is not there and for one that is there but empty; both mean "nothing to
+        read", so both come back as "".
     """
     if element is None:
         return ""
@@ -204,7 +249,7 @@ def _tag_text(element):
     return element.text.strip()
 
 
-def reshape_cars50(cars50_dir):
+def reshape_cars50(cars50_dir: str | Path) -> tuple:
     """Parse the 50 XML introductions into TWO datasets: moves, and move+step.
 
     XML shape:
@@ -212,11 +257,15 @@ def reshape_cars50(cars50_dir):
 
     The `step` code is like "1b": the leading DIGIT is the Move, the whole code is the
     Step. So one parse gives two granularities, and which you use is a scheme decision:
-    3 classes is a fair task, 11 classes is the stretch version. Returns
-    (move_rows, step_rows).
+    3 classes is a fair task, 11 classes is the stretch version.
 
-    A move is a rhetorical function WITHIN an introduction, so each item also carries the
-    introduction it came from - see the note on the two-pass loop below.
+    Args:
+        cars50_dir: the folder holding the 50 downloaded XML files.
+
+    Returns:
+        Two lists: the move items and the move+step items. A move is a rhetorical
+        function WITHIN an introduction, so each item also carries the introduction
+        it came from.
     """
     source_dir = Path(cars50_dir)
     move_rows = []
@@ -297,13 +346,18 @@ L2_LABELS = {"Grammatical", "Lexical", "Mechanical", "No error"}
 L2_DETECTION_LABELS = {"Has error", "No error"}
 
 
-def _l2_coarse_label(human_field):
+def _l2_coarse_label(human_field: str) -> str | None:
     """Collapse a sentence's comma-separated error codes to ONE broader category.
 
-    Returns None when the sentence cannot get a single clean label - either it has no
-    codes, or its codes span more than one broader category. Those get dropped, which
-    keeps this a single-label task. It also means the dataset under-represents exactly
-    the messiest sentences, and that is worth a line in your limitations section.
+    Args:
+        human_field: the comma-separated code list, e.g. "ART,SP".
+
+    Returns:
+        The broader category, or None when the sentence cannot get a single clean
+        label - either it has no codes, or its codes span more than one category.
+        Those get dropped, which keeps this a single-label task. It also means the
+        dataset under-represents exactly the messiest sentences, which is worth a
+        line in your limitations section.
     """
     ### Split the comma-separated code list ###
     codes = []
@@ -330,12 +384,18 @@ def _l2_coarse_label(human_field):
     return None                       # no codes we recognise, or a mixed-category sentence
 
 
-def reshape_l2_errors(csv_path):
+def reshape_l2_errors(csv_path: str | Path) -> tuple:
     """Read data_category.csv into TWO datasets: 4-way categories, and yes/no detection.
 
     The CSV also carries `AEA_ErrorCategories` - the published tool's own predictions -
     so this is the one track where you can benchmark your LLM against both a human gold
-    standard AND an existing system. Returns (category_rows, detection_rows).
+    standard AND an existing system.
+
+    Args:
+        csv_path: the downloaded data_category.csv.
+
+    Returns:
+        Two lists: the 4-way category items and the yes/no detection items.
     """
     category_rows = []
     detection_rows = []
@@ -373,13 +433,23 @@ def reshape_l2_errors(csv_path):
 ICNALE_LABELS = {"Low", "Mid", "High"}
 
 
-def reshape_icnale(csv_path, low_below=4.0, mid_below=7.0):
+def reshape_icnale(csv_path: str | Path, low_below: float = 4.0,
+                   mid_below: float = 7.0) -> list[dict[str, str]]:
     """Band a numeric holistic score into Low / Mid / High.
 
-    THE CUT-OFFS ARE PLACEHOLDERS. 4 and 7 are not from the ICNALE rubric - they are
-    round numbers. Where you put the boundaries decides how hard the task is and how
-    balanced the classes are, so set them from the rubric you are actually using and
-    say what you chose in your report.
+    Args:
+        csv_path: the downloaded CSV, with a text column and a score column.
+        low_below: scores under this are Low.
+        mid_below: scores under this, and not Low, are Mid. The rest are High.
+
+    Returns:
+        The items in canonical form.
+
+    Note:
+        THE CUT-OFFS ARE PLACEHOLDERS. 4 and 7 are not from the ICNALE rubric - they
+        are round numbers. Where you put the boundaries decides how hard the task is
+        and how balanced the classes are, so set them from the rubric you are
+        actually using and say what you chose in your report.
     """
     rows = []
     skipped = 0

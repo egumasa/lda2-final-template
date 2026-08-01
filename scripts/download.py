@@ -18,8 +18,19 @@ import urllib.request
 from pathlib import Path
 
 
-def _run_git_clone(url, destination):
-    """Clone a repo, and if git fails, show WHY rather than a bare exit code."""
+def _run_git_clone(url: str, destination: Path) -> None:
+    """Clone a repo, and if git fails, show WHY rather than a bare exit code.
+
+    Args:
+        url: the repository to clone.
+        destination: where to put it.
+
+    Returns:
+        Nothing.
+
+    Raises:
+        RuntimeError: when git fails, quoting what it said.
+    """
     print("  cloning", url, "...")
     result = subprocess.run(
         ["git", "clone", "--depth", "1", url, str(destination)],
@@ -37,14 +48,29 @@ def _run_git_clone(url, destination):
         )
 
 
-def _fetch_with_browser_agent(url, timeout=60):
-    """Open a URL pretending to be a browser (some CDNs refuse anything else)."""
+def _fetch_with_browser_agent(url: str, timeout: int = 60):
+    """Open a URL pretending to be a browser (some CDNs refuse anything else).
+
+    Args:
+        url: what to fetch.
+        timeout: how many seconds to wait.
+
+    Returns:
+        The open response, to read from.
+    """
     request = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
     return urllib.request.urlopen(request, timeout=timeout)
 
 
-def download_raamove(raw_dir):
-    """Clone RAAMove and return the folder holding its per-domain JSON files."""
+def download_raamove(raw_dir: str | Path) -> Path:
+    """Clone RAAMove, if it is not already there.
+
+    Args:
+        raw_dir: the data/raw folder to clone into.
+
+    Returns:
+        The folder holding its per-domain JSON files.
+    """
     destination = Path(raw_dir) / "raamove"
     if not destination.exists():
         destination.parent.mkdir(parents=True, exist_ok=True)
@@ -60,8 +86,15 @@ def download_raamove(raw_dir):
     )
 
 
-def download_cars50(raw_dir):
-    """Download the 50 CaRS-50 XML files from Mendeley Data and return their folder."""
+def download_cars50(raw_dir: str | Path) -> Path:
+    """Download the 50 CaRS-50 XML files from Mendeley Data, if not already there.
+
+    Args:
+        raw_dir: the data/raw folder to download into.
+
+    Returns:
+        The folder holding the XML files.
+    """
     destination = Path(raw_dir) / "cars50"
     existing = sorted(destination.glob("*.xml")) if destination.exists() else []
     if existing:
@@ -106,8 +139,15 @@ def download_cars50(raw_dir):
     return destination
 
 
-def download_l2_errors(raw_dir):
-    """Download the AutoErrorAnalyzer annotations CSV from OSF and return its path."""
+def download_l2_errors(raw_dir: str | Path) -> Path:
+    """Download the AutoErrorAnalyzer annotations CSV from OSF, if not already there.
+
+    Args:
+        raw_dir: the data/raw folder to download into.
+
+    Returns:
+        The path to data_category.csv.
+    """
     destination = Path(raw_dir) / "l2_errors"
     target = destination / "data_category.csv"
     if target.exists():
@@ -125,12 +165,21 @@ def download_l2_errors(raw_dir):
     return target
 
 
-def download_icnale(raw_dir):
+def download_icnale(raw_dir: str | Path) -> Path:
     """Check whether the ICNALE CSV has been prepared, and explain it if not.
 
     There is nothing to automate here, by design: ICNALE GRA is released for research
     use via a registration form that emails you a password. That also means it must
     never be committed or included in a submission bundle.
+
+    Args:
+        raw_dir: the data/raw folder the CSV should have been put in.
+
+    Returns:
+        The path to essays_scores.csv.
+
+    Raises:
+        FileNotFoundError: when it is not there, with the steps to prepare it.
     """
     destination = Path(raw_dir) / "icnale"
     target = destination / "essays_scores.csv"

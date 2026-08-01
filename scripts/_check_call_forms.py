@@ -61,7 +61,7 @@ _failures = []
 _checks = 0
 
 
-def check(description, function):
+def check(description: str, function) -> None:
     """Run one check. Record the failure and keep going, so one run reports everything."""
     global _checks
     _checks = _checks + 1
@@ -74,7 +74,7 @@ def check(description, function):
         _failures.append(description)
 
 
-def install_stub_backend():
+def install_stub_backend() -> bool:
     """Replace the LLM with a stub, so this file needs no key and makes no calls.
 
     It stands in for the raw connection make_backend() would build, which means the
@@ -86,7 +86,7 @@ def install_stub_backend():
     """
     call_count = [0]
 
-    def stub_call_model(prompt):
+    def stub_call_model(prompt: str) -> str:
         call_count[0] = call_count[0] + 1
         # Cycle through the labels so predictions are neither all-right nor all-wrong.
         return LEVELS[call_count[0] % len(LEVELS)]
@@ -98,7 +98,7 @@ def install_stub_backend():
     return call_count
 
 
-def make_gold(n_per_label=2):
+def make_gold(n_per_label: int = 2) -> list[dict[str, str]]:
     """A synthetic gold set in the canonical {id, text, label} shape."""
     items = []
     next_id = 1
@@ -113,12 +113,12 @@ def make_gold(n_per_label=2):
     return items
 
 
-def make_pool():
+def make_pool() -> bool:
     """A pool big enough that sampling leaves spare items for few-shot examples."""
     return make_gold(n_per_label=10)
 
 
-def main():
+def main() -> bool:
     call_count = install_stub_backend()
     gold = make_gold()
     pool = make_pool()
@@ -129,7 +129,7 @@ def main():
 
     print("\nDay 1-3 call forms (these must never break)")
 
-    def gold_roundtrip():
+    def gold_roundtrip() -> None:
         path = work_dir / "gold.json"
         path.write_text(json.dumps(gold, ensure_ascii=False), encoding="utf-8")
         loaded = load_gold(path)
@@ -138,7 +138,7 @@ def main():
 
     predictions = []
 
-    def day3_run_prompt():
+    def day3_run_prompt() -> None:
         # THE Day-3 form. Two arguments, no labels, no backend threaded through.
         result = run_prompt(PROMPT, gold)
         assert isinstance(result, list), "run_prompt must return a list"
@@ -146,30 +146,30 @@ def main():
         predictions.extend(result)
     check("run_prompt(PROMPT, gold) -> list[str]", day3_run_prompt)
 
-    def day2_evaluate():
+    def day2_evaluate() -> None:
         score = evaluate(gold, predictions)
         assert isinstance(score, float), "evaluate must return the macro-F1 as a float"
     check("evaluate(gold, pred) -> float", day2_evaluate)
 
-    def day3_evaluate_ordered():
+    def day3_evaluate_ordered() -> None:
         score = evaluate(gold, predictions, ordered=True)
         assert isinstance(score, float), "evaluate must return the macro-F1 as a float"
     check("evaluate(gold, pred, ordered=True) -> float", day3_evaluate_ordered)
 
-    def day3_show_errors():
+    def day3_show_errors() -> None:
         table = show_errors(gold, predictions)
         assert hasattr(table, "shape"), "show_errors must return a DataFrame"
     check("show_errors(gold, pred) -> DataFrame", day3_show_errors)
 
     print("\nThe template's own extended forms (both arities must work)")
 
-    def run_prompt_extended():
+    def run_prompt_extended() -> None:
         sender = pipeline._default_backend()
         result = run_prompt(PROMPT, gold, labels, sender)
         assert len(result) == len(gold)
     check("run_prompt(prompt, gold, labels, generate_text)", run_prompt_extended)
 
-    def sampling():
+    def sampling() -> None:
         a = sample_pool(pool, 3, 42)
         b = sample_pool(pool, 3)          # seed defaulted
         assert len(a) == len(b), "the default seed must be the documented one (42)"
@@ -178,7 +178,7 @@ def main():
             "sample_pool must renumber ids from 1"
     check("sample_pool(pool, n, seed) and sample_pool(pool, n)", sampling)
 
-    def sample_dispatches():
+    def sample_dispatches() -> None:
         # Every strategy sized from the SAME n_per_class. Before this existed the
         # notebook hard-coded 40 items for "random" and 10x4 for "by_document", so
         # choosing either made n_per_class in config.yaml quietly dead.
@@ -196,7 +196,7 @@ def main():
     check("sample(pool, strategy, n_per_class, seed) sizes all strategies alike",
           sample_dispatches)
 
-    def fewshot():
+    def fewshot() -> None:
         sampled = sample_pool(pool, 3, 42)
         short = build_fewshot(PROMPT, pool, sampled)
         long = build_fewshot(PROMPT, pool, sampled, labels, 1, 42)
@@ -211,7 +211,7 @@ def main():
 
     print("\nThe dev/test split, and the audit trail on the held-out run")
 
-    def split_partitions():
+    def split_partitions() -> None:
         dev, test = split_dev_test(gold, 1)
         dev_ids = [item["id"] for item in dev]
         test_ids = [item["id"] for item in test]
@@ -220,13 +220,13 @@ def main():
             "every gold item must land on exactly one side of the line"
     check("split_dev_test(gold, n) partitions the gold set", split_partitions)
 
-    def split_fraction():
+    def split_fraction() -> None:
         dev, test = split_dev_test(gold, 0.5)
         assert len(dev) > 0 and len(test) > 0, "both halves must be non-empty"
         assert len(dev) + len(test) == len(gold)
     check("split_dev_test(gold, f) partitions the gold set", split_fraction)
 
-    def split_size_is_read_by_type():
+    def split_size_is_read_by_type() -> None:
         # A whole number is a per-label COUNT, a decimal is a PROPORTION. The type is
         # the only thing that says which, so anything that is neither has to be refused
         # rather than guessed at - including True, which Python counts as an int.
@@ -238,7 +238,7 @@ def main():
             raise AssertionError("split_dev_test accepted dev=" + repr(bad))
     check("split_dev_test refuses a dev size it cannot read", split_size_is_read_by_type)
 
-    def split_is_seeded():
+    def split_is_seeded() -> None:
         a = split_dev_test(gold, 1, seed=42)
         b = split_dev_test(gold, 1)          # seed defaulted
         c = split_dev_test(gold, 1, seed=7)
@@ -246,7 +246,7 @@ def main():
         assert a != c, "a different seed must give a different split"
     check("split_dev_test(gold, ..., seed) is reproducible", split_is_seeded)
 
-    def split_keeps_ids():
+    def split_keeps_ids() -> None:
         # THE REGRESSION THIS GUARDS: the three samplers all call reid(), and copying
         # that here would renumber the gold ids. Notebook 05 joins the model's errors
         # against the ids in the annotation sheet, and that join would silently start
@@ -260,7 +260,7 @@ def main():
                 "split_dev_test must NOT renumber ids - notebook 05's join runs on them"
     check("split_dev_test preserves the gold ids", split_keeps_ids)
 
-    def split_serves_test_first():
+    def split_serves_test_first() -> None:
         # A label with a single item cannot appear on both sides. It has to be the one
         # that survives in TEST, or it drops out of the reported macro average unseen.
         thin = make_gold(1)[:1] + make_gold(3)[1:]
@@ -271,7 +271,7 @@ def main():
                 "every label present in gold must survive into test"
     check("split_dev_test keeps every label in test", split_serves_test_first)
 
-    def split_by_document():
+    def split_by_document() -> None:
         docs = []
         for index, item in enumerate(make_gold(3)):
             with_doc = dict(item)
@@ -284,7 +284,7 @@ def main():
             "a document must not have sentences on both sides of the line"
     check("split_dev_test(..., by_document=True) keeps documents whole", split_by_document)
 
-    def fewshot_excludes_test():
+    def fewshot_excludes_test() -> None:
         # Handed only `dev`, build_fewshot could pick a TEST item as a worked example -
         # putting the answer to a held-out item into the prompt that produces the
         # headline number. Notebook 04 passes the full gold set for exactly this reason.
@@ -297,7 +297,7 @@ def main():
                 "build_fewshot(P, pool, gold) leaked a held-out item into the examples"
     check("build_fewshot(P, pool, gold) leaks no test item", fewshot_excludes_test)
 
-    def test_run_auto_versions():
+    def test_run_auto_versions() -> None:
         path = work_dir / "attempts" / "predictions.json"
         first, attempt_one = save_test_run(predictions, path)
         first_bytes = first.read_bytes()
@@ -307,7 +307,7 @@ def main():
         assert first.read_bytes() == first_bytes, "attempt 1 must be left untouched"
     check("save_test_run never overwrites - it versions", test_run_auto_versions)
 
-    def test_log_appends():
+    def test_log_appends() -> None:
         log_path = work_dir / "test_log.jsonl"
         for attempt in (1, 2):
             record_test_scoring(log_path, macro_f1=0.5, attempt=attempt,
@@ -321,7 +321,7 @@ def main():
             "the same prompt must fingerprint the same both times"
     check("record_test_scoring appends, read_test_log reads it back", test_log_appends)
 
-    def freeze_does_all_five():
+    def freeze_does_all_five() -> None:
         # THE REGRESSION THIS GUARDS: this was four notebook cells, and a group that
         # stopped after the second one had a predictions file with no log line beside
         # it and a rounds table that never reached notebook 05. All five steps happen
@@ -358,7 +358,7 @@ def main():
     check("freeze_test_run runs, freezes, re-reads, scores, logs and saves the rounds",
           freeze_does_all_five)
 
-    def export_both_forms():
+    def export_both_forms() -> None:
         # The form that existed before the split - it must keep working untouched.
         written = export_results("track", gold, predictions, {"round0": 0.5},
                                  work_dir / "export_plain", group="g", run="v1")
@@ -375,14 +375,14 @@ def main():
         assert "held-out" in report, "the report must say which half the number is on"
     check("export_results(...) and export_results(..., dev=dev)", export_both_forms)
 
-    def freeze_roundtrip():
+    def freeze_roundtrip() -> None:
         path = work_dir / "frozen.json"
         save_predictions(predictions, path)
         assert load_predictions(path) == predictions, \
             "a frozen run must load back identically"
     check("save_predictions -> load_predictions round-trip", freeze_roundtrip)
 
-    def json_roundtrip():
+    def json_roundtrip() -> None:
         path = work_dir / "rounds.json"
         save_json({"round0 baseline": 0.61}, path, what="rounds")
         # Both call forms: the one taught in the tutorials, and the one notebook 05
@@ -392,7 +392,7 @@ def main():
             {"round0 baseline": 0.61}
     check("save_json -> load_json round-trip, both call forms", json_roundtrip)
 
-    def missing_handoff_files_explain_themselves():
+    def missing_handoff_files_explain_themselves() -> None:
         # Arriving at notebook 05 without having finished 04 is ordinary, and the
         # message has to say which notebook writes the file rather than tracebacking
         # into open().
@@ -410,7 +410,7 @@ def main():
     check("a missing predictions or rounds file says which notebook makes it",
           missing_handoff_files_explain_themselves)
 
-    def agreement_keys():
+    def agreement_keys() -> None:
         result = agreement(["A1", "A2", "B1"], ["A1", "B1", "B1"])
         assert "kappa" in result, "the 'kappa' alias key is missing"
         assert "cohen_kappa" in result, "the 'cohen_kappa' key is missing"
@@ -419,14 +419,14 @@ def main():
 
     print("\nEdge cases that used to produce a wrong number silently")
 
-    def single_label_kappa():
+    def single_label_kappa() -> None:
         one = [{"id": 1, "text": "x", "label": "A1"}, {"id": 2, "text": "y", "label": "A1"}]
         score = evaluate(one, ["A1", "A1"])
         assert isinstance(score, float), "a one-label gold set must not crash"
     check("evaluate on a single-label gold set (kappa undefined, not nan)",
           single_label_kappa)
 
-    def reid_is_a_copy():
+    def reid_is_a_copy() -> None:
         original = [{"id": 99, "text": "x", "label": "A1"}]
         reid(original)
         assert original[0]["id"] == 99, "reid must not mutate its input"
@@ -447,7 +447,7 @@ def main():
              "Final": "B1", "Note": ""},
         ]
 
-        def canonical():
+        def canonical() -> None:
             result = to_canonical(rows, labels)
             assert len(result) == 3, "all three rows are usable"
             for item in result:
@@ -455,7 +455,7 @@ def main():
                     "to_canonical must emit exactly {id, text, label}"
         check("to_canonical(rows, labels) -> canonical gold", canonical)
 
-        def canonical_keeps_context():
+        def canonical_keeps_context() -> None:
             # The rhetorical-move tracks carry a passage the SHEET cannot hold: it has
             # only ID, Text and your label. Without source= it is dropped here and
             # notebook 04 prompts with nothing.
@@ -473,7 +473,7 @@ def main():
 
         from annotate import create_annotation_sheet, remembered_sheet
 
-        def sheet_creation_stays_three_args():
+        def sheet_creation_stays_three_args() -> None:
             # Day 2 S5 taught create_annotation_sheet(title, items, labels). Sharing and
             # remembering were added afterwards; if either ever loses its default, that
             # three-argument call breaks in the middle of the annotation session.
@@ -486,7 +486,7 @@ def main():
         check("create_annotation_sheet(title, items, labels) still needs only three",
               sheet_creation_stays_three_args)
 
-        def coder_tabs_merge_into_one_table():
+        def coder_tabs_merge_into_one_table() -> None:
             # load_coder_sheets reads one TAB per coder and joins them by id. Stub the
             # per-tab reader so this needs no network and no Google account: what is
             # being checked is the JOIN, and that its output is the shape everything
@@ -521,7 +521,7 @@ def main():
         check("load_coder_sheets merges per-coder tabs into the usual row shape",
               coder_tabs_merge_into_one_table)
 
-        def duplicated_tab_is_called_out():
+        def duplicated_tab_is_called_out() -> None:
             # Adding a coder by duplicating a tab that is already filled in hands them
             # somebody else's answers. Perfect agreement then reads as excellent
             # reliability instead of as a photocopy, and nothing downstream can tell.
@@ -549,7 +549,7 @@ def main():
         check("load_coder_sheets warns when one coder's tab is a copy of another",
               duplicated_tab_is_called_out)
 
-        def sheet_id_round_trip():
+        def sheet_id_round_trip() -> None:
             # The sheet id is the one handoff that is not a data file. If this stops
             # round-tripping, notebook 03 step 3 silently gets "" and reads no sheet.
             path = work_dir / "sheet.json"
@@ -561,12 +561,12 @@ def main():
         check("remembered_sheet(path) round-trips, and tolerates no file yet",
               sheet_id_round_trip)
 
-        def sheet_agreement():
+        def sheet_agreement() -> None:
             result = annotator_agreement(rows)
             assert "kappa" in result
         check("annotator_agreement(rows) -> dict", sheet_agreement)
 
-        def sheet_disagreements():
+        def sheet_disagreements() -> None:
             table = disagreements(rows)
             assert len(table) == 1, "exactly one row disagrees"
         check("disagreements(rows) -> DataFrame", sheet_disagreements)
@@ -587,7 +587,7 @@ def main():
         ]
         names = ["CoderA", "CoderB", "CoderC"]
 
-        def agreement_with_three_coders():
+        def agreement_with_three_coders() -> None:
             result = annotator_agreement(three, coders=names)
             assert result["n"] == 3, \
                 "the row one coder skipped must drop out, leaving 3"
@@ -598,7 +598,7 @@ def main():
         check("annotator_agreement(rows, coders=[A, B, C]) -> Fleiss + pairwise",
               agreement_with_three_coders)
 
-        def two_named_coders_behave_as_before():
+        def two_named_coders_behave_as_before() -> None:
             named = annotator_agreement(rows, coders=["CoderA", "CoderB"])
             plain = annotator_agreement(rows)
             assert named["kappa"] == plain["kappa"], \
@@ -606,14 +606,14 @@ def main():
         check("annotator_agreement(rows, coders=[A, B]) == annotator_agreement(rows)",
               two_named_coders_behave_as_before)
 
-        def disagreements_with_three_coders():
+        def disagreements_with_three_coders() -> None:
             table = disagreements(three, coders=names)
             assert len(table) == 2, \
                 "rows 2 and 3 are not unanimous; row 4 is half-finished"
         check("disagreements(rows, coders=[A, B, C]) -> not-unanimous rows",
               disagreements_with_three_coders)
 
-        def fleiss_matches_the_published_example():
+        def fleiss_matches_the_published_example() -> None:
             # Fleiss (1971): 10 subjects, 14 raters, 5 categories, kappa = 0.210.
             from annotate import fleiss_kappa
             counts = [[0, 0, 0, 0, 14], [0, 2, 6, 4, 2], [0, 0, 3, 5, 6],
@@ -635,7 +635,7 @@ def main():
         check("fleiss_kappa reproduces the published worked example",
               fleiss_matches_the_published_example)
 
-        def canonical_rejects_bad_labels():
+        def canonical_rejects_bad_labels() -> None:
             bad = [{"ID": "1", "Text": "first", "CoderA": "", "CoderB": "",
                     "Final": "b1", "Note": ""}]     # lowercase: not in the label set
             result = to_canonical(bad, labels)
@@ -644,7 +644,7 @@ def main():
         check("to_canonical rejects an invalid label (lowercase 'b1')",
               canonical_rejects_bad_labels)
 
-        def canonical_survives_typed_over_id():
+        def canonical_survives_typed_over_id() -> None:
             bad = [{"ID": "not a number", "Text": "first", "CoderA": "", "CoderB": "",
                     "Final": "A1", "Note": ""}]
             result = to_canonical(bad, labels)     # must report, not raise
@@ -654,7 +654,7 @@ def main():
 
         from annotate import compare_to_published
 
-        def published_matches_by_text():
+        def published_matches_by_text() -> None:
             # THE REGRESSION THIS GUARDS: sample_pool renumbers ids from 1, so matching
             # a 42-item gold set to a 3183-item pool BY ID pairs your item 7 with pool
             # item 7 - two unrelated sentences - and reports a meaningless percentage

@@ -50,7 +50,15 @@ EXCLUDE_NAMES = {".git", ".venv", ".env", "__pycache__", ".ipynb_checkpoints",
 EXCLUDE_SUBSTRINGS = ["icnale"]
 
 
-def _is_excluded(path):
+def _is_excluded(path: Path) -> bool:
+    """Should this file be kept out of the bundle?
+
+    Args:
+        path: the file being considered.
+
+    Returns:
+        True when its name is on the exclusion list.
+    """
     if path.name in EXCLUDE_NAMES:
         return True
     lowered = path.name.lower()
@@ -60,7 +68,16 @@ def _is_excluded(path):
     return False
 
 
-def copy_file(source, destination):
+def copy_file(source: Path, destination: Path) -> bool:
+    """Copy one file, unless it is missing or excluded.
+
+    Args:
+        source: the file to copy.
+        destination: where to put it. Its folder is made if missing.
+
+    Returns:
+        True when the file was copied.
+    """
     if not source.exists() or _is_excluded(source):
         return False
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -68,7 +85,8 @@ def copy_file(source, destination):
     return True
 
 
-def copy_matching(source_dir, destination_dir, pattern):
+def copy_matching(source_dir: Path, destination_dir: Path,
+                  pattern: str) -> list[str]:
     """Copy the files in one directory matching a glob, skipping excluded ones."""
     copied = []
     if not source_dir.exists():
@@ -81,7 +99,15 @@ def copy_matching(source_dir, destination_dir, pattern):
     return copied
 
 
-def parse_arguments(argv):
+def parse_arguments(argv: list[str]):
+    """Read the command line.
+
+    Args:
+        argv: the command-line arguments.
+
+    Returns:
+        The parsed arguments, with .group, .track, .run, .out and .overwrite.
+    """
     parser = argparse.ArgumentParser(
         description="Collect your mini-project files into a submission folder.")
     parser.add_argument("--group", required=True,
@@ -97,7 +123,7 @@ def parse_arguments(argv):
     return parser.parse_args(argv)
 
 
-def infer_track_and_run(group, track, run):
+def infer_track_and_run(group: str, track: str | None, run: str | None) -> tuple:
     """Work out which track and run to bundle, from whatever the export step wrote.
 
     Report files are named <track>_<group>_<run>_report.md, so both are in the name.
@@ -118,12 +144,20 @@ def infer_track_and_run(group, track, run):
     return track, run
 
 
-def prepare_bundle_folder(bundle, overwrite):
+def prepare_bundle_folder(bundle: Path, overwrite: bool) -> bool:
     """Make an empty folder to build in, refusing to wipe one you may have added to.
 
     The folder is rebuilt from scratch so nothing stale survives - which also means
     anything you dropped in by hand, like slides, goes with it. So it will not do that
     behind your back.
+
+    Args:
+        bundle: the folder to build in.
+        overwrite: True to rebuild a folder that already exists.
+
+    Returns:
+        True when the folder is ready. False when it already existed and overwrite
+        was not given - nothing has been deleted.
     """
     if bundle.exists() and not overwrite:
         print("That folder already exists:")
@@ -139,7 +173,7 @@ def prepare_bundle_folder(bundle, overwrite):
     return True
 
 
-def collect_the_plan(bundle, found, missing):
+def collect_the_plan(bundle: Path, found: dict, missing: list[str]) -> None:
     """PLAN.md - the gate. It travels with the bundle as evidence the gate was passed."""
     if copy_file(ROOT / "PLAN.md", bundle / "PLAN.md"):
         found["PLAN.md"] = ["PLAN.md"]
@@ -148,7 +182,7 @@ def collect_the_plan(bundle, found, missing):
                        "evidence the gate was passed.")
 
 
-def collect_notebooks(bundle, found, missing):
+def collect_notebooks(bundle: Path, found: dict, missing: list[str]) -> None:
     """All five notebooks, filled in.
 
     01 is per-track, so only the one you actually ran is asked 01 is per-track, so only the one you actually ran is asked
@@ -164,7 +198,8 @@ def collect_notebooks(bundle, found, missing):
             missing.append("notebooks/" + stage + ".ipynb — filled in.")
 
 
-def collect_prompts(bundle, track, found, missing):
+def collect_prompts(bundle: Path, track: str, found: dict,
+                    missing: list[str]) -> None:
     """Your prompt file(s), including the iteration trail."""
     prompts = copy_matching(ROOT / "prompts", bundle / "prompts", track + "*.txt")
     if prompts:
@@ -173,7 +208,8 @@ def collect_prompts(bundle, track, found, missing):
         missing.append("prompts/" + track + "*.txt — your prompt file(s).")
 
 
-def collect_gold(bundle, stem, found, missing):
+def collect_gold(bundle: Path, stem: str, found: dict,
+                 missing: list[str]) -> None:
     """Your adjudicated gold set, and the line you drew through it.
 
     All three files, because the split is part of the claim: the headline F1 was computed on
@@ -199,7 +235,8 @@ def collect_gold(bundle, stem, found, missing):
                        "(notebook 03).")
 
 
-def collect_outputs(bundle, stem, found, missing):
+def collect_outputs(bundle: Path, stem: str, found: dict,
+                    missing: list[str]) -> None:
     """The frozen predictions, the CSV, the report and the test log.
 
     Named patterns rather than "<stem>*": export_results also drops a copy of the
@@ -227,7 +264,7 @@ def collect_outputs(bundle, stem, found, missing):
                        "scored, and that is part of the method.")
 
 
-def collect_plumbing(bundle, found, missing):
+def collect_plumbing(bundle: Path, found: dict, missing: list[str]) -> None:
     """The code, so the bundle actually runs."""
     scripts = copy_matching(ROOT / "scripts", bundle / "scripts", "*.py")
     found["scripts/"] = scripts
@@ -248,7 +285,7 @@ def collect_plumbing(bundle, found, missing):
                        "notebook imports it.")
 
 
-def collect_slides(bundle, found, missing):
+def collect_slides(bundle: Path, found: dict, missing: list[str]) -> None:
     """Your 5 slides."""
     slides = []
     for candidate in ("slides.pdf", "slides.pptx", "slides.key"):
@@ -261,7 +298,7 @@ def collect_slides(bundle, found, missing):
                        "them to the folder by hand.")
 
 
-def print_what_was_collected(found, bundle):
+def print_what_was_collected(found: dict, bundle: Path) -> None:
     """List every file that went in, section by section."""
     print()
     total = 0
@@ -276,7 +313,7 @@ def print_what_was_collected(found, bundle):
     print(total, "file(s) collected into", bundle)
 
 
-def warn_about_placeholders(bundle, stem):
+def warn_about_placeholders(bundle: Path, stem: str) -> None:
     """A report still full of the scaffold's own prose is the easiest thing to lose
     marks on, and the easiest to check mechanically."""
     report_path = bundle / "outputs" / (stem + "_report.md")
@@ -292,7 +329,15 @@ def warn_about_placeholders(bundle, stem):
             print("         scaffold's own prose scores zero.")
 
 
-def main(argv):
+def main(argv: list[str]) -> int:
+    """Collect your mini-project files into a submission folder.
+
+    Args:
+        argv: the command-line arguments.
+
+    Returns:
+        0 when nothing was missing, 1 otherwise.
+    """
     args = parse_arguments(argv)
     group = args.group
     if args.out:
