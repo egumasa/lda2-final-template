@@ -84,6 +84,80 @@ def bound_and_used(tree: ast.AST) -> tuple:
     return bound, used
 
 
+def promised_names(source: str) -> set:
+    """The names a cell's `# Creates:` header says it leaves behind.
+
+    A cell the student is asked to write ships empty, under a header naming what it has
+    to end up defining. Nothing binds those names until they write it, so without this
+    every deliberately blank cell reads as a missing import - and the one check that
+    would catch a REAL missing import starts crying wolf on the cells we left blank on
+    purpose.
+
+    Args:
+        source: the cell's code.
+
+    Returns:
+        The names promised by any `# Creates:` line in it.
+    """
+    names = set()
+    for line in source.split("\n"):
+        stripped = line.strip()
+        if stripped.startswith("# Creates:"):
+            promised = stripped.split(":", 1)[1]
+            for part in promised.split(","):
+                # "rows, a_labels, b_labels" - and "dev (a list) - the half you keep",
+                # where only the first word is the name.
+                word = part.strip().split(" ")[0].strip()
+                if word:
+                    names.add(word)
+    return names
+
+
+def deferred_used(tree: ast.AST) -> set:
+    """The names this cell reads only from inside a function body.
+
+    A name in a function body is looked up when the function is CALLED, not when the
+    cell that defines it runs. So a function defined in one cell may call a helper
+    defined three cells further down, and both are fine as long as nothing calls it in
+    between. Without this, every such pair reads as a name used before it exists.
+
+    Args:
+        tree: the parsed cell.
+
+    Returns:
+        The names read inside a `def` or a `lambda` in this cell.
+    """
+    names = set()
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+            for inner in ast.walk(node):
+                if isinstance(inner, ast.Name) and not isinstance(inner.ctx, ast.Store):
+                    names.add(inner.id)
+    return names
+
+
+def all_bound_names(notebook: dict) -> set:
+    """Every name defined anywhere in the notebook, in any cell, in any order.
+
+    Args:
+        notebook: the parsed .ipynb.
+
+    Returns:
+        The names bound by any code cell.
+    """
+    names = set()
+    for cell in notebook["cells"]:
+        if cell["cell_type"] != "code":
+            continue
+        try:
+            tree = ast.parse(runnable_source(cell))
+        except SyntaxError:
+            continue
+        bound, _ = bound_and_used(tree)
+        names = names | bound
+    return names
+
+
 def star_imported(tree: ast.AST) -> list[str]:
     """The modules this cell star-imports."""
     modules = []
@@ -110,6 +184,8 @@ def check_notebook(path: Path, from_config: set[str]) -> int:
     known = set(dir(builtins)) | COLAB_NAMES
     problems = []
     notebook = json.loads(path.read_text(encoding="utf-8"))
+    # Everything the notebook defines anywhere, for the function-body case below.
+    defined_somewhere = all_bound_names(notebook)
 
     for index, cell in enumerate(notebook["cells"]):
         if cell["cell_type"] != "code":
@@ -129,10 +205,18 @@ def check_notebook(path: Path, from_config: set[str]) -> int:
                                  "cannot resolve a star import of " + str(module)))
 
         bound, used = bound_and_used(tree)
+        deferred = deferred_used(tree)
+        # A blank cell the student is asked to fill in still promises, in its header,
+        # what it has to end up defining. Take it at its word.
+        bound = bound | promised_names(runnable_source(cell))
         # Within one cell, order is not tracked: a helper defined at the bottom and
         # called at the top is still fine at run time, since the cell runs as a unit.
         for name, line in used:
             if name in known or name in bound:
+                continue
+            # Inside a function body, the name is looked up when the function is
+            # called. A later cell defining it is fine; nothing defining it is not.
+            if name in deferred and name in defined_somewhere:
                 continue
             problems.append((index, line, name, "used before anything defines it"))
         known = known | bound

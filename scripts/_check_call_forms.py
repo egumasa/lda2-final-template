@@ -257,7 +257,7 @@ def main() -> bool:
             by_id[item["id"]] = item["text"]
         for item in dev + test:
             assert by_id[item["id"]] == item["text"], \
-                "split_dev_test must NOT renumber ids - notebook 05's join runs on them"
+                "split_dev_test must NOT renumber ids - notebook 06's join runs on them"
     check("split_dev_test preserves the gold ids", split_keeps_ids)
 
     def split_serves_test_first() -> None:
@@ -324,7 +324,7 @@ def main() -> bool:
     def freeze_does_all_five() -> None:
         # THE REGRESSION THIS GUARDS: this was four notebook cells, and a group that
         # stopped after the second one had a predictions file with no log line beside
-        # it and a rounds table that never reached notebook 05. All five steps happen
+        # it and a rounds table that never reached notebook 06. All five steps happen
         # or none do.
         out = work_dir / "freeze"
         pred_path = out / "predictions.json"
@@ -338,7 +338,7 @@ def main() -> bool:
             generate_text=lambda prompt: gold[0]["label"])
 
         assert pred_path.exists(), "the predictions must be frozen to disk"
-        assert rounds_path.exists(), "the rounds table must be saved for notebook 05"
+        assert rounds_path.exists(), "the rounds table must be saved for notebook 06"
         log = read_test_log(log_path)
         assert len(log) == 1, "exactly one line per held-out scoring"
         assert log["macro_f1"][0] == macro_f1, \
@@ -388,7 +388,7 @@ def main() -> bool:
         # Both call forms: the one taught in the tutorials, and the one notebook 05
         # uses now that a missing file names the notebook that writes it.
         assert load_json(path, what="rounds") == {"round0 baseline": 0.61}
-        assert load_json(path, what="rounds", made_by="notebook 04_prompt") == \
+        assert load_json(path, what="rounds", made_by="notebook 04_develop") == \
             {"round0 baseline": 0.61}
     check("save_json -> load_json round-trip, both call forms", json_roundtrip)
 
@@ -398,12 +398,12 @@ def main() -> bool:
         # into open().
         for call in [lambda: load_predictions(work_dir / "not_written_yet.json"),
                      lambda: load_json(work_dir / "not_written_yet.json",
-                                       what="rounds", made_by="notebook 04_prompt")]:
+                                       what="rounds", made_by="notebook 04_develop")]:
             try:
                 call()
                 raise AssertionError("a missing handoff file must raise")
             except FileNotFoundError as problem:
-                assert "notebook 04_prompt" in str(problem), \
+                assert "notebook 04_develop" in str(problem), \
                     "the message must name the notebook that writes the file"
                 assert "config.yaml" in str(problem), \
                     "the message must mention the run/group naming trap"
@@ -416,6 +416,34 @@ def main() -> bool:
         assert "cohen_kappa" in result, "the 'cohen_kappa' key is missing"
         assert result["kappa"] == result["cohen_kappa"]
     check("agreement(a, b) -> dict with both kappa keys", agreement_keys)
+
+    def triage_both_vocabularies() -> None:
+        """Notebook 06 counts the MODEL's errors; notebook 03 counts the CODERS'.
+
+        Same two functions, one optional keyword apart. The keyword is appended, so
+        the Day-2/06 call form still has to run untouched.
+        """
+        from metrics import triage_counts
+        from pipeline import CODER_CATEGORIES, triage_category
+
+        model_triage = {7: "scheme - the Move 1/2 boundary", 12: "model - clear item"}
+        counts = triage_counts(model_triage)                 # the taught form
+        assert counts["model"] == 1 and counts["scheme"] == 1
+
+        coder_triage = {7: "scheme - the same boundary", 12: "slip - typed the wrong row"}
+        counts = triage_counts(coder_triage, categories=CODER_CATEGORIES,
+                               what="disagreements")
+        assert counts["slip"] == 1, "'slip' must count under the coder vocabulary"
+        assert "model" not in counts, "'model' has no meaning between two coders"
+
+        # ...and each vocabulary must REFUSE the other's word, or a mistyped line
+        # would be silently counted as something it is not.
+        assert triage_category("slip - x") is None, \
+            "'slip' is not one of the model categories"
+        assert triage_category("model - x", CODER_CATEGORIES) is None, \
+            "'model' is not one of the coder categories"
+    check("triage_counts(triage) and triage_counts(triage, categories=CODER_CATEGORIES)",
+          triage_both_vocabularies)
 
     print("\nEdge cases that used to produce a wrong number silently")
 
@@ -551,7 +579,7 @@ def main() -> bool:
 
         def sheet_id_round_trip() -> None:
             # The sheet id is the one handoff that is not a data file. If this stops
-            # round-tripping, notebook 03 step 3 silently gets "" and reads no sheet.
+            # round-tripping, notebook 03 silently gets "" and reads no sheet.
             path = work_dir / "sheet.json"
             assert remembered_sheet(path) == "", \
                 "a sheet that was never created must come back as empty, not raise"
