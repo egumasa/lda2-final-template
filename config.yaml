@@ -102,6 +102,24 @@ members:
   # - b7654321@dc.tohoku.ac.jp
 
 
+# How the model is asked. These two, with `seed:` above, are what someone needs in
+# order to run your study again and get your numbers.
+#
+# temperature: 0 tells the model to take its most likely answer every time, which is
+# what makes a run repeatable. Higher values let it vary. Raising it is a real
+# experiment rather than a mistake — run the same prompt twice at 0 and twice at 1 and
+# count how many labels changed, and you have measured how much of the difference
+# between two of your rounds was the prompt and how much was the model. Whatever you
+# use, your report states it.
+temperature: 0
+
+# Which model. Left empty, you get the course default, which is what we recommend:
+# everyone's numbers are then comparable, and the free-tier limits are known. Pin a
+# different one only if your project is about the difference between two models — and
+# then say which, because "we used Gemini" does not identify a model a year from now.
+model:
+
+
 # ----------------------------------------------------------------------------------
 # ONE MORE, only if your labels are a SCALE
 # ----------------------------------------------------------------------------------

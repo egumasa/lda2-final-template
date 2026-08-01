@@ -84,6 +84,17 @@ DEV = _setting("dev")
 MEMBERS = _setting("members") or []
 LABELS_ORDER = _setting("labels_order") or None
 
+# The two model settings that decide whether anyone can reproduce your run. They live
+# here rather than in a notebook cell for the same reason `seed` does: the temperature
+# that produced the number in your report has to be the temperature your report states,
+# and a value typed into a cell is a value the next person to run the cell can change
+# without noticing. PLAN.md asks for both.
+#
+# `settings.get` rather than `_setting`, so a config.yaml written before these two
+# existed still runs - it just gets the reproducible defaults.
+TEMPERATURE = settings.get("temperature", 0)
+MODEL = settings.get("model") or ""
+
 # Who labels. These are the annotation sheet's coder column headers, and notebooks 03
 # and 05 both need them to match — a mismatch used to mean the join in 05 came back
 # empty with nothing to say why, because the names were typed separately in each
@@ -189,7 +200,7 @@ if IN_COLAB and not ON_DRIVE:
 def stem_for(track: str, group: str, run: str) -> str:
     """The front of every filename your group produces: track_group_run.
 
-    One function, so that the name notebook 02 writes and the name notebook 05 looks
+    One function, so that the name notebook 02 writes and the name notebook 06 looks
     for cannot drift apart. Anything that needs to build one of these filenames calls
     this rather than joining the three pieces itself.
 
@@ -222,30 +233,42 @@ SAMPLE_BEFORE_TOPUP_PATH = (ROOT / "data" / "gold"
                             / (STEM + "_sample_before_topup.json"))   # 02b writes
 
 # The two halves of that gold set. Both are gold — the same adjudicated items, with a
-# line drawn through them: dev is what notebook 04 iterates against, test is opened once
-# and is the number your report leads with.
+# line drawn through them: dev is what notebook 04 iterates against; test is opened once,
+# in notebook 05, and is the number your report leads with.
 DEV_PATH = ROOT / "data" / "gold" / (STEM + "_dev.json")               # 03 writes
 TEST_PATH = ROOT / "data" / "gold" / (STEM + "_test.json")             # 03 writes
 
 # The rows your coders labelled differently. Notebook 03 has them already, so it writes
-# them down; notebook 05 reads the file instead of signing back in to the Google Sheet
-# and re-deriving the same table. It also means step 3 of notebook 05 still works after
+# them down; notebook 06 reads the file instead of signing back in to the Google Sheet
+# and re-deriving the same table. It also means step 3 of notebook 06 still works after
 # the sheet has been deleted or its owner has left.
 DISAGREED_PATH = ROOT / "data" / "gold" / (STEM + "_disagreed.json")   # 03 writes
 
-PRED_PATH = ROOT / "outputs" / (STEM + "_predictions.json")            # 04 writes:
-#                                                          the frozen run on TEST. The
-#   dev rounds are not saved at all — they exist to be thrown away.
+PRED_PATH = ROOT / "outputs" / (STEM + "_predictions.json")            # 05 writes:
+#                                                          the frozen run on TEST.
+
+# The score of every round you ran, and your one-line reason for each. Notebook 04
+# writes both when it finishes iterating; 05 adds the held-out row; 06 prints them side
+# by side as report section 2. They are files rather than variables because 04, 05 and
+# 06 are three notebooks and nothing survives between them except what is on disk - the
+# same reason your prompt versions have to be saved as files.
 ROUNDS_PATH = ROOT / "outputs" / (STEM + "_rounds.json")               # 04 writes
+NOTES_PATH = ROOT / "outputs" / (STEM + "_round_notes.json")           # 04 writes
 
 # Every time the held-out set is scored, one line lands here. Nothing stops you scoring
 # it twice; this is what makes the second time visible, to you and to the reader.
-TESTLOG_PATH = ROOT / "outputs" / (STEM + "_test_log.jsonl")           # 04 appends
+TESTLOG_PATH = ROOT / "outputs" / (STEM + "_test_log.jsonl")           # 05 appends
 
 # Your group's reading of the model's errors - which are the scheme's fault, which are
-# the model's. Written in notebook 05 and read straight back into the report, because
+# the model's. Written in notebook 06 and read straight back into the report, because
 # it is the one part of the analysis that exists only in your heads until you type it.
-TRIAGE_PATH = ROOT / "outputs" / (STEM + "_triage.json")               # 05 writes
+TRIAGE_PATH = ROOT / "outputs" / (STEM + "_triage.json")               # 06 writes
+
+# The same judgment, made a day earlier and about your own coders rather than about the
+# model: of the rows CoderA and CoderB disagreed on, which were the scheme's fault. It
+# is optional (notebook 03 says when it is worth the ten minutes) and it is the one
+# thing that answers "what did your QC pass change?" with a number.
+CODER_TRIAGE_PATH = ROOT / "outputs" / (STEM + "_coder_triage.json")   # 03 writes
 PROMPT_FILE = ROOT / "prompts" / (TRACK + ".txt")
 OUT_DIR = ROOT / "outputs"
 
@@ -280,6 +303,7 @@ def describe() -> None:
         print("split: dev", DEV, "per label · test gets the rest")
     print("coders:", ", ".join(CODERS))
     print("labels order:", LABELS_ORDER)
+    print("model:", MODEL or "course default", "· temperature", TEMPERATURE)
     # Where the files go. Say it every time: it is the one setting nobody edits and
     # everybody depends on, and "which folder am I actually in" is the question behind
     # most of the ways a group loses a morning's work.

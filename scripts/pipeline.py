@@ -214,15 +214,27 @@ def _resolve_gemini_key() -> str | None:
 _MODEL_IN_USE = ""
 
 
-def _connect_to_gemini_api(key: str) -> str:
+def _connect_to_gemini_api(key: str,
+                           temperature: float = 0.0,
+                           seed: int = 42,
+                           model: str = "") -> str:
     """Set up the API-key connection.
 
     temperature=0 + a fixed seed = the same prompt gives the same answer every run.
     That is what "reproducible" means in practice, and it is the whole reason we prefer
     the key path over Colab's built-in model.
 
+    Raising the temperature is a real experiment rather than a mistake: run the same
+    prompt twice at 0 and twice at 1, and count how many labels changed. What you learn
+    is how much of any difference between two of your rounds was the prompt and how
+    much was the model. Just report the temperature you actually used.
+
     Args:
         key: your Gemini API key.
+        temperature: 0 makes the model take its most likely answer every time. Higher
+            values let it vary.
+        seed: the same seed with the same prompt asks for the same answer.
+        model: the model id to pin. Left empty, the course default is used.
 
     Returns:
         The model id the connection will use.
@@ -231,12 +243,34 @@ def _connect_to_gemini_api(key: str) -> str:
     from google import genai
     from google.genai import types
     _GENAI_CLIENT = genai.Client(api_key=key)
-    _GENAI_CONFIG = types.GenerateContentConfig(temperature=0, seed=42)
+    _GENAI_CONFIG = types.GenerateContentConfig(temperature=temperature, seed=seed)
+    if model:
+        return model
     return os.environ.get("LLM_MODEL", MODEL_ID)
 
 
 _GENAI_CLIENT = None
 _GENAI_CONFIG = None
+
+# The (temperature, seed, model) the live connection was made with. Compared on every
+# make_backend call, so that changing a setting reconnects instead of being ignored.
+_BACKEND_SETTINGS = None
+
+
+def _describe_settings(settings: tuple | None) -> str:
+    """One line naming a connection's temperature, seed and model.
+
+    Args:
+        settings: the (temperature, seed, model) tuple, or None before connecting.
+
+    Returns:
+        A readable description, for the message printed when they change.
+    """
+    if settings is None:
+        return "not connected yet"
+    temperature, seed, model = settings
+    return ("temperature=" + str(temperature) + ", seed=" + str(seed)
+            + ", model=" + (model or "course default"))
 
 
 def _call_gemini_api(prompt: str) -> str:
@@ -252,18 +286,27 @@ def _call_colab_gemini(prompt: str) -> str:
     return ai.generate_text(prompt)
 
 
-def make_backend() -> tuple:
+def make_backend(temperature: float = 0.0,
+                 seed: int = 42,
+                 model: str = "") -> tuple:
     """Connect to the model.
 
-    We prefer an API KEY, because the API lets us pin temperature=0 and a fixed seed,
+    We prefer an API KEY, because the API lets us pin the temperature and the seed,
     which is what makes a run reproducible. Colab's keyless built-in Gemini is only a
     fallback: it works with zero setup but exposes no temperature or seed, so the same
     prompt can give different answers - fine for a quick look, NOT for your final
     frozen run.
 
-    Safe to call more than once: after the first time it just hands back the connection
-    it already made, so re-running the SETUP cell does not reset the pacing clock and
-    let a burst of calls through.
+    Safe to call more than once: with the SAME settings it hands back the connection it
+    already made, so re-running the SETUP cell does not reset the pacing clock and let a
+    burst of calls through. With DIFFERENT settings it reconnects and says so - because
+    the alternative is that `setup(temperature=1)` after `setup()` quietly keeps sending
+    at temperature 0, and every number after it describes a run you did not make.
+
+    Args:
+        temperature: 0 makes the model take its most likely answer every time.
+        seed: the same seed with the same prompt asks for the same answer.
+        model: the model id to pin. Left empty, the course default is used.
 
     Returns:
         Two things: the generate_text function, and the name of what we connected to.
@@ -271,17 +314,24 @@ def make_backend() -> tuple:
     Raises:
         RuntimeError: when there is no key and no Colab built-in model.
     """
-    global _CALL_MODEL, _BACKEND_NAME, _MIN_INTERVAL, _MODEL_IN_USE
+    global _CALL_MODEL, _BACKEND_NAME, _MIN_INTERVAL, _MODEL_IN_USE, _BACKEND_SETTINGS
+    wanted = (temperature, seed, model)
     if _CALL_MODEL is not None:
-        return generate_text, _BACKEND_NAME   # already connected - reuse it, stay paced
+        if wanted == _BACKEND_SETTINGS:
+            return generate_text, _BACKEND_NAME   # same settings - reuse it, stay paced
+        print("Settings changed since the last connection, so reconnecting:")
+        print("  was:", _describe_settings(_BACKEND_SETTINGS))
+        print("  now:", _describe_settings(wanted))
+        _CALL_MODEL = None
 
     # Option 1 (preferred): the Gemini API with your own key. Reproducible.
     key = _resolve_gemini_key()
     if key:
-        _MODEL_IN_USE = _connect_to_gemini_api(key)
+        _MODEL_IN_USE = _connect_to_gemini_api(key, temperature, seed, model)
         _CALL_MODEL = _call_gemini_api
-        _BACKEND_NAME = ("Gemini API (" + _MODEL_IN_USE
-                         + ", temperature=0, seed=42)")
+        _BACKEND_SETTINGS = wanted
+        _BACKEND_NAME = ("Gemini API (" + _MODEL_IN_USE + ", temperature="
+                         + str(temperature) + ", seed=" + str(seed) + ")")
         # 4.4s between calls keeps us under the 15-per-minute free-tier cap.
         _MIN_INTERVAL = 4.4
         return generate_text, _BACKEND_NAME
@@ -297,8 +347,12 @@ def make_backend() -> tuple:
         print("         give different answers - your numbers will NOT be reproducible.")
         print("         Put your key in the Colab Secrets panel as GEMINI_API_KEY")
         print("         before your final run. A free key: aistudio.google.com/apikey")
+        if temperature != 0.0:
+            print("         It also cannot honour temperature=" + str(temperature)
+                  + ". Whatever this backend does is not what you asked for.")
         _MODEL_IN_USE = "colab built-in gemini"
         _CALL_MODEL = _call_colab_gemini
+        _BACKEND_SETTINGS = wanted
         _BACKEND_NAME = "Colab Gemini (non-reproducible)"
         _MIN_INTERVAL = 13.2                   # no published limit, so pace carefully
         return generate_text, _BACKEND_NAME
@@ -312,16 +366,29 @@ def make_backend() -> tuple:
     )
 
 
-def setup() -> None:
+def setup(temperature: float = 0.0,
+          seed: int = 42,
+          model: str = "") -> None:
     """Connect to the model and say what we connected to. Run this once, at the top.
 
+    The three settings are part of your study, not of this session: the temperature
+    that produced your reported number is a number your report has to state. So they
+    come from `config.yaml`, where your group agrees them once, and the notebook hands
+    them over here in the open rather than hiding them inside the connection.
+
+    Args:
+        temperature: 0 makes the model take its most likely answer every time, which is
+            what makes a run repeatable. Higher lets it vary.
+        seed: the same seed with the same prompt asks for the same answer.
+        model: the model id to pin. Left empty, the course default is used.
+
     Returns:
-        Nothing. It prints the name of the backend it connected to.
+        Nothing. It prints the backend, the model, and the settings it connected with.
 
     Example:
-        >>> setup()
+        >>> setup(temperature=TEMPERATURE, seed=SEED, model=MODEL)
     """
-    _, backend_name = make_backend()
+    _, backend_name = make_backend(temperature, seed, model)
     print("LLM backend:", backend_name)
 
 
@@ -486,7 +553,7 @@ def _refuse_to_load_missing(path: str | Path, what: str, made_by: str) -> None:
     Args:
         path: the file about to be read.
         what: the word for the contents ("frozen predictions").
-        made_by: which notebook writes it ("notebook 04_prompt").
+        made_by: which notebook writes it ("notebook 04_develop").
 
     Raises:
         FileNotFoundError: when the file is not there.
@@ -580,7 +647,7 @@ def load_predictions(url_or_path: str | Path) -> list[str]:
         predictions = json.loads(raw_bytes.decode("utf-8"))
     else:
         _refuse_to_load_missing(url_or_path, "frozen predictions",
-                                "notebook 04_prompt")
+                                "notebook 04_develop")
         opened_file = open(url_or_path, encoding="utf-8")
         predictions = json.loads(opened_file.read())
         opened_file.close()
@@ -701,8 +768,8 @@ def read_test_log(log_path: str | Path) -> pd.DataFrame:
     """
     output_path = Path(log_path)
     if not output_path.exists():
-        print("No test log at", str(output_path), "- notebook 04 writes it when you")
-        print("score the held-out set.")
+        print("No test log at", str(output_path), "- notebook 05 writes it when you")
+        print("score the held-out set. Notebook 04 never touches it.")
         return pd.DataFrame()
     records = []
     for line in output_path.read_text(encoding="utf-8").splitlines():
@@ -800,12 +867,13 @@ def freeze_test_run(prompt: str,
                     ordered: bool = False,
                     labels: list[str] | None = None,
                     key: str = "FINAL test (held out)",
-                    generate_text=None) -> float:
+                    generate_text=None,
+                    extract=None) -> float:
     """Run `prompt` on the held-out set, freeze it, score it, and log the attempt.
 
     `f1_by_round` is updated in place, with the test score added LAST so the table
     reads as the dev rounds in order with the held-out score at the bottom, and then
-    written to `rounds_path` for notebook 05.
+    written to `rounds_path`, which notebook 06 prints as report section 2.
 
     Args:
         prompt: the final prompt, containing {text}.
@@ -813,7 +881,7 @@ def freeze_test_run(prompt: str,
         f1_by_round: your per-round scores. The test score is added to it in place.
         pred_path: where to freeze the predictions.
         log_path: the .jsonl test log to append to.
-        rounds_path: where to write the rounds table for notebook 05.
+        rounds_path: where to write the rounds table, for notebook 06 to print.
         prompt_file: the file the prompt was read from.
         dev_f1: the dev score, when you have one to compare against.
         note: why there was more than one attempt. A second attempt with the SAME
@@ -824,9 +892,13 @@ def freeze_test_run(prompt: str,
         key: the name to give this round in the table.
         generate_text: the function that sends a prompt. Left out, the connected
             backend is used.
+        extract: the function that turns one reply into one label. Pass the same one
+            you used while iterating - a held-out run scored with a different reader
+            than the dev rounds is not comparable with them.
 
     Returns:
-        The macro-F1 on the held-out set.
+        The macro-F1 on the held-out set. The raw replies are frozen beside the
+        predictions, as `..._predictions_replies.json`.
 
     Example:
         >>> freeze_test_run(prompt, test, f1_by_round, PRED_PATH, TESTLOG_PATH,
@@ -834,9 +906,18 @@ def freeze_test_run(prompt: str,
     """
     from metrics import evaluate      # imported here: metrics imports this module
 
-    predictions = run_prompt(prompt, test, labels=labels, generate_text=generate_text)
+    predictions = run_prompt(prompt, test, labels=labels, generate_text=generate_text,
+                             extract=extract)
     written_path, attempt = save_test_run(predictions, pred_path)
     print("Froze to", Path(written_path).name, "· attempt", attempt)
+
+    # Freeze what the model SAID as well as what we made of it. The predictions are our
+    # reading of the replies; if anyone later doubts a label - or you want to show that
+    # a "??" was the model's fault and not the extractor's - the reply is the evidence,
+    # and it is gone as soon as this runtime resets.
+    replies_path = Path(written_path).with_name(
+        Path(written_path).stem + "_replies.json")
+    save_json(last_replies(), replies_path, what="raw model replies", overwrite=True)
 
     # Scored from the file, not from the list still in memory. This is the one check
     # that the file you will quote in your report is the file you think it is.
@@ -853,8 +934,9 @@ def freeze_test_run(prompt: str,
                         round_key=key, note=note)
 
     # The rounds table has existed only in this session's memory until now, and
-    # notebook 05 needs it. Overwrite: re-running this cell means re-running the whole
-    # held-out scoring, and the table has to match the log it was written beside.
+    # notebook 06 prints it as report section 2. Overwrite: re-running this cell means
+    # re-running the whole held-out scoring, and the table has to match the log it was
+    # written beside.
     save_json(f1_by_round, rounds_path, what="rounds", overwrite=True)
     return macro_f1
 
@@ -1461,7 +1543,7 @@ def split_dev_test(gold: list[dict[str, str]],
     """Split an adjudicated gold set into (dev, test).
 
     Both forms stratify by label, so every label is represented on both sides of the
-    line wherever the data allows it. The ids are NOT renumbered: notebook 05 joins on
+    line wherever the data allows it. The ids are NOT renumbered: notebook 06 joins on
     them to ask which of the model's errors are also items your coders disagreed about.
 
     Args:
@@ -1615,7 +1697,7 @@ def _split_by_label(gold: list[dict[str, str]],
             test.append(item)
 
     # Shuffle each half so the labels are not left in blocks, but do NOT renumber the
-    # ids. Every id here was fixed when the annotation sheet was built, and notebook 05
+    # ids. Every id here was fixed when the annotation sheet was built, and notebook 06
     # joins on them to ask which of the model's errors are also the items your two
     # coders disagreed about. Renumbering would leave that join silently meaningless.
     random_generator.shuffle(dev)
@@ -1722,8 +1804,8 @@ def _report_split(dev: list[dict[str, str]],
         print("NOTE: halves this small usually mean you are on the DEMO pool. Fine for")
         print("      watching the pipeline run, useless for a number you would report.")
 
-    print("        dev is what you iterate against in notebook 04. test is opened once,")
-    print("        in the last step of that notebook, and scored once.")
+    print("        dev is what you iterate against in notebook 04. test is opened in")
+    print("        notebook 05, once, and scored there.")
 
 
 def _label_counts(items: list[dict[str, str]]) -> dict[str, int]:
@@ -1794,14 +1876,76 @@ def extract_label(reply: str, labels: list[str]) -> str:
     return "??"
 
 
+# The raw replies from the most recent run_prompt call. Kept here rather than returned,
+# so that `predictions = run_prompt(prompt, dev)` stays the one-line call Day 3 taught.
+_LAST_REPLIES = []
+
+
+def last_replies() -> list[str]:
+    """What the model actually said in the most recent run, one string per item.
+
+    `run_prompt` hands back the labels it read out of these. When one of them is "??",
+    or when a label looks wrong, this is where you find out why - the reply is the
+    evidence and the label is only our reading of it.
+
+    Returns:
+        The raw replies, in the order the items were sent. Empty before the first run.
+
+    Example:
+        >>> last_replies()[3]
+    """
+    return _LAST_REPLIES
+
+
+def _one_prediction_line(item: dict[str, str], predicted: str, reply: str) -> str:
+    """One item's result as a single line: what it was, what we read, what it said.
+
+    Args:
+        item: the gold item just sent.
+        predicted: the label read out of the reply.
+        reply: what the model actually replied.
+
+    Returns:
+        The line to print.
+    """
+    gold_label = str(item.get("label", "?"))
+    # Collapse the reply onto one line - models like to answer in paragraphs.
+    said = " ".join(str(reply).split())
+    if len(said) > 60:
+        said = said[:57] + "..."
+
+    mark = "     "
+    if predicted == "??":
+        mark = "  ?? "
+    elif gold_label != "?" and predicted != gold_label:
+        mark = " MISS"
+
+    return ("  " + str(item.get("id", "-")).rjust(4)
+            + "  " + gold_label.ljust(10) + " -> " + str(predicted).ljust(10)
+            + mark + "  | " + said)
+
+
 def run_prompt(prompt: str,
                gold: list[dict[str, str]],
                labels: list[str] | None = None,
-               generate_text=None) -> list[str]:
+               generate_text=None,
+               extract=None) -> list[str]:
     """Ask the model to label every item, and collect the predicted labels.
 
-    Same call as Day 3: run_prompt(PROMPT, gold). The two optional arguments are
-    worked out for you, so you only pass them if you want something different.
+    Same call as Day 3: run_prompt(PROMPT, gold). The optional arguments are worked out
+    for you, so you only pass one if you want something different.
+
+    It prints one line per item while it runs - the gold label, the label it read out of
+    the reply, and the beginning of the reply itself. Watch the third column when the
+    second one says "??": that is the model answering in a shape `extract_label` cannot
+    read, which is a finding about your prompt rather than a bug.
+
+    `extract` is how you act on that. `extract_label` decides that "This looks like Move
+    2 to me" means `Move 2`, and if your model keeps answering in some shape it misses,
+    copy it into a cell, change it, and pass your version in. It has to be passed rather
+    than just redefined, because this function is imported from a file: a redefinition
+    in your notebook would not reach the copy this loop calls, and you would get the old
+    labels back with no sign anything had been ignored.
 
     Args:
         prompt: your prompt, containing {text} where the sentence should go, and
@@ -1810,18 +1954,24 @@ def run_prompt(prompt: str,
         labels: the labels your scheme allows. Left out, they are read off `gold`.
         generate_text: the function that sends a prompt. Left out, the backend
             connected by the Setup cell is used.
+        extract: the function that turns one reply into one label. Left out,
+            `extract_label` is used.
 
     Returns:
-        One predicted label per gold item, in the same order. Replies no label
-        could be read out of come back as "??".
+        One predicted label per gold item, in the same order. Replies no label could be
+        read out of come back as "??". The raw replies are kept as well - see
+        `last_replies()`.
 
     Example:
         >>> predictions = run_prompt(prompt, dev)
     """
+    global _LAST_REPLIES
     if labels is None:
         labels = label_set(gold)
     if generate_text is None:
         generate_text = _default_backend()
+    if extract is None:
+        extract = extract_label
 
     # A prompt that asks for {context} on a track whose items have none would quietly
     # send the model an empty passage, once per item, and report a number as if it had
@@ -1832,8 +1982,13 @@ def run_prompt(prompt: str,
               "to be shown an empty passage " + str(len(gold)) + " times.")
 
     predictions = []
+    replies = []
     total = len(gold)
     position = 0
+    # One line per item is readable for a project-sized set and a wall of text for a
+    # whole pool, so past that we fall back to a count every ten.
+    show_each = total <= 40
+
     for item in gold:
         position = position + 1
         # Put this item's sentence into the prompt where {text} is - and its passage
@@ -1842,11 +1997,19 @@ def run_prompt(prompt: str,
         filled_prompt = prompt.format(text=item["text"],
                                       context=item.get("context", ""))
         reply = generate_text(filled_prompt)
-        predicted_label = extract_label(reply, labels)
+        predicted_label = extract(reply, labels)
         predictions.append(predicted_label)
-        # Print a small progress note every 10 items.
-        if position % 10 == 0:
+        replies.append(str(reply))
+
+        if show_each:
+            print(_one_prediction_line(item, predicted_label, reply))
+        elif position % 10 == 0:
             print("  ...", position, "/", total, "done")
+
+    # Keep the raw replies. They are the evidence behind every extraction decision -
+    # what you look at when a label comes back "??" - and the reproducibility checklist
+    # asks for what the model actually said, not only what we made of it.
+    _LAST_REPLIES = replies
 
     # Count how many replies we could not turn into a valid label.
     number_unparseable = 0
@@ -1854,6 +2017,9 @@ def run_prompt(prompt: str,
         if label == "??":
             number_unparseable = number_unparseable + 1
     print("Got", len(predictions), "predictions (", number_unparseable, "could not be parsed).")
+    if number_unparseable:
+        print("  The ?? rows are replies no label could be read out of. Look at what the")
+        print("  model actually said in the right-hand column before changing anything.")
     return predictions
 
 
@@ -1979,19 +2145,30 @@ def plot_confusion_matrix(matrix,
 # something your next prompt round can fix, and a scheme error is not.
 TRIAGE_CATEGORIES = ["model", "scheme", "wording", "ambiguous"]
 
+# The same job done a day earlier, on the rows your two coders disagreed about. Three of
+# the words are the same, because the question is the same one: whose fault is this?
+# "model" makes no sense between two people and is replaced by "slip" - one of you simply
+# mis-clicked or misread, which is not evidence about anything and should not be counted
+# as though it were.
+CODER_CATEGORIES = ["scheme", "wording", "ambiguous", "slip"]
 
-def triage_category(reason: str) -> str | None:
+
+def triage_category(reason: str,
+                    categories: list[str] | tuple = TRIAGE_CATEGORIES) -> str | None:
     """The category word a triage line starts with, or None if it is not one of ours.
 
     Args:
         reason: one line of your triage, e.g. "scheme - Move 1/Move 2 boundary".
+        categories: the words that count. Left out, the four for the MODEL's errors;
+            pass CODER_CATEGORIES when you are triaging your own coders' disagreements,
+            where "model" means nothing and "slip" does.
 
     Returns:
         The category word, or None when the line does not start with one.
     """
     first_word = str(reason).strip().split(" ")[0]
     first_word = first_word.strip("-—:,.").lower()
-    if first_word in TRIAGE_CATEGORIES:
+    if first_word in categories:
         return first_word
     return None
 
