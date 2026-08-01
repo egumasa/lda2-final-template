@@ -17,7 +17,7 @@ Members: …
 > have a second decision: does the model see the sentence alone (`<track>.txt`) or the
 > whole passage first (`<track>_context.txt`)? Scoring is per sentence either way, so
 > running both is a real experiment — but say here which one is your baseline, and
-> predict in §7 which way it will go before you find out.
+> predict in §8 which way it will go before you find out.
 
 ## 2. Label set
 
@@ -107,12 +107,44 @@ costs you no extra annotation. What it costs is items you are allowed to look at
 
 ## 7. QC
 
-Set the coder names in `config.yaml` under `coders:` — notebooks 03 and 05 both read them
+Set the coder names in `config.yaml` under `coders:` — notebooks 03 and 06 both read them
 from there, so they cannot drift apart. Write who is who here.
 
 - CoderA:
 - CoderB:
 - Adjudicator:
+
+**Which agreement statistics you will report.** Notebook 03 asks you to write these calls
+yourself, and what you owe follows from two facts you already know: how many coders you
+have, and whether §3 says your labels are ordered.
+
+- Percent agreement — everyone reports it. It is the raw figure the κ is adjusted against.
+- [ ] `cohen_kappa_score(a, b)` — two coders, labels with no order.
+- [ ] `cohen_kappa_score(a, b, weights="quadratic")` — two coders, labels on a scale.
+      Also tick the line above: report both, so a reader can see how much the weighting
+      moved it.
+- [ ] `fleiss_kappa(...)` — three or more coders. Cohen's for each pair as well, if you
+      want to see which pair is the problem.
+- Because:
+
+**What counts as a disagreement.** Notebook 03 step 2 asks you to write the rule, and there
+is more than one defensible answer:
+
+- [ ] the coders did not all choose the same label.
+- [ ] on ordered labels only: they are more than one step apart. Neighbouring labels are
+      two people reading the same sentence much the same way.
+- Because:
+
+> This is here rather than in the notebook for one reason. Once you have seen what percent
+> agreement gives you and what κ gives you, picking the higher one is not a choice about
+> method any more. Settle it while the only facts you have are the ones above.
+
+**A second annotation round is optional.** Notebook 03 shows you how, and gives you the rule
+for deciding: triage your disagreements, and if most of them are your guidelines' fault
+(`scheme` / `wording`) then rewriting the boundary rule and re-annotating will genuinely move
+κ. If most are `slip` or `ambiguous`, a second round re-measures the same fuzziness. Either
+way, write down which you found and what you decided — that is the answer to *"what did your
+QC pass change?"*, which is published in advance as a Q&A question.
 
 ## 8. Prompt plan
 
@@ -124,9 +156,53 @@ The **one** change you predict will help — and why you think so:
 > predicted is a finding; one that helps for no reason you can name is a lucky guess, and it
 > is hard to defend in the Q&A.
 
+**The moves you will try, in order.** Notebook 04 gives you three rounds and S7's full menu
+— instruction · context · input data · output indicator · persona · few-shot ·
+chain-of-thought · structured output. Few-shot is one row of that table, not the default.
+
+| Round | The move | What you expect it to fix |
+|---|---|---|
+| v1 | | |
+| v2 | | |
+| v3 | | |
+
+Changing one thing per round is what makes the round-to-round difference readable. Two
+changes at once and a score that moves tells you nothing about which one moved it.
+
+**The held-out run.** Notebook 05 opens the test set. Settle this before it does:
+
+- How many prompts you will test on it:
+- If more than one, how you pick the winner (the rule, not the answer):
+- Every number you tested goes in report §3, not only the winner's:
+
+> Testing three prompts and reporting the best is the best of three tries, and it is
+> optimistic by an amount nobody can work out afterwards. Testing three, saying in advance
+> that you would, and reporting all three is a legitimate design. The difference is entirely
+> whether this line was written before the run.
+
+## 9. The one number you lead with
+
+Your report opens with a headline metric. Which call it is follows from your label set, and
+§2 and §3 already fix it.
+
+- [ ] `f1_score(..., average="macro")` — every label counts the same, however rare. Use it
+      when a rare label matters as much to your question as a common one.
+- [ ] `f1_score(..., average="micro")` — every *item* counts the same. Use it when the
+      question is how often the model is right about a sentence.
+- [ ] `f1_score(..., average="weighted")` — between the two: per-label F1, averaged by how
+      common each label is.
+- [ ] κ, weighted or not — when the claim is about agreement with your coders rather than
+      about retrieval of a class.
+- Because:
+
+> These are three different questions and on an uneven label set they disagree. Notebook 06
+> prints all of them, deliberately — you will need the others in §3. But picking the
+> headline after seeing which is highest is picking the flattering one, so it is settled
+> here.
+
 ## The pipeline, as an I/O chain
 
-Five notebooks, and each one hands a **file** to the next. Fill in the right-hand column
+Six notebooks, and each one hands a **file** to the next. Fill in the right-hand column
 with the names your group actually used.
 
 | Notebook | Consumes | Produces | Your file |
@@ -135,8 +211,13 @@ with the names your group actually used.
 | 02 sample     | the pool + your sampling choice     | `data/gold/…_sample.json`, and the sheet | |
 | 02b add samples *(only if you had time left)* | the pool + that same `…_sample.json` | the same file, enlarged, and new rows in the same sheet | |
 | 03 annotate   | the filled-in sheet + your adjudication | `data/gold/…_gold.json`, and its `…_dev.json` / `…_test.json` split | |
-| 04 prompt     | the **dev** half, the pool, your prompt | `outputs/…_predictions.json` (on **test**), `…_test_log.jsonl` | |
-| 05 report     | the **test** half + the frozen run   | `outputs/…_report.md`          | |
+| 04 develop    | the **dev** half, the pool, your prompt | `prompts/…` (one file per version), `…_rounds.json`, `…_notes.json` | |
+| 05 test       | the **test** half + the prompt files you committed to | `outputs/…_predictions.json`, `…_test_log.jsonl`, the rounds table with the held-out row | |
+| 06 report     | the **test** half + the frozen run + the rounds table | `outputs/…_report.md` | |
+
+**04 and 05 are two files rather than two sections of one for a single reason:** the test
+set has to be untouchable while you are iterating, and a file boundary is the only version
+of that which actually holds. `04_develop.ipynb` has no path to your test items at all.
 
 Every one of those files lives in your group's shared Drive folder, and every notebook
 finds it through `config.yaml` — so there is nothing to email, paste or re-upload between

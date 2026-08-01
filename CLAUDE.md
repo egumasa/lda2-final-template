@@ -162,6 +162,74 @@ earns its keep.
 - `prompts/`, `data/pools/`, `data/gold/`, `outputs/` — one file per track, named from
   `config.yaml`.
 
+## What is imported, what is on screen, and what the student writes
+
+This template is a **scaffolded project walkthrough**, not a tutorial. Groups have two days,
+so the scaffold carries the mechanics — paths, file naming, the Sheets round-trip, API
+pacing, the order the notebooks run in, what each hands to the next. That is what makes a
+real study fit in the time.
+
+What it must **not** carry is the method. Which agreement statistic, what counts as a
+disagreement, which prompt move next, which number the report leads with: those are what the
+project assesses, and a scaffold that pre-fills them leaves nothing to do but run cells.
+
+Four tiers, and every function belongs to exactly one:
+
+| Tier | What | Where it lives |
+|---|---|---|
+| **1 · Infrastructure** | the Sheets round-trip, the API backend, pacing and retry, paths, `save_json` / `load_gold`, `freeze_test_run`, `export_results`, `plot_confusion_matrix` | `scripts/`, imported, unread |
+| **2 · The real library** | `classification_report`, `f1_score`, `cohen_kappa_score`, `confusion_matrix` | scikit-learn, **called by its real name** |
+| **3 · Small algorithms carrying a judgment** | `percent_agreement`, `disagreements`, `column`, `show_errors`, `extract_label`, `build_fewshot` | in the notebook, as code |
+| **4 · The composition** | the sequence of tier-2 and tier-3 calls | written by the student |
+
+**The test for tier 1 against tier 3:** if a reader of the composed cell would have to open
+the function to know what *method* was used, it is hiding a decision and belongs in the
+notebook. If opening it would only show retry logic or path handling, it belongs in
+`scripts/`.
+
+**No course-specific wrapper may exist for anything scikit-learn already does.** A private
+name for `f1_score` teaches an API nobody will use again, in place of the one the field uses
+— and the course already treats sklearn as the ground truth, since Day 2 S6 has students
+check their hand-built metrics against it. `evaluate` and `annotator_agreement` survive in
+`scripts/` only because Days 2–3 call them and `_check_call_forms.py` requires those forms
+to keep working; notebooks 03 and 06 do not call them.
+
+**Adapting is editing the cell.** Tier-3 code is on screen, so there is no import to shadow,
+no `importlib.reload`, no runtime restart, and nothing in the shared Drive folder that one
+member can break for the group. The student's version is in the notebook they submit, which
+is where a change of method should be visible, and `scripts/` stays pristine.
+
+`scripts/_study.py` is the single source of tier-3 code. Neither repository imports it —
+`inspect.getsource` renders it into the notebooks at generation time, so a notebook
+*contains* the code rather than calling it. It is vendored byte-identical into the course
+repo's `sources/notebooks/`, and `scripts/_check_study_source.py` fails if the two drift.
+
+**One injection point is required.** `run_prompt` is tier 1 (its loop is pacing and retry)
+but it calls `extract_label`, which is tier 3. Left alone, a student who edits
+`extract_label` in a cell gets the old one anyway, silently, and reports numbers their own
+code did not produce. So `run_prompt` takes `extract=None`. This is one of the two cases
+"Simplicity comes first" says deserves real machinery — without it a student *silently gets
+wrong numbers*.
+
+## Where a decision may be placed
+
+**Looking is allowed when it changes your next action. Looking is not allowed when it
+changes what you claim.**
+
+Reading the coder confusion matrix to decide which label boundary to argue about is exactly
+what it is for. Choosing which agreement statistic to report *after* seeing what each one
+gives you is selective reporting, and no reader of the finished report could detect it.
+
+So a decision that determines a reported number goes where the inputs are known in advance:
+`PLAN.md`, `config.yaml`, or a notebook section that runs before the number exists. Never
+build a cell that prints every option and then asks the student to pick one.
+
+The justification is **prompted, never stored**. A section that hands back a decision ends
+with `for_report(...)` — a markdown cell with a half-written sentence frame, addressed to
+the report and the Q&A. No `WHY` variables, no `save_decisions()`: the rubric and
+`make_submission.py` already grade the one place that matters, and a second enforcement
+mechanism only means writing the same sentence twice.
+
 ## One thing per cell, and say what it is first
 
 Two rules about the generated notebooks, both checked by `scripts/_check_notebooks.py`:

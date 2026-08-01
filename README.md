@@ -25,14 +25,15 @@ LLM is the thing being measured by it.
 lda2-final-template/
 ├── config.yaml                     # ✏️ the ONE file you edit first: track, group, seed
 ├── config.py                       # turns config.yaml into every path (you do not edit it)
-├── notebooks/                      # YOUR five notebooks. Run them in order.
+├── notebooks/                      # YOUR six notebooks. Run them in order.
 │   ├── 01_build_pool_<track>.ipynb #   corpus → data/pools/<track>_pool.json
 │   ├── 02_sample.ipynb             #   pool → your sample → the annotation sheet
 │   ├── 02b_add_samples.ipynb       #   time left over? more items into the SAME sheet
 │   ├── 03_annotate.ipynb           #   the filled-in sheet → YOUR gold standard,
 │   │                               #   split into dev and test
-│   ├── 04_prompt.ipynb             #   dev → iterate on errors → one frozen run on test
-│   └── 05_report.ipynb             #   predictions → error analysis + report
+│   ├── 04_develop.ipynb            #   dev → prompt rounds → the versions you might test
+│   ├── 05_test.ipynb               #   the held-out run, once, frozen to a file
+│   └── 06_report.ipynb             #   the frozen run → error analysis + report
 ├── scripts/                        # the code the notebooks call. You do NOT edit these —
 │                                   #   but see scripts/README.md for the parts to READ
 │   ├── pipeline.py                 #   load, sample, prompt, freeze, export
@@ -269,7 +270,7 @@ All eight notebooks are **generated** — never hand-edit an `.ipynb`:
 
 ```bash
 python scripts/_generate_pool_notebooks.py      # 01_build_pool_<track>.ipynb ×4
-python scripts/_generate_project_notebooks.py   # 02_sample … 05_report
+python scripts/_generate_project_notebooks.py   # 02_sample … 06_report
 python scripts/_check_call_forms.py     # the contract test — run after ANY signature change
 python scripts/_check_notebooks.py      # every cell runs, fits a screen, and is introduced
 ```
