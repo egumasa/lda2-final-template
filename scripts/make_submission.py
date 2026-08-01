@@ -183,17 +183,17 @@ def collect_the_plan(bundle: Path, found: dict, missing: list[str]) -> None:
 
 
 def collect_notebooks(bundle: Path, found: dict, missing: list[str]) -> None:
-    """All five notebooks, filled in.
+    """All six notebooks, filled in.
 
-    01 is per-track, so only the one you actually ran is asked 01 is per-track, so only the one you actually ran is asked
-    for; 02-05 are the same file for everyone and all four should be there.
+    01 is per-track, so only the one you actually ran is asked for; 02-06 are the same
+    files for everyone and all of them should be there.
     """
     notebooks = copy_matching(ROOT / "notebooks", bundle / "notebooks", "0*.ipynb")
     if notebooks:
         found["notebooks/"] = notebooks
     else:
-        missing.append("notebooks/0*.ipynb — your completed notebooks 01-05.")
-    for stage in ("02_sample", "03_annotate", "04_prompt", "05_report"):
+        missing.append("notebooks/0*.ipynb — your completed notebooks 01-06.")
+    for stage in ("02_sample", "03_annotate", "04_develop", "05_test", "06_report"):
         if not any(name.startswith(stage) for name in notebooks):
             missing.append("notebooks/" + stage + ".ipynb — filled in.")
 
@@ -255,12 +255,12 @@ def collect_outputs(bundle: Path, stem: str, found: dict,
         found["outputs/"] = outputs
     if not any(name.endswith("_predictions.json") for name in outputs):
         missing.append("outputs/" + stem + "_predictions.json — your FROZEN predictions "
-                       "(notebook 04). This is the file your reported F1 must come from.")
+                       "(notebook 05). This is the file your reported F1 must come from.")
     if not any(name.endswith("_report.md") for name in outputs):
-        missing.append("outputs/" + stem + "_report.md — the one-page report (notebook 05).")
+        missing.append("outputs/" + stem + "_report.md — the one-page report (notebook 06).")
     if not any(name.endswith("_test_log.jsonl") for name in outputs):
         missing.append("outputs/" + stem + "_test_log.jsonl — the test-scoring log "
-                       "(notebook 04). It records how many times the held-out set was "
+                       "(notebook 05). It records how many times the held-out set was "
                        "scored, and that is part of the method.")
 
 
