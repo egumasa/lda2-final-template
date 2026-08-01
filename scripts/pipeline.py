@@ -26,6 +26,7 @@ and sensible values are worked out automatically when they are left off.
 
 import datetime
 import hashlib
+import inspect
 import json
 import os
 import random
@@ -658,6 +659,28 @@ def load_json(path, what="items", made_by=None):
     opened_file.close()
     print("Loaded", len(data), what, "from", str(path))
     return data
+
+
+# ----------------------------------------------------------------------------------
+# Looking inside a helper
+# ----------------------------------------------------------------------------------
+# The notebooks import their helpers from this folder, and Colab cannot jump to a
+# function's definition the way an editor can. This prints the code of any of them.
+def show(func):
+    """Print the source of a helper, read from the file it lives in.
+
+    Pass the function itself, not its name:
+
+        show(save_json)
+
+    It prints the file, the line the function starts on, and the code that runs.
+    Works for anything the notebooks import - pipeline, metrics or annotate.
+    """
+    source_file = inspect.getsourcefile(func)
+    lines, first_line = inspect.getsourcelines(func)
+    print(f"{source_file}:{first_line}")
+    print()
+    print("".join(lines).rstrip("\n"))
 
 
 # ----------------------------------------------------------------------------------

@@ -55,7 +55,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import metrics
 import pipeline
-from _setup_cell import REPO, SETUP_MD_LINES, setup_lines
+from _setup_cell import REPO, setup_lines, setup_md
 
 OUT = Path(__file__).resolve().parent.parent / "notebooks"
 
@@ -252,7 +252,8 @@ def title_cell(number, name, title, one_line, reads, writes, body):
     return md(*(lines + list(body)))
 
 
-SETUP_MD = SETUP_MD_LINES
+# `save_json` as the example because all four of these notebooks import it.
+SETUP_MD = setup_md("save_json")
 
 
 def setup_cell(extra_imports=()):
@@ -325,7 +326,8 @@ cells = [
         "# Reading and writing files, and making the Google Sheet, are plumbing, so",
         "# they are imported. The sampling itself is a method you have to defend, so",
         "# it is not — you will read it, further down, before you call it.",
-        "from pipeline import load_gold, save_json, sample, label_set",
+        "# `show` prints the source of any of these: show(save_json)",
+        "from pipeline import load_gold, save_json, sample, label_set, show",
         "from annotate import create_annotation_sheet",
     ]),
     CONFIG_MD,
@@ -658,7 +660,8 @@ cells_03 = [
         "",
         "# The Google Sheets round trip is plumbing, so it is imported. The judgment it",
         "# exists to support is not in any of these files.",
-        "from pipeline import load_gold, label_set, save_json, split_dev_test",
+        "# `show` prints the source of any of these: show(save_json)",
+        "from pipeline import load_gold, label_set, save_json, split_dev_test, show",
         "from annotate import (remembered_sheet, load_coder_sheets, to_canonical,",
         "                      annotator_agreement, disagreements,",
         "                      compare_to_published)",
@@ -988,8 +991,9 @@ cells_04 = [
     setup_cell([
         "",
         "# Files in, files out, and the connection to the model: all plumbing.",
+        "# `show` prints the source of any of these: show(save_json)",
         "from pipeline import (load_gold, label_set, load_prompt, save_json,",
-        "                      load_predictions, setup, freeze_test_run)",
+        "                      load_predictions, setup, freeze_test_run, show)",
         "",
         "# Asking the model and scoring the answers is what this notebook is FOR, so",
         "# these five are worth reading rather than just calling. Their source is",
@@ -1355,9 +1359,10 @@ cells_05 = [
     setup_cell([
         "",
         "# Loading files is plumbing.",
+        "# `show` prints the source of any of these: show(save_json)",
         "from pipeline import (load_gold, load_predictions, load_json, save_json,",
         "                      export_results, read_test_log, triage_category,",
-        "                      TRIAGE_CATEGORIES)",
+        "                      TRIAGE_CATEGORIES, show)",
         "",
         "# The scoring, the error table and the triage are the analysis this notebook",
         "# is about. Their source is printed in full at the end of step 1.",

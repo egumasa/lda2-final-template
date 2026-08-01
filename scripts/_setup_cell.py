@@ -51,6 +51,27 @@ SETUP_MD_LINES = [
 ]
 
 
+def setup_md(show_example=None):
+    """The markdown above the SETUP cell.
+
+    `show_example` names a function the notebook imports, and adds the paragraph on
+    reading a helper's source. Leave it off for a notebook that imports nothing from
+    `scripts/` — a 01 notebook has the code it uses written out in front of it, so
+    there is nothing there for `show` to open.
+    """
+    if show_example is None:
+        return list(SETUP_MD_LINES)
+    return SETUP_MD_LINES + [
+        "",
+        "**Looking inside a helper.** The functions this cell imports are defined in "
+        "`scripts/`. Colab cannot jump to a function's definition the way an editor "
+        "can, so to read one, call `show` on it — for example "
+        "`show(" + show_example + ")`. It prints the file, the line the function "
+        "starts on, and the code that runs. You can also open `scripts/pipeline.py` "
+        "yourself from the **Files** panel on the left.",
+    ]
+
+
 def setup_lines(extra_imports=(), workdir=None):
     """The source of the SETUP cell.
 
