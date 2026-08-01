@@ -169,6 +169,21 @@ def main() -> bool:
         assert len(result) == len(gold)
     check("run_prompt(prompt, gold, labels, generate_text)", run_prompt_extended)
 
+    def run_prompt_extract_injected() -> None:
+        # THE REGRESSION THIS GUARDS: notebook 04 renders extract_label as a cell for a
+        # group to change, and tells them to pass their version in. If `extract` were
+        # ever dropped or reordered, that call would raise - or worse, be accepted and
+        # ignored, and the group would report labels their own code did not produce.
+        def always_first(reply: str, allowed: list[str]) -> str:
+            return allowed[0]
+
+        sender = pipeline._default_backend()
+        result = run_prompt(PROMPT, gold, labels, sender, extract=always_first)
+        assert result == [labels[0]] * len(gold), \
+            "the extract= passed in must be the one the loop calls"
+    check("run_prompt(prompt, gold, ..., extract=your_version)",
+          run_prompt_extract_injected)
+
     def sampling() -> None:
         a = sample_pool(pool, 3, 42)
         b = sample_pool(pool, 3)          # seed defaulted
@@ -417,33 +432,32 @@ def main() -> bool:
         assert result["kappa"] == result["cohen_kappa"]
     check("agreement(a, b) -> dict with both kappa keys", agreement_keys)
 
-    def triage_both_vocabularies() -> None:
-        """Notebook 06 counts the MODEL's errors; notebook 03 counts the CODERS'.
+    def triage_vocabulary_is_closed() -> None:
+        """Notebook 06 counts the model's errors against a fixed list of four words.
 
-        Same two functions, one optional keyword apart. The keyword is appended, so
-        the Day-2/06 call form still has to run untouched.
+        `categories=` is appended, so the Day-2/06 call form still has to run
+        untouched - and a vocabulary must REFUSE a word that is not in it, or a
+        mistyped line is silently counted as something it is not.
         """
         from metrics import triage_counts
-        from pipeline import CODER_CATEGORIES, triage_category
+        from pipeline import triage_category
 
         model_triage = {7: "scheme - the Move 1/2 boundary", 12: "model - clear item"}
         counts = triage_counts(model_triage)                 # the taught form
         assert counts["model"] == 1 and counts["scheme"] == 1
 
-        coder_triage = {7: "scheme - the same boundary", 12: "slip - typed the wrong row"}
-        counts = triage_counts(coder_triage, categories=CODER_CATEGORIES,
-                               what="disagreements")
-        assert counts["slip"] == 1, "'slip' must count under the coder vocabulary"
-        assert "model" not in counts, "'model' has no meaning between two coders"
+        own_words = ["scheme", "wording", "ambiguous", "slip"]
+        counts = triage_counts({7: "scheme - x", 12: "slip - typed the wrong row"},
+                               categories=own_words, what="disagreements")
+        assert counts["slip"] == 1, "a word in the list passed must be counted"
+        assert "model" not in counts, "a word NOT in that list must not appear"
 
-        # ...and each vocabulary must REFUSE the other's word, or a mistyped line
-        # would be silently counted as something it is not.
         assert triage_category("slip - x") is None, \
             "'slip' is not one of the model categories"
-        assert triage_category("model - x", CODER_CATEGORIES) is None, \
-            "'model' is not one of the coder categories"
-    check("triage_counts(triage) and triage_counts(triage, categories=CODER_CATEGORIES)",
-          triage_both_vocabularies)
+        assert triage_category("model - x", own_words) is None, \
+            "a word outside the list passed must not be recognised"
+    check("triage_counts(triage) and triage_counts(triage, categories=[...])",
+          triage_vocabulary_is_closed)
 
     print("\nEdge cases that used to produce a wrong number silently")
 

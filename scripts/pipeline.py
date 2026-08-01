@@ -38,6 +38,10 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 
+# The pieces of the method that a group may need to read and change. Re-exported, so
+# `from pipeline import extract_label` keeps working exactly as Day 3 taught it.
+from _study import extract_label
+
 # If we are running OUTSIDE Colab, load a local .env so GEMINI_API_KEY is available.
 try:
     from dotenv import load_dotenv
@@ -500,6 +504,34 @@ def load_prompt(path: str) -> str:
               "will not be inserted anywhere.")
     print("Loaded prompt from", path, "(", len(prompt), "characters ).")
     return prompt
+
+
+def save_prompt(prompt: str, path: str) -> None:
+    """Write one version of your prompt to a file, so a later notebook can read it.
+
+    Nothing survives between notebooks except what is on disk. A prompt that only ever
+    existed as a string in this session is one `05_test.ipynb` cannot load and your
+    report cannot quote, so every version you might want to test gets saved.
+
+    Unlike the other saves in this project, this one DOES overwrite: you will rewrite
+    the same version several times while you are working on it, and refusing would mean
+    inventing a new filename each time.
+
+    Args:
+        prompt: the prompt text, containing {text} where the sentence should go.
+        path: where to write it. Give each version its own name - v1, v2 - so that
+            the file your report names is still the file you can re-run.
+
+    Example:
+        >>> save_prompt(PROMPT_v1, ROOT / "prompts" / "my_v1.txt")
+    """
+    if "{text}" not in prompt:
+        print("WARNING: this prompt has no {text} placeholder — every item would be "
+              "sent the same sentence-less prompt. Saving it anyway.")
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(prompt.strip() + "\n", encoding="utf-8")
+    print("Saved your prompt to", path, "(", len(prompt), "characters ).")
 
 
 # ----------------------------------------------------------------------------------
@@ -1829,52 +1861,10 @@ def _label_counts(items: list[dict[str, str]]) -> dict[str, int]:
 # ----------------------------------------------------------------------------------
 # Asking the model and reading its answer
 # ----------------------------------------------------------------------------------
-def extract_label(reply: str, labels: list[str]) -> str:
-    """Figure out which of the known labels the model's reply is pointing at.
-
-    Args:
-        reply: whatever the model replied.
-        labels: the labels your scheme allows.
-
-    Returns:
-        The label it found - the longest one when several appear - or "??" when the
-        reply contains none of them.
-
-    Example:
-        >>> extract_label("I would say B2.", LEVELS)
-    """
-    reply_text = str(reply).strip()
-    reply_lowercased = reply_text.lower()
-
-    # Step 1: collect every known label whose name appears in the reply.
-    labels_found = []
-    for label in labels:
-        if label.lower() in reply_lowercased:
-            labels_found.append(label)
-
-    # Step 2: if we found one or more, keep the longest (most specific) one.
-    if len(labels_found) > 0:
-        longest_label = labels_found[0]
-        for label in labels_found:
-            if len(label) > len(longest_label):
-                longest_label = label
-        return longest_label
-
-    # Step 3: special case for "Move 1/2/3" labels - look for a bare digit.
-    has_move_labels = False
-    for label in labels:
-        if label.lower().startswith("move "):
-            has_move_labels = True
-    if has_move_labels:
-        match = re.search(r"\b([1-9])\b", reply_text)
-        if match is not None:
-            candidate = "Move " + match.group(1)
-            if candidate in labels:
-                return candidate
-
-    # Step 4: nothing matched.
-    return "??"
-
+# `extract_label` is imported at the top of this file from _study.py, where the other
+# pieces of the method live: the rule inside it - which label a reply is pointing at -
+# is a judgment a group may need to change. `run_prompt` falls back to it when
+# `extract` is left out.
 
 # The raw replies from the most recent run_prompt call. Kept here rather than returned,
 # so that `predictions = run_prompt(prompt, dev)` stays the one-line call Day 3 taught.
@@ -1942,10 +1932,11 @@ def run_prompt(prompt: str,
 
     `extract` is how you act on that. `extract_label` decides that "This looks like Move
     2 to me" means `Move 2`, and if your model keeps answering in some shape it misses,
-    copy it into a cell, change it, and pass your version in. It has to be passed rather
-    than just redefined, because this function is imported from a file: a redefinition
-    in your notebook would not reach the copy this loop calls, and you would get the old
-    labels back with no sign anything had been ignored.
+    copy it into a cell, change it, and pass your version in. Pass it rather than only
+    redefining it: when this function is the one imported from a file, a redefinition in
+    your notebook does not reach the copy this loop calls, and you would get the old
+    labels back with no sign anything had been ignored. Passing it also puts the rule
+    that produced your numbers in the call, where a reader of the notebook can see it.
 
     Args:
         prompt: your prompt, containing {text} where the sentence should go, and
@@ -2016,10 +2007,18 @@ def run_prompt(prompt: str,
     for label in predictions:
         if label == "??":
             number_unparseable = number_unparseable + 1
-    print("Got", len(predictions), "predictions (", number_unparseable, "could not be parsed).")
+    print("Got " + str(len(predictions)) + " predictions ("
+          + str(number_unparseable) + " could not be parsed).")
     if number_unparseable:
-        print("  The ?? rows are replies no label could be read out of. Look at what the")
-        print("  model actually said in the right-hand column before changing anything.")
+        print("  The ?? rows are replies no label could be read out of. Read what the")
+        if show_each:
+            print("  model actually said in the right-hand column above before you")
+            print("  change anything.")
+        else:
+            # No per-item lines were printed for a set this size, so pointing at a
+            # column that is not there would send them looking for nothing.
+            print("  model actually said - `last_replies()` - before you change")
+            print("  anything.")
     return predictions
 
 
@@ -2145,23 +2144,14 @@ def plot_confusion_matrix(matrix,
 # something your next prompt round can fix, and a scheme error is not.
 TRIAGE_CATEGORIES = ["model", "scheme", "wording", "ambiguous"]
 
-# The same job done a day earlier, on the rows your two coders disagreed about. Three of
-# the words are the same, because the question is the same one: whose fault is this?
-# "model" makes no sense between two people and is replaced by "slip" - one of you simply
-# mis-clicked or misread, which is not evidence about anything and should not be counted
-# as though it were.
-CODER_CATEGORIES = ["scheme", "wording", "ambiguous", "slip"]
-
-
 def triage_category(reason: str,
                     categories: list[str] | tuple = TRIAGE_CATEGORIES) -> str | None:
     """The category word a triage line starts with, or None if it is not one of ours.
 
     Args:
         reason: one line of your triage, e.g. "scheme - Move 1/Move 2 boundary".
-        categories: the words that count. Left out, the four for the MODEL's errors;
-            pass CODER_CATEGORIES when you are triaging your own coders' disagreements,
-            where "model" means nothing and "slip" does.
+        categories: the words that count. Left out, the four for the model's errors.
+            Pass your own list to recognise a different set of words.
 
     Returns:
         The category word, or None when the line does not start with one.

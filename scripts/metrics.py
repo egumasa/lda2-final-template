@@ -179,8 +179,8 @@ def triage_counts(triage: dict[int, str],
         triage: the dict your group writes by hand, {item id: "category - reason"}.
         errors: the table from show_errors. Pass it and this also tells you how much
             of the error set you have been through.
-        categories: the words that count. Left out, the four for the MODEL's errors;
-            pass CODER_CATEGORIES when the table is your own coders' disagreements.
+        categories: the words that count. Left out, the four for the model's errors.
+            Pass your own list to count a different set of words.
         what: what the rows are, for the printout. "errors" reads wrong when the rows
             are two coders disagreeing, and a printout that names the wrong thing is
             how a number ends up in a report meaning something else.

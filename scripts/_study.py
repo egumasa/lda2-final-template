@@ -27,6 +27,8 @@ silently ignored:
    most. A one-line comprehension is not shorter to a reader who has to unpack it.
 """
 
+import re
+
 import pandas as pd
 
 
@@ -225,3 +227,50 @@ def show_errors(gold: list[dict[str, str]],
     # the one group whose model got everything right - the least deserving group to
     # break on.
     return pd.DataFrame(rows, columns=["id", "gold", "pred", "text"])
+
+
+def extract_label(reply: str, labels: list[str]) -> str:
+    """Figure out which of the known labels the model's reply is pointing at.
+
+    Args:
+        reply: whatever the model replied.
+        labels: the labels your scheme allows.
+
+    Returns:
+        The label it found - the longest one when several appear - or "??" when the
+        reply contains none of them.
+
+    Example:
+        >>> extract_label("I would say B2.", LEVELS)
+    """
+    reply_text = str(reply).strip()
+    reply_lowercased = reply_text.lower()
+
+    # Step 1: collect every known label whose name appears in the reply.
+    labels_found = []
+    for label in labels:
+        if label.lower() in reply_lowercased:
+            labels_found.append(label)
+
+    # Step 2: if we found one or more, keep the longest (most specific) one.
+    if len(labels_found) > 0:
+        longest_label = labels_found[0]
+        for label in labels_found:
+            if len(label) > len(longest_label):
+                longest_label = label
+        return longest_label
+
+    # Step 3: special case for "Move 1/2/3" labels - look for a bare digit.
+    has_move_labels = False
+    for label in labels:
+        if label.lower().startswith("move "):
+            has_move_labels = True
+    if has_move_labels:
+        match = re.search(r"\b([1-9])\b", reply_text)
+        if match is not None:
+            candidate = "Move " + match.group(1)
+            if candidate in labels:
+                return candidate
+
+    # Step 4: nothing matched.
+    return "??"

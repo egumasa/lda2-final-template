@@ -264,11 +264,6 @@ TESTLOG_PATH = ROOT / "outputs" / (STEM + "_test_log.jsonl")           # 05 appe
 # it is the one part of the analysis that exists only in your heads until you type it.
 TRIAGE_PATH = ROOT / "outputs" / (STEM + "_triage.json")               # 06 writes
 
-# The same judgment, made a day earlier and about your own coders rather than about the
-# model: of the rows CoderA and CoderB disagreed on, which were the scheme's fault. It
-# is optional (notebook 03 says when it is worth the ten minutes) and it is the one
-# thing that answers "what did your QC pass change?" with a number.
-CODER_TRIAGE_PATH = ROOT / "outputs" / (STEM + "_coder_triage.json")   # 03 writes
 PROMPT_FILE = ROOT / "prompts" / (TRACK + ".txt")
 OUT_DIR = ROOT / "outputs"
 

@@ -35,19 +35,18 @@ import _study
 COMPOSITIONS = {
 
     "agreement": (
-        """a_labels = column(rows, "CoderA")
-b_labels = column(rows, "CoderB")
-
-percent_agreement(a_labels, b_labels)
-print("Cohen's kappa:", round(cohen_kappa_score(a_labels, b_labels), 3))
+        """print("Cohen's kappa:", round(cohen_kappa_score(a_labels, b_labels), 3))
 
 matrix = confusion_matrix(a_labels, b_labels, labels=LABELS)
-plot_confusion_matrix(matrix, LABELS, "CoderA vs CoderB")""",
+plot_confusion_matrix(matrix, LABELS, CODERS[0] + " vs " + CODERS[1])""",
 
-        """Both numbers, not one. Percent agreement on its own counts the agreement you
-would get by guessing as though you had earned it - two coders who use one label for
-nine items in ten agree 90% of the time without reading anything. Kappa on its own is
-hard to interpret without the raw figure beside it.
+        """This is step 2. Step 1 already ran percent_agreement and left `a_labels` and
+`b_labels` behind, so what is left is the chance-corrected number and the matrix.
+
+Both numbers, not one. Percent agreement on its own counts the agreement you would get
+by guessing as though you had earned it - two coders who use one label for nine items in
+ten agree 90% of the time without reading anything. Kappa on its own is hard to
+interpret without the raw figure beside it.
 
 Which kappa is not a free choice, and it is settled before you run anything:
 
@@ -55,9 +54,14 @@ Which kappa is not a free choice, and it is settled before you run anything:
   two coders, labels on a scale      cohen_kappa_score(a, b, weights="quadratic")
   three or more coders               fleiss_kappa(...), plus Cohen's for each pair
 
+One thing the two numbers do NOT share: percent_agreement skips rows either coder left
+blank, and cohen_kappa_score does not. Read percent_agreement in the cell above - the
+`if` in the middle is the difference. On a finished sheet they agree; on a half-finished
+one they are computed over different rows, and only one of them says so.
+
 The matrix is not decoration. The two numbers say how far apart you were; only the
 off-diagonal cells say WHICH pair of labels you disagree about, and that pair is what
-step 2 sends you back to the sheet to argue about."""),
+step 3 sends you back to the sheet to argue about."""),
 
     "split": (
         """dev, test = split_dev_test(gold, DEV, seed=SEED)
