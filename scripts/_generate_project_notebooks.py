@@ -46,6 +46,7 @@ header on a step cell says only what the cell does and what it names. Anything l
 than a line belongs in the markdown, as sentences, and must not be said twice.
 """
 
+import builtins
 import inspect
 import json
 import sys
@@ -181,24 +182,94 @@ def source_cells(described, imports=()):
     return cells
 
 
-def source_appendix(what, described):
-    """The same code `source_cells` used to emit, as reading material instead of steps.
+MODULE_ALIAS = {"pandas": "pd", "numpy": "np"}
 
-    These functions are imported in SETUP, so pasting them in as code cells did not
-    define anything that was not already defined — it only put five more cells, and
-    ~9,000 characters, between a student and their first score. Rendering them as
-    fenced markdown keeps every line visible (still read straight out of `scripts/`
-    by `inspect.getsource`, so it still cannot drift from what runs) while taking
-    them out of the run order entirely.
 
-    `described` is a list of (object, sentence) pairs, same as before.
+def _preamble(objects):
+    """The import lines a block of redefined functions needs to be able to run.
+
+    A function defined in a notebook cell looks its globals up in the NOTEBOOK, not
+    in the module it was copied from, so every name it calls has to be there. Working
+    that list out here rather than typing it at each call site means an edit to
+    pipeline.py that adds a helper cannot quietly leave a student with a NameError:
+    it either shows up in the preamble at the next generation, or generation stops.
     """
-    lines = [what, ""]
+    defined = {obj.__name__ for obj in objects}
+    from_module = {}                                  # module name -> {names}
+    modules = {}                                      # import name -> alias
+    for obj in objects:
+        globals_ = obj.__globals__
+        for name in obj.__code__.co_names:
+            if name in defined or hasattr(builtins, name):
+                continue
+            if name not in globals_:
+                # An attribute (`item["label"]`, `path.name`) rather than a global.
+                # co_names holds both, and only the globals need importing.
+                continue
+            value = globals_[name]
+            if inspect.ismodule(value):
+                alias = MODULE_ALIAS.get(value.__name__, None)
+                modules[value.__name__] = alias if name == alias else None
+            else:
+                # Import it from the module the function itself lives in, whether it
+                # was defined there (`reid`) or imported into it from somewhere else
+                # (sklearn's `f1_score`). That is the module whose namespace the
+                # function was written against, so it is the one that must match.
+                home = obj.__globals__["__name__"]
+                if not hasattr(sys.modules[home], name):
+                    raise RuntimeError(
+                        "_preamble cannot work out where to import " + repr(name)
+                        + ", which " + obj.__name__ + " calls. Add it to "
+                        "MODULE_ALIAS, or import it into " + home + ".")
+                from_module.setdefault(home, set()).add(name)
+
+    lines = []
+    for module_name in sorted(modules):
+        alias = modules[module_name]
+        if alias:
+            lines.append("import " + module_name + " as " + alias)
+        else:
+            lines.append("import " + module_name)
+    for module_name in sorted(from_module):
+        names = ", ".join(sorted(from_module[module_name]))
+        lines.append("from " + module_name + " import " + names)
+    return lines
+
+
+def study_cells(what, described, check=None):
+    """The functions a group has to defend, as runnable cells ABOVE their first use.
+
+    These used to be rendered after the call that used them, as markdown, which put
+    the reader in an odd position: the sample had already been drawn by the time they
+    saw what drew it, and editing the source they were reading changed nothing,
+    because the name still came from the SETUP import.
+
+    So now the block comes first and the cells are real definitions. The names are no
+    longer imported in SETUP (only the plumbing is), which means these cells are where
+    the functions come from - edit one, run it, and the step below behaves differently.
+
+    Layout, for readers who met Python a few days ago: a markdown header, one small
+    cell of imports the definitions need, then ONE function per cell, each with its
+    own signpost. Source is still read out of scripts/ by `inspect.getsource`, so it
+    cannot drift from what the rest of the pipeline runs.
+
+    `described` is a list of (object, sentence) pairs; `check` is an optional one-line
+    cell - `show(sample)` - to confirm the definitions took.
+    """
+    objects = [obj for obj, _ in described]
+    cells = [md(what),
+             lead("First, the helpers the definitions below call. Nothing to decide "
+                  "here — run it and read on."),
+             code(*_preamble(objects))]
     for obj, sentence in described:
-        lines += [sentence, "", "```python"]
-        lines += inspect.getsource(obj).rstrip("\n").split("\n")
-        lines += ["```", ""]
-    return md(*lines)
+        cells.append(lead(sentence))
+        cells.append(code(*inspect.getsource(obj).rstrip("\n").split("\n")))
+    if check:
+        cells.append(lead("Run this to check the definitions above took effect. It "
+                          "prints the file, the line and the source of the function "
+                          "the notebook will actually use."))
+        cells.append(code(check))
+    return cells
 
 
 def read_me_md(what, points):
@@ -325,9 +396,10 @@ cells = [
         "",
         "# Reading and writing files, and making the Google Sheet, are plumbing, so",
         "# they are imported. The sampling itself is a method you have to defend, so",
-        "# it is not — you will read it, further down, before you call it.",
+        "# it is not imported at all — you define it further down, in cells you can",
+        "# read and change, just before the step that calls it.",
         "# `show` prints the source of any of these: show(save_json)",
-        "from pipeline import load_gold, save_json, sample, label_set, show",
+        "from pipeline import load_gold, save_json, label_set, show",
         "from annotate import create_annotation_sheet",
     ]),
     CONFIG_MD,
@@ -403,6 +475,46 @@ cells = [
         "",
         "Whichever you pick: say so in `PLAN.md`, and do not change it after you have "
         "seen the numbers."),
+    *study_cells(
+        "### The code that draws the sample\n\n"
+        "This is your **sampling method** — what report section 1 has to describe and "
+        "the Q&A may well ask you to defend, so it is in front of you rather than "
+        "behind an import. SETUP did not import these four: **the cells below are "
+        "where they come from**, so run them before the step that uses them. They are "
+        "read out of `scripts/pipeline.py` when this notebook is generated, so they "
+        "are not a simplified copy — they are the code that runs.\n\n"
+        "They are ordinary definitions, which means you can change one. Edit a cell, "
+        "run it again, and the draw below behaves differently. (To get the original "
+        "back, re-run the notebook from the top.)\n\n"
+        "**Where the reproducibility comes from**, in all three strategies: "
+        "`random.Random(seed)` — one generator, made from your seed, doing every "
+        "shuffle. Same seed, same draw, on anyone's machine. That one line is the "
+        "whole of why your sample is checkable by someone else.",
+        [(pipeline.sample,
+          "**`sample`** is the one you call, and the one word you change is its "
+          "`strategy`. In: the pool, a strategy name, `n_per_class`, the seed. Out: "
+          "the list of sampled items. It sizes all three strategies from the same "
+          "`n_per_class`, so switching changes *how* the items are chosen and not "
+          "*how many* — which is what makes their counts comparable. It does no "
+          "drawing itself; it hands the work to one of the next three."),
+         (pipeline.sample_pool,
+          "**`sample_pool` — balanced across labels.** In: the pool and how many items "
+          "you want per label. Out: up to that many of each. Step 1 sorts the pool "
+          "into one bucket per label; step 2 takes up to `n_per_class` from each. A "
+          "label with fewer than that gives all it has, which is why a rare class "
+          "comes back short — that is data, not a bug."),
+         (pipeline.sample_random,
+          "**`sample_random` — the corpus as it is.** In: the pool and one total. Out: "
+          "that many items, drawn without looking at the labels at all, so the draw "
+          "keeps the pool's own imbalance. Realistic, and unkind to rare labels."),
+         (pipeline.sample_by_document,
+          "**`sample_by_document` — whole passages** (`cars50` and `raamove` only). "
+          "In: the pool, how many documents, how many sentences from each. Out: that "
+          "many sentences, drawn from that many documents. It is the longest of the "
+          "four, and most of the length is the check it opens with: on a track whose "
+          "items are loose sentences there are no documents to stratify by, so it "
+          "stops and says so rather than inventing an answer.")],
+        check="show(sample)"),
     *step(
         2, "Draw your sample",
         ["Draws the sample using whichever of the three strategies you name, and prints",
@@ -438,36 +550,6 @@ cells = [
          "step 4 below, and in notebook 03."),
     code("LABELS = label_set(sampled)",
          'print("labels:", LABELS)'),
-    source_appendix(
-        "### The code behind that draw\n\n"
-        "You have your counts. This is what produced them — your **sampling method**, "
-        "which report section 1 has to describe and the Q&A may well ask you to "
-        "defend, so it is in front of you rather than behind an import. SETUP already "
-        "imported `sample`; this is read out of `scripts/pipeline.py` when the "
-        "notebook is generated, so it is not a simplified copy. Nothing here needs "
-        "running.\n\n"
-        "**Where the reproducibility comes from**, in all three strategies: "
-        "`random.Random(seed)` — one generator, made from your seed, doing every "
-        "shuffle. Same seed, same draw, on anyone's machine. That one line is the "
-        "whole of why your sample is checkable by someone else.",
-        [(pipeline.sample,
-          "**`sample`** is the one word you changed. It picks a strategy and sizes all "
-          "three from the same `n_per_class`, so switching changes *how* the items are "
-          "chosen and not *how many* — which is what makes the counts below comparable "
-          "across strategies."),
-         (pipeline.sample_pool,
-          "**`sample_pool` — balanced across labels.** Step 1 sorts the pool into one "
-          "bucket per label; step 2 takes up to `n_per_class` from each. A label with "
-          "fewer than that gives all it has, which is why a rare class comes back short "
-          "— that is data, not a bug."),
-         (pipeline.sample_random,
-          "**`sample_random` — the corpus as it is.** No balancing at all, so the draw "
-          "keeps the pool's own imbalance. Realistic, and unkind to rare labels."),
-         (pipeline.sample_by_document,
-          "**`sample_by_document` — whole passages** (`cars50` and `raamove` only). "
-          "Look at the check it opens with: on a track whose items are loose sentences "
-          "there are no documents to stratify by, so it stops and says so rather than "
-          "inventing an answer.")]),
     md("### Now write down why you drew it that way",
        "",
        "Not in the notebook — in `PLAN.md` §5, in a sentence. It is report section 1, "
@@ -659,9 +741,10 @@ cells_03 = [
     setup_cell([
         "",
         "# The Google Sheets round trip is plumbing, so it is imported. The judgment it",
-        "# exists to support is not in any of these files.",
+        "# exists to support is not in any of these files. The dev/test split is not",
+        "# imported either — you define it further down, just before you use it.",
         "# `show` prints the source of any of these: show(save_json)",
-        "from pipeline import load_gold, label_set, save_json, split_dev_test, show",
+        "from pipeline import load_gold, label_set, save_json, show",
         "from annotate import (remembered_sheet, load_coder_sheets, to_canonical,",
         "                      annotator_agreement, disagreements,",
         "                      compare_to_published)",
@@ -883,25 +966,31 @@ cells_03 = [
         "item goes to **test**, and the function says so. That asymmetry is deliberate: a "
         "label missing from test drops out of the macro average without announcing "
         "itself, while a label missing from dev only costs you feedback."),
-    source_appendix(
+    *study_cells(
         "### The code that draws the line\n\n"
-        "SETUP imported this one; here it is, read out of `scripts/pipeline.py` when "
-        "this notebook was generated. Nothing here needs running. Three things to "
-        "look for: the rounding rule for a fractional `dev` is written out rather "
-        "than left to `round()` (Python rounds 0.5 down and 1.5 up, and neither is "
-        "something you want to have to explain in the Q&A); the rare-class clamp, and "
-        "which side it favours; and the ids are **not** renumbered, because notebook "
-        "05 asks which of the model's errors are also the rows your two coders argued "
-        "about, and that join runs on these ids.",
+        "SETUP did not import these two: **the cells below are where they come from**, "
+        "so run them before the step that uses them. They are read out of "
+        "`scripts/pipeline.py` when this notebook is generated, so they are the code "
+        "that runs — and they are ordinary definitions, so if you change one and run "
+        "the cell again, the split below changes with it.\n\n"
+        "Three things to look for as you read: the rounding rule for a fractional "
+        "`dev` is written out rather than left to `round()` (Python rounds 0.5 down "
+        "and 1.5 up, and neither is something you want to have to explain in the "
+        "Q&A); the rare-class clamp, and which side it favours; and the ids are "
+        "**not** renumbered, because notebook 05 asks which of the model's errors are "
+        "also the rows your two coders argued about, and that join runs on these ids.",
         [(pipeline.split_dev_test,
-          "**`split_dev_test`** draws the line. This is the whole of the discipline: "
-          "the bookkeeping that decides whether the number in your report means "
-          "anything."),
+          "**`split_dev_test`** draws the line. In: your gold items, and the `dev:` "
+          "setting from `config.yaml`. Out: two lists, dev and test. This is the whole "
+          "of the discipline: the bookkeeping that decides whether the number in your "
+          "report means anything."),
          (pipeline._read_dev_size,
-          "**`_read_dev_size`** is why one `dev:` setting can mean two things. A whole "
-          "number is a count per label, a decimal is a proportion — the type carries "
-          "the decision, so there is no second config key to keep consistent with the "
-          "first.")]),
+          "**`_read_dev_size`** is the small function the one above calls first. In: "
+          "whatever `dev:` says. Out: either a count per label or a proportion — the "
+          "type of the number carries the decision, which is why one `dev:` setting "
+          "can mean two things and there is no second config key to keep consistent "
+          "with the first.")],
+        check="show(split_dev_test)"),
     *step(
         4, "Split dev / test",
         ["Splits your gold set in two, keeping every label on both sides wherever the",
@@ -910,7 +999,7 @@ cells_03 = [
         signpost="Now we draw the line: which of your gold items you are allowed to "
                  "look at while iterating, and which you are not. Nothing here existed "
                  "in Days 1–3 — no set there was worth holding back. `split_dev_test` "
-                 "is in `scripts/pipeline.py`.\n\n"
+                 "is the function you defined and read just above.\n\n"
                  "**Run this once, and before you open notebook 04.** Splitting again "
                  "after you have iterated on dev means the held-out items have already "
                  "been seen — by you, if not by the model.\n\n"
@@ -996,11 +1085,8 @@ cells_04 = [
         "                      load_predictions, setup, freeze_test_run, show)",
         "",
         "# Asking the model and scoring the answers is what this notebook is FOR, so",
-        "# these five are worth reading rather than just calling. Their source is",
-        "# printed in full at the end of step 2, once you have a first score in front",
-        "# of you and a reason to care how it was produced.",
-        "from pipeline import extract_label, run_prompt, build_fewshot",
-        "from metrics import evaluate, show_errors",
+        "# those five functions are not imported here at all. You define them yourself,",
+        "# in step 2, in cells you can read and change, just before the first round.",
     ]),
     md(
         "## Connect to the model",
@@ -1097,6 +1183,53 @@ cells_04 = [
             "PROMPT = load_prompt(PROMPT_FILE)        # the starting prompt for your track",
             "print(PROMPT)",
         ]),
+    *study_cells(
+        "### The five functions that produce your numbers\n\n"
+        "Every number in your report comes out of these five, so read them before you "
+        "quote them. SETUP did not import them: **the cells below are where they come "
+        "from**, so run them before the steps that use them. They are read out of "
+        "`scripts/` when this notebook is generated — not a simplified copy.\n\n"
+        "They are ordinary definitions. Change one, run the cell again, and the rounds "
+        "below use your version. That is worth knowing about `extract_label` in "
+        "particular: if your model keeps answering in a shape it cannot read, this is "
+        "where you would fix that.\n\n"
+        "Five cells is more reading than the earlier notebooks asked for. Take them "
+        "one at a time — each one runs on its own, and none of them calls the model.",
+        [(metrics.show_errors,
+          "**`show_errors` is the one you will actually iterate on.** In: your dev "
+          "items and the model's predictions. Out: a `DataFrame` of just the rows "
+          "where the two differ — which is why you can filter it with "
+          "`errors[errors.gold == \"…\"]`. F1 tells you *whether* a round helped; only "
+          "the errors tell you *what to change next*."),
+         (pipeline.extract_label,
+          "**`extract_label` is doing more than it looks.** In: one reply from the "
+          "model, in prose. Out: one label. This is what decides that *\"This looks "
+          "like Move 2 to me\"* means `Move 2` — it searches for label names, keeps "
+          "the longest match, and falls back to `\"??\"`. Every `??` in your run is a "
+          "reply it could not read, and if there are many, that is a finding about "
+          "your prompt, not a bug."),
+         (pipeline.run_prompt,
+          "**`run_prompt` is the loop.** In: your prompt and a list of items. Out: one "
+          "predicted label per item. One API call each, the reply passed through "
+          "`extract_label`. The pacing and retrying happen inside `_default_backend`, "
+          "which is the connection `setup()` opened — that part is plumbing, and it "
+          "stays imported."),
+         (pipeline.build_fewshot,
+          "**`build_fewshot` puts worked examples in front of the model.** In: your "
+          "prompt and the pool. Out: the same prompt with a few solved items added to "
+          "it. It skips anything in your gold set — matched by text, because sampling "
+          "renumbered the ids. Without that skip you would be testing the model on "
+          "answers you had just shown it. You use it in step 3."),
+         (metrics.evaluate,
+          "**`evaluate`** prints per-class precision/recall/F1, Cohen's κ and the "
+          "confusion matrix — and **returns the macro-F1 as a number**, which is what "
+          "lets you collect one per round. Macro-F1 is the plain average of the "
+          "per-class scores, so every class counts the same however rare it is; that "
+          "is why a balanced sample and a macro average go together. `ordered=True` "
+          "adds a weighted κ, which counts a near miss as a smaller error than a far "
+          "one — use it only if your labels sit on a scale, and pass "
+          "`labels=LABELS_ORDER` so it knows what that scale is.")],
+        check="show(run_prompt)"),
     md("### Now send it to the model",
        "",
        "This is the slow cell: one API call per dev item, paced a few seconds apart to "
@@ -1125,43 +1258,6 @@ cells_04 = [
        "F1 only tells you afterwards whether the change worked. This is the cell that "
        "decides your next round."),
     code("show_errors(dev, pred0)"),
-    source_appendix(
-        "### The five functions that just produced that number\n\n"
-        "You have a score and a list of mistakes. Here is exactly what made them. "
-        "SETUP imported these five from `scripts/`, and this is their source, read "
-        "out of those files when this notebook was generated — not a simplified "
-        "copy. Every number in your report comes out of them, so read them before "
-        "you quote them. Nothing here needs running.",
-        [(pipeline.extract_label,
-          "**`extract_label` is doing more than it looks.** The model answers in prose; "
-          "this is what decides that *\"This looks like Move 2 to me\"* means `Move 2`. "
-          "It searches for label names, keeps the longest match, and falls back to "
-          "`\"??\"`. Every `??` in your run is a reply it could not read — and if there "
-          "are many, that is a finding about your prompt, not a bug."),
-         (pipeline.run_prompt,
-          "**`run_prompt` is the loop**: one API call per item, the reply passed through "
-          "`extract_label`. The pacing and retrying happen inside `_default_backend`, "
-          "which is the connection `setup()` opened — that part is plumbing."),
-         (pipeline.build_fewshot,
-          "**`build_fewshot` puts worked examples in front of the model**, drawn from "
-          "the pool and skipping anything in your gold set — matched by text, because "
-          "sampling renumbered the ids. Without that skip you would be testing the "
-          "model on answers you had just shown it. You use it in step 3."),
-         (metrics.evaluate,
-          "**`evaluate`** prints per-class precision/recall/F1, Cohen's κ and the "
-          "confusion matrix — and **returns the macro-F1 as a number**, which is what "
-          "lets you collect one per round. Macro-F1 is the plain average of the "
-          "per-class scores, so every class counts the same however rare it is; that "
-          "is why a balanced sample and a macro average go together. `ordered=True` "
-          "adds a weighted κ, which counts a near miss as a smaller error than a far "
-          "one — use it only if your labels sit on a scale, and pass "
-          "`labels=LABELS_ORDER` so it knows what that scale is."),
-         (metrics.show_errors,
-          "**`show_errors` is the one you will actually iterate on.** F1 tells you "
-          "*whether* a round helped; only the errors tell you *what to change next*. "
-          "It keeps the rows where gold and prediction differ and hands them back as a "
-          "`DataFrame`, which is why you can filter it with "
-          "`errors[errors.gold == \"…\"]`.")]),
     md(
         "## Step 3 — Iterate, driven by the errors",
         "",
@@ -1364,11 +1460,11 @@ cells_05 = [
         "                      export_results, read_test_log, triage_category,",
         "                      TRIAGE_CATEGORIES, show)",
         "",
-        "# The scoring, the error table and the triage are the analysis this notebook",
-        "# is about. Their source is printed in full at the end of step 1.",
+        "# Scoring and the error table you defined and read in notebook 04, so here",
+        "# they are just imported. The two functions that turn those errors into an",
+        "# argument are not — you define them yourself at the end of step 1.",
         "import pandas as pd",
-        "from metrics import (evaluate, show_errors, errors_on_disagreed,",
-        "                     triage_counts)",
+        "from metrics import evaluate, show_errors",
     ]),
     CONFIG_MD,
     md("## Step 1 — Open the frozen run",
@@ -1421,23 +1517,28 @@ cells_05 = [
     code(
         "read_test_log(TESTLOG_PATH)",
         ""),
-    source_appendix(
+    *study_cells(
         "### The two functions this notebook adds\n\n"
-        "`evaluate` and `show_errors` are the same ones you read in notebook 04. "
-        "These two are new, and they are what turn a list of mistakes into an "
-        "argument. SETUP already imported them; this is their source, so you can see "
-        "there is no cleverness hiding in either. Nothing here needs running, and "
-        "**nothing here calls the model** — every function takes lists you already "
-        "loaded. That is what \"frozen\" means: from here on your numbers can only "
-        "change if you load a different file.",
+        "`evaluate` and `show_errors` are the same ones you defined and read in "
+        "notebook 04, so here they are imported. These two are new, and they are what "
+        "turn a list of mistakes into an argument — so SETUP did not import them, and "
+        "**the cells below are where they come from**. Run them before the steps "
+        "further down that use them.\n\n"
+        "**Nothing here calls the model.** Both take lists you already loaded. That is "
+        "what \"frozen\" means: from here on your numbers can only change if you load "
+        "a different file.",
         [(metrics.errors_on_disagreed,
-          "**`errors_on_disagreed` does one join**, on the item id. Look at how little "
-          "there is to it — the whole force of that number comes from the fact that you "
-          "built both tables yourselves, from the same forty items."),
+          "**`errors_on_disagreed` does one join**, on the item id. In: the model's "
+          "errors and the rows your two coders disagreed on. Out: the rows that are in "
+          "both. Look at how little there is to it — the whole force of that number "
+          "comes from the fact that you built both tables yourselves, from the same "
+          "forty items."),
          (metrics.triage_counts,
-          "**`triage_counts`** counts your judgments by category, and tells you how much "
-          "of the error set you have actually been through. \"We looked at 3 of 40\" and "
-          "\"we looked at all 12\" are different claims.")]),
+          "**`triage_counts`** counts your judgments by category. In: your triage "
+          "dictionary and the error table. Out: how many errors you put in each "
+          "category, and how much of the error set you have actually been through. "
+          "\"We looked at 3 of 40\" and \"we looked at all 12\" are different claims.")],
+        check="show(errors_on_disagreed)"),
     md(
         "## Step 2 — The headline number",
         "",
