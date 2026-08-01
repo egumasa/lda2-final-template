@@ -76,14 +76,58 @@ def setup_md(show_example: str | None = None) -> dict:
     ]
 
 
+CONFIG_NAMES = [
+    "TRACK", "GROUP", "RUN", "SEED", "N_PER_CLASS", "DEV", "CODERS",
+    "MEMBERS", "LABELS_ORDER", "TEMPERATURE", "MODEL", "ROOT", "OUT_DIR",
+    "POOL_PATH", "DEMO_POOL_PATH", "SAMPLE_PATH", "GOLD_PATH",
+    "SAMPLE_BEFORE_TOPUP_PATH",
+    "DEV_PATH", "TEST_PATH", "DISAGREED_PATH", "PRED_PATH",
+    "ROUNDS_PATH", "NOTES_PATH", "TESTLOG_PATH",
+    "PROMPT_FILE", "SHEET_PATH", "TRIAGE_PATH",
+    "CODER_TRIAGE_PATH", "describe",
+]
+
+
+def _config_import(exclude: list[str] | tuple = ()) -> list[str]:
+    """The `from config import (...)` block, wrapped, minus anything excluded.
+
+    Excluding is not tidiness. `04_develop` tells the student it cannot reach the
+    held-out set, and that is only true if the names are absent - a bound `TEST_PATH`
+    makes `load_gold(TEST_PATH)` work in any new cell, so the promise the notebook
+    makes about itself would be false.
+
+    Args:
+        exclude: names to leave out of this notebook's import.
+
+    Returns:
+        The source lines of the import statement.
+    """
+    wanted = []
+    for name in CONFIG_NAMES:
+        if name not in exclude:
+            wanted.append(name)
+
+    lines, current = [], "from config import ("
+    for index, name in enumerate(wanted):
+        piece = name + (")" if index == len(wanted) - 1 else ", ")
+        if len(current) + len(piece) > 79:
+            lines.append(current.rstrip())
+            current = " " * len("from config import (")
+        current = current + piece
+    lines.append(current.rstrip())
+    return lines
+
+
 def setup_lines(extra_imports: list[str] | tuple = (),
-                workdir: str | None = None) -> list[str]:
+                workdir: str | None = None,
+                exclude: list[str] | tuple = ()) -> list[str]:
     """The source of the SETUP cell.
 
-    `extra_imports` are appended after `from config import *`.
+    `extra_imports` are appended after the config import.
     `workdir` is where to work in Colab: None means the project's own `notebooks/`
-    (notebooks 02-05); pass SCRATCH for a 01 notebook, which downloads a corpus into
+    (notebooks 02-06); pass SCRATCH for a 01 notebook, which downloads a corpus into
     the working directory and must not put that in Drive.
+    `exclude` drops config names from this notebook's import - see `_config_import`.
     """
     if workdir is None:
         target = 'PROJECT + "/notebooks"'
@@ -150,14 +194,8 @@ def setup_lines(extra_imports: list[str] | tuple = (),
         "# Named one by one rather than with `import *`, so that every name a cell",
         "# below uses can be traced back to the file it came from — config.yaml for",
         "# these, scripts/ for the rest.",
-        "from config import (TRACK, GROUP, RUN, SEED, N_PER_CLASS, DEV, CODERS,",
-        "                    MEMBERS, LABELS_ORDER, ROOT, OUT_DIR,",
-        "                    POOL_PATH, DEMO_POOL_PATH, SAMPLE_PATH, GOLD_PATH,",
-        "                    SAMPLE_BEFORE_TOPUP_PATH,",
-        "                    DEV_PATH, TEST_PATH, DISAGREED_PATH, PRED_PATH,",
-        "                    ROUNDS_PATH, TESTLOG_PATH,",
-        "                    PROMPT_FILE, SHEET_PATH, TRIAGE_PATH, describe)",
     ]
+    lines = lines + _config_import(exclude)
     lines = lines + list(extra_imports)
     lines = lines + ["", "describe()                  # what this notebook is working on",
                      ""]

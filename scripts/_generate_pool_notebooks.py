@@ -145,7 +145,7 @@ def source_cells(described: list[tuple],
 
 def blank(signpost: str, title: str, does: list[str], produces: str,
           hints: list[str] | tuple = (), notes: list[str] | tuple = (),
-          starter: list[str] | None = None) -> list[dict]:
+          starter: list[str] | None = None, decide: str = "") -> list[dict]:
     """A decision cell, with a markdown signpost above it. Returns BOTH cells.
 
     The header says what the cell does and what it names for later cells. Everything
@@ -170,6 +170,14 @@ def blank(signpost: str, title: str, does: list[str], produces: str,
     sampling strategy are what you would defend in the Q&A. So the cell runs on first
     execution, prints what it did, and the work is reading the result and arguing about
     it. Changing nothing is a choice too, and one you still have to justify.
+
+    `decide` names THAT choice, in one line - which granularity, where the band
+    boundaries go. It prints above the starter code, and it is the only place this cell
+    may say a decision exists. Leave it empty and the cell says nothing.
+
+    Every cell used to carry "this runs as written - the work is deciding whether it
+    should" instead, which named no choice at all and so read the same whether the cell
+    offered one or not. Name the choice, or say nothing.
     """
     rule = "─" * max(4, 60 - len(title))
     lines = ["# ✏️ " + title + " " + rule]
@@ -181,8 +189,9 @@ def blank(signpost: str, title: str, does: list[str], produces: str,
     for note in notes:
         lines.append("# " + note)
     lines.append("")
-    lines.append("# ✏️ this runs as written — the work is deciding whether it should")
-    lines.append("")
+    if decide:
+        lines.append("# ✏️ " + decide)
+        lines.append("")
     for line in starter:
         lines.append(line)
     lines.append("")
@@ -563,6 +572,7 @@ save("01_build_pool_raamove.ipynb", [
         ["Sets the name your prompt, your sheet and your confusion matrix will use for",
          "each of the eight three-letter codes."],
         "RAAMOVE_LABELS (a dict)",
+        decide="The wording your coders and your prompt will use. Change any that read wrong.",
         starter=['# The corpus\'s own names, spelled out. They run as they are — but this',
                  '# wording goes into your prompt, onto your coders\' sheet and onto your',
                  '# confusion matrix, so read them as a scheme rather than as a given.',
@@ -826,6 +836,7 @@ save("01_build_pool_cars50.ipynb", [
         ["Names one of the two schemes as the one you will study, and prints how many",
          "items it has."],
         "rows (a list) — either move_rows or step_rows",
+        decide="3 moves or 11 steps? One word, and PLAN.md asks you to defend it.",
         starter=['# Change this one word to "step" for the 11-class version.',
                  '# It is written as a choice rather than two lines you delete one of,',
                  '# because with two live lines the SECOND one silently wins — and you',
@@ -983,6 +994,8 @@ save("01_build_pool_l2_errors.ipynb", [
         ["Maps each raw error code you are keeping to the broader category you will",
          "study, and prints how many codes and categories that leaves you with."],
         "L2_COARSE (a dict)",
+        decide="Which codes you keep, and what you call the groups. A code left out is "
+               "a dropped sentence.",
         starter=[
             "# One line per code you are KEEPING. Scroll up to step 2 for the full list",
             "# with frequencies — the frequent codes are the ones worth arguing over.",
@@ -1037,6 +1050,7 @@ save("01_build_pool_l2_errors.ipynb", [
         ["Names one of the two tasks as the one you will study, and prints how many",
          "items it has."],
         "rows (a list) — either category_rows or detection_rows",
+        decide="The n-way task from 3a, or yes/no detection? One word.",
         starter=['# Change this one word to "detection" for the yes/no version.',
                  '# It is written as a choice rather than two lines you delete one of,',
                  '# because with two live lines the SECOND one silently wins — and you',
@@ -1242,6 +1256,7 @@ save("01_build_pool_icnale.ipynb", [
         ["Turns each numeric score into a Low, Mid or High band, split at the two",
          "boundaries you give it."],
         "rows (a list)",
+        decide="Where the two band boundaries go. The percentiles above are your evidence.",
         starter=["# A score below low_below is Low; below mid_below is Mid; the rest High.",
                  "#",
                  "# 4.0 and 7.0 are the defaults, and they are round numbers rather than",
