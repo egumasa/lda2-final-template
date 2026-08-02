@@ -47,6 +47,11 @@ __pycache__/
 notebooks/*_working.ipynb
 notebooks/Copy of *.ipynb
 
+# Design notes and specs for this repository's own build tooling. Working material
+# that records why the scaffold is shaped the way it is; it is not needed to run the
+# project, and it changes independently of the code, so it stays local.
+docs/
+
 # macOS
 .DS_Store
 
