@@ -9,7 +9,10 @@ deletes anything you put in the folder by hand. Add --overwrite when you mean it
 It builds ../lda2_project_<group>/ next to this repo, keeping the
     scripts/ · prompts/ · data/ · notebooks/ · outputs/
 layout intact. Then, in Drive: right-click the folder -> Download -> upload the zip to
-the *Final mini-project* assignment in Google Classroom -> Turn in.
+the *Final mini-project* assignment in Google Classroom -> Turn in. One zip per group.
+
+Your two-page report is not in this bundle. It is written individually, in Word, from
+the numbers notebook 06 prints on screen, and each member uploads their own.
 
 WHY A SCRIPT RATHER THAN "COPY THESE NINE FILES"
 ------------------------------------------------
@@ -126,20 +129,21 @@ def parse_arguments(argv: list[str]):
 def infer_track_and_run(group: str, track: str | None, run: str | None) -> tuple:
     """Work out which track and run to bundle, from whatever the export step wrote.
 
-    Report files are named <track>_<group>_<run>_report.md, so both are in the name.
-    A group that ran twice should not have to guess which attempt got submitted, so the
-    choice is always announced.
+    Prediction CSVs are named <track>_<group>_<run>_predictions.csv, so both are in
+    the name. A group that ran twice should not have to guess which attempt got
+    submitted, so the choice is always announced.
     """
-    reports = sorted((ROOT / "outputs").glob("*_" + group + "_*_report.md"))
-    if not reports:
+    suffix = "_predictions.csv"
+    found = sorted((ROOT / "outputs").glob("*_" + group + "_*" + suffix))
+    if not found:
         return track, run
-    newest = reports[-1].name
+    newest = found[-1].name
     if track is None:
         track = newest.split("_" + group + "_")[0]
     if run is None:
-        run = newest.split("_" + group + "_")[1][:-len("_report.md")]
-    if len(reports) > 1:
-        print("Found", len(reports), "runs. Bundling the newest:", newest)
+        run = newest.split("_" + group + "_")[1][:-len(suffix)]
+    if len(found) > 1:
+        print("Found", len(found), "runs. Bundling the newest:", newest)
         print("  (pass --run to bundle a different one.)")
     return track, run
 
@@ -237,7 +241,7 @@ def collect_gold(bundle: Path, stem: str, found: dict,
 
 def collect_outputs(bundle: Path, stem: str, found: dict,
                     missing: list[str]) -> None:
-    """The frozen predictions, the CSV, the report and the test log.
+    """The frozen predictions, the CSV and the test log.
 
     Named patterns rather than "<stem>*": export_results also drops a copy of the
     # scored items in outputs/, and shipping them in two places invites the question of
@@ -247,8 +251,7 @@ def collect_outputs(bundle: Path, stem: str, found: dict,
     whole point of keeping it is that it does not go missing here.
     """
     outputs = []
-    for pattern in ("_predictions*.json", "_predictions.csv", "_report.md",
-                    "_test_log.jsonl"):
+    for pattern in ("_predictions*.json", "_predictions.csv", "_test_log.jsonl"):
         outputs = outputs + copy_matching(ROOT / "outputs", bundle / "outputs",
                                           stem + pattern)
     if outputs:
@@ -256,8 +259,9 @@ def collect_outputs(bundle: Path, stem: str, found: dict,
     if not any(name.endswith("_predictions.json") for name in outputs):
         missing.append("outputs/" + stem + "_predictions.json — your FROZEN predictions "
                        "(notebook 05). This is the file your reported F1 must come from.")
-    if not any(name.endswith("_report.md") for name in outputs):
-        missing.append("outputs/" + stem + "_report.md — the one-page report (notebook 06).")
+    if not any(name.endswith("_predictions.csv") for name in outputs):
+        missing.append("outputs/" + stem + "_predictions.csv — the per-item table "
+                       "(notebook 06). It is what your error analysis is read off.")
     if not any(name.endswith("_test_log.jsonl") for name in outputs):
         missing.append("outputs/" + stem + "_test_log.jsonl — the test-scoring log "
                        "(notebook 05). It records how many times the held-out set was "
@@ -313,20 +317,13 @@ def print_what_was_collected(found: dict, bundle: Path) -> None:
     print(total, "file(s) collected into", bundle)
 
 
-def warn_about_placeholders(bundle: Path, stem: str) -> None:
-    """A report still full of the scaffold's own prose is the easiest thing to lose
-    marks on, and the easiest to check mechanically."""
-    report_path = bundle / "outputs" / (stem + "_report.md")
-    if report_path.exists():
-        text = report_path.read_text(encoding="utf-8")
-        placeholders = text.count("_<") + text.count("_Replace") + text.count("_For each")
-        if placeholders:
-            print()
-            print("WARNING: your report still contains", placeholders,
-                  "placeholder passage(s) in italics.")
-            print("         Those are the sections you are meant to write. A section "
-                  "left as the")
-            print("         scaffold's own prose scores zero.")
+def remind_about_the_report() -> None:
+    """The report is written individually and handed in separately, so it is not in
+    this bundle and nothing here can check it. Saying so is the point."""
+    print()
+    print("This bundle is the group's work: the plan, the notebooks, the gold set,")
+    print("the predictions and the slides. Your two-page report is NOT in it.")
+    print("Each member writes their own and uploads it to Classroom separately.")
 
 
 def main(argv: list[str]) -> int:
@@ -369,7 +366,7 @@ def main(argv: list[str]) -> int:
     collect_slides(bundle, found, missing)
 
     print_what_was_collected(found, bundle)
-    warn_about_placeholders(bundle, stem)
+    remind_about_the_report()
 
     if missing:
         print()

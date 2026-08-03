@@ -19,7 +19,7 @@ The split is deliberate:
 | File | What is in it | When you would open it |
 |---|---|---|
 | `pipeline.py` | Loading and saving, the connection to the model, `sample_pool`, `run_prompt`, `extract_label`, `build_fewshot`, `export_results` | To see how the sample is drawn, or what happens to the model's reply between "it answered" and "that counts as `Move 2`" |
-| `metrics.py` | `show_errors`, `errors_on_disagreed`, `triage_counts` — and `evaluate`, the Day-2 composite that notebook 04 uses for its dev-round score | To see what the dev trail is measured with. Your **reported** numbers come from scikit-learn, written out in notebook 06 |
+| `metrics.py` | `show_errors`, `confused_pairs`, `errors_on_disagreed` — and `evaluate`, the Day-2 composite that notebook 04 uses for its dev-round score | To see what the dev trail is measured with. Your **reported** numbers come from scikit-learn, written out in notebook 06 |
 | `_study.py` | `column`, `percent_agreement`, `disagreements`, `show_errors`, `labels_of` — the small pieces of the method, in one place | It is the source the notebooks and the Day-2 tutorials are both built from, so what you read here is what ran |
 | `answers.py` | One worked version of each cell you are asked to write yourself | **After** you have tried: `from answers import answer`, then `answer("disagreements")` |
 | `annotate.py` | The Google Sheets round trip: a tab per coder, `Final` to adjudicate in, `append_to_annotation_sheet` for a second draw, and the agreement statistics | When the sheet does something surprising — who it was shared with, how blank rows are treated, how labels are matched back, why adding rows refuses when a column has been renamed — or to see how Fleiss' κ is computed for three or more coders |

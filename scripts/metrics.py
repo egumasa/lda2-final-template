@@ -30,8 +30,7 @@ from sklearn.metrics import (
 
 import pandas as pd
 
-from pipeline import (plot_confusion_matrix, label_set, triage_category,
-                      TRIAGE_CATEGORIES)
+from pipeline import plot_confusion_matrix, label_set
 
 # show_errors and labels_of live in _study.py, the one copy the notebook generators
 # render into cells. Re-exported here so that `from metrics import show_errors` - the
@@ -165,67 +164,39 @@ def agreement(labels_a: list[str], labels_b: list[str]) -> dict[str, float]:
             "cohen_kappa": kappa}
 
 
-def triage_counts(triage: dict[int, str],
-                  errors: pd.DataFrame | None = None,
-                  categories: list[str] | tuple = TRIAGE_CATEGORIES,
-                  what: str = "errors") -> dict[str, int]:
-    """Count a triage by category, and say what it adds up to.
+def confused_pairs(errors: pd.DataFrame) -> pd.DataFrame:
+    """Which gold -> predicted swaps the model made most often.
 
-    The categories are fixed (model / scheme / wording / ambiguous) so that the counts
-    mean the same thing across groups, and so this is a judgment you make from a menu
-    rather than an essay you write.
+    The same reading you made of the coder-vs-coder confusion matrix in notebook 03,
+    made here of the model. One row per label pair, commonest first, so the pattern in
+    a long error table is one line rather than something you have to spot by eye.
 
     Args:
-        triage: the dict your group writes by hand, {item id: "category - reason"}.
-        errors: the table from show_errors. Pass it and this also tells you how much
-            of the error set you have been through.
-        categories: the words that count. Left out, the four for the model's errors.
-            Pass your own list to count a different set of words.
-        what: what the rows are, for the printout. "errors" reads wrong when the rows
-            are two coders disagreeing, and a printout that names the wrong thing is
-            how a number ends up in a report meaning something else.
+        errors: the table from show_errors, with `gold` and `pred` columns.
 
     Returns:
-        How many errors fell into each category.
+        A table of `gold`, `pred` and `n`, sorted commonest first.
 
     Example:
-        >>> triage_counts(triage, errors)
+        >>> confused_pairs(errors)
     """
     counts = {}
-    for category in categories:
-        counts[category] = 0
+    for _, row in errors.iterrows():
+        pair = (str(row["gold"]), str(row["pred"]))
+        counts[pair] = counts.get(pair, 0) + 1
 
-    unrecognised = []
-    for item_id in triage:
-        category = triage_category(triage[item_id], categories)
-        if category is None:
-            unrecognised.append(item_id)
-        else:
-            counts[category] = counts[category] + 1
+    out = []
+    for pair in counts:
+        out.append({"gold": pair[0], "pred": pair[1], "n": counts[pair]})
+    out.sort(key=lambda entry: -entry["n"])
 
-    parts = []
-    for category in categories:
-        if counts[category] > 0:
-            parts.append(str(counts[category]) + " " + category)
-    if parts:
-        print("Triaged " + str(len(triage)) + " " + what + ": " + " / ".join(parts))
+    if out:
+        top = out[0]
+        print("Most confused: " + top["gold"] + " -> " + top["pred"],
+              "(" + str(top["n"]) + " of " + str(len(errors)) + " errors)")
     else:
-        print("Triaged 0 " + what + ".")
-
-    if unrecognised:
-        print("NOTE: these lines do not start with one of",
-              ", ".join(categories) + ":", unrecognised)
-        print("      Start each line with the category word, then the reason:")
-        print('        7: "scheme - Move 1/Move 2 boundary, our coders split too"')
-
-    # "We looked at 3 of 40 errors" and "we looked at all 12" are different claims, and
-    # the report should not let the first quietly read as the second.
-    if errors is not None and hasattr(errors, "shape"):
-        total = errors.shape[0]
-        if len(triage) < total:
-            print("You have triaged", len(triage), "of", total, what + ". Say so in",
-                  "the report, or work through the rest.")
-    return counts
+        print("No errors to read.")
+    return pd.DataFrame(out, columns=["gold", "pred", "n"])
 
 
 def errors_on_disagreed(errors: pd.DataFrame,

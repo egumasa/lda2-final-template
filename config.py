@@ -244,6 +244,11 @@ TEST_PATH = ROOT / "data" / "gold" / (STEM + "_test.json")             # 03 writ
 # the sheet has been deleted or its owner has left.
 DISAGREED_PATH = ROOT / "data" / "gold" / (STEM + "_disagreed.json")   # 03 writes
 
+# Your adjudicated rows: the one `Final` label you settled on for each item, and the
+# note saying why. The label ends up in the gold set either way; the note does not, and
+# it is the only record of the argument you had. Written in notebook 03, step 4.
+ADJUDICATED_PATH = ROOT / "data" / "gold" / (STEM + "_adjudicated.json")  # 03 writes
+
 PRED_PATH = ROOT / "outputs" / (STEM + "_predictions.json")            # 05 writes:
 #                                                          the frozen run on TEST.
 
@@ -258,11 +263,6 @@ NOTES_PATH = ROOT / "outputs" / (STEM + "_round_notes.json")           # 04 writ
 # Every time the held-out set is scored, one line lands here. Nothing stops you scoring
 # it twice; this is what makes the second time visible, to you and to the reader.
 TESTLOG_PATH = ROOT / "outputs" / (STEM + "_test_log.jsonl")           # 05 appends
-
-# Your group's reading of the model's errors - which are the scheme's fault, which are
-# the model's. Written in notebook 06 and read straight back into the report, because
-# it is the one part of the analysis that exists only in your heads until you type it.
-TRIAGE_PATH = ROOT / "outputs" / (STEM + "_triage.json")               # 06 writes
 
 PROMPT_FILE = ROOT / "prompts" / (TRACK + ".txt")
 OUT_DIR = ROOT / "outputs"

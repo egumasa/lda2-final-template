@@ -375,19 +375,18 @@ def main() -> bool:
 
     def export_both_forms() -> None:
         # The form that existed before the split - it must keep working untouched.
-        written = export_results("track", gold, predictions, {"round0": 0.5},
+        written = export_results("track", gold, predictions,
                                  work_dir / "export_plain", group="g", run="v1")
         assert written["gold"].name.endswith("_gold.json")
-        # And the split-aware form, which reports the test half and names it as such.
+        assert written["csv"].exists(), "the per-item predictions CSV must be written"
+        # And the split-aware form, which saves the test half and names it as such.
         dev, test = split_dev_test(gold, 1)
         test_predictions = predictions[:len(test)]
-        with_dev = export_results("track", test, test_predictions, {"round0": 0.5},
+        with_dev = export_results("track", test, test_predictions,
                                   work_dir / "export_split", group="g", run="v1",
                                   dev=dev)
         assert with_dev["gold"].name.endswith("_test.json"), \
             "with a split, the copy saved beside the results is the TEST half"
-        report = with_dev["report"].read_text(encoding="utf-8")
-        assert "held-out" in report, "the report must say which half the number is on"
     check("export_results(...) and export_results(..., dev=dev)", export_both_forms)
 
     def freeze_roundtrip() -> None:
@@ -432,32 +431,56 @@ def main() -> bool:
         assert result["kappa"] == result["cohen_kappa"]
     check("agreement(a, b) -> dict with both kappa keys", agreement_keys)
 
-    def triage_vocabulary_is_closed() -> None:
-        """Notebook 06 counts the model's errors against a fixed list of four words.
+    def confused_pairs_ranks_by_count() -> None:
+        """Notebook 06 asks which two labels the model confuses most often.
 
-        `categories=` is appended, so the Day-2/06 call form still has to run
-        untouched - and a vocabulary must REFUSE a word that is not in it, or a
-        mistyped line is silently counted as something it is not.
+        The answer is a ranking, so the commonest pair has to come first - a table
+        sorted the other way would put the rarest swap where the report reads the
+        headline. Same reading notebook 03 makes of the coder confusion matrix.
         """
-        from metrics import triage_counts
-        from pipeline import triage_category
+        import pandas as pd
+        from metrics import confused_pairs
 
-        model_triage = {7: "scheme - the Move 1/2 boundary", 12: "model - clear item"}
-        counts = triage_counts(model_triage)                 # the taught form
-        assert counts["model"] == 1 and counts["scheme"] == 1
+        errors = pd.DataFrame([
+            {"id": 1, "gold": "B1", "pred": "B2", "text": "x"},
+            {"id": 2, "gold": "B1", "pred": "B2", "text": "y"},
+            {"id": 3, "gold": "A2", "pred": "A1", "text": "z"},
+        ])
+        table = confused_pairs(errors)
+        assert list(table.columns) == ["gold", "pred", "n"], \
+            "the columns the notebook prints must not change name"
+        assert table.iloc[0]["n"] == 2, "the commonest pair must come first"
+        assert table.iloc[0]["gold"] == "B1" and table.iloc[0]["pred"] == "B2"
+        assert len(table) == 2, "one row per distinct pair"
 
-        own_words = ["scheme", "wording", "ambiguous", "slip"]
-        counts = triage_counts({7: "scheme - x", 12: "slip - typed the wrong row"},
-                               categories=own_words, what="disagreements")
-        assert counts["slip"] == 1, "a word in the list passed must be counted"
-        assert "model" not in counts, "a word NOT in that list must not appear"
+        empty = confused_pairs(pd.DataFrame(columns=["id", "gold", "pred", "text"]))
+        assert len(empty) == 0, "a perfect run must not crash the report step"
+    check("confused_pairs(errors) -> gold/pred/n, commonest first",
+          confused_pairs_ranks_by_count)
 
-        assert triage_category("slip - x") is None, \
-            "'slip' is not one of the model categories"
-        assert triage_category("model - x", own_words) is None, \
-            "a word outside the list passed must not be recognised"
-    check("triage_counts(triage) and triage_counts(triage, categories=[...])",
-          triage_vocabulary_is_closed)
+    def adjudication_keeps_the_note() -> None:
+        """Notebook 03 saves the adjudicated rows so the WHY survives the sheet.
+
+        `Final` reaches the gold set on its own. The note does not, and it is the
+        only record of the argument - so a row that has one must keep it.
+        """
+        from annotate import adjudicated_rows
+
+        rows = [
+            {"ID": 1, "Text": "x", "CoderA": "B1", "CoderB": "B2",
+             "Final": "B2", "Note": "cited work, so Move 1"},
+            {"ID": 2, "Text": "y", "CoderA": "A1", "CoderB": "A1",
+             "Final": "A1", "Note": ""},
+            {"ID": 3, "Text": "z", "CoderA": "B1", "CoderB": "B2", "Final": ""},
+        ]
+        out = adjudicated_rows(rows, coders=["CoderA", "CoderB"])
+        assert len(out) == 2, "only the rows the coders differed on"
+        assert out[0]["note"] == "cited work, so Move 1", "the note must survive"
+        assert out[1]["final"] == "", "an unadjudicated row must stay visible"
+        assert set(out[0]) == {"id", "text", "final", "note"}, \
+            "the saved shape is what notebook 06 reads back"
+    check("adjudicated_rows(rows, coders=CODERS) keeps Final and Note",
+          adjudication_keeps_the_note)
 
     print("\nEdge cases that used to produce a wrong number silently")
 

@@ -48,7 +48,7 @@ this is the part a script could not have done for you, and the part the Q&A goes
 ## 5. Sampling — and why that way
 
 - Pool file:
-- **Which strategy**, and the one-sentence defence (this is report section 1):
+- **Which strategy**, and the one-sentence defence (this belongs in your methodology section):
   - [ ] `sample_pool` — balanced by label. Readable per-class scores; not what the
     corpus looks like.
   - [ ] `sample_random` — the corpus as it is. Realistic; a rare label may arrive with
@@ -75,7 +75,7 @@ it blank describes half of what you did.
 > **About the size of this study.** A result that could support a claim about a corpus needs
 > hundreds of items per class. Forty in total is what four-and-a-bit seconds per API call and
 > five days buy you, and it is not enough to tell a five-point difference from noise. That is
-> a limitation to *state* in report §5, not to write around. What this project is really
+> a limitation to *state* in your limitations section, not to write around. What this project is really
 > rehearsing is the method — a scheme you can defend, a gold set two people built, a number
 > measured on items you never tuned against.
 
@@ -103,7 +103,7 @@ costs you no extra annotation. What it costs is items you are allowed to look at
 > `outputs/..._test_log.jsonl`, that file is part of your submission, and it fingerprints the
 > prompt each time. A second run with the *same* prompt is that prompt run twice; a second run
 > with a *different* one is a prompt tuned after seeing the held-out set. If there is more than
-> one line in that log, report §5 has to say which happened and why.
+> one line in that log, your limitations section has to say which happened and why.
 
 ## 7. QC
 
@@ -140,11 +140,13 @@ is more than one defensible answer:
 > method any more. Settle it while the only facts you have are the ones above.
 
 **A second annotation round is optional.** Notebook 03 shows you how, and gives you the rule
-for deciding: triage your disagreements, and if most of them are your guidelines' fault
-(`scheme` / `wording`) then rewriting the boundary rule and re-annotating will genuinely move
-κ. If most are `slip` or `ambiguous`, a second round re-measures the same fuzziness. Either
-way, write down which you found and what you decided — that is the answer to *"what did your
-QC pass change?"*, which is published in advance as a Q&A question.
+for deciding — the same one you used in Day 2 S5. Read the coder confusion matrix: if most of
+your disagreements sit on **one pair of labels**, the boundary between those two is not
+written down clearly enough, so rewriting that rule and re-annotating in a fresh round will
+genuinely move κ. If the disagreements are scattered across many pairs, a second round
+re-measures the same fuzziness. Either way, write down which you found and what you decided —
+that is the answer to *"what did your QC pass change?"*, which is published in advance as a
+Q&A question.
 
 ## 8. Prompt plan
 
@@ -173,7 +175,7 @@ changes at once and a score that moves tells you nothing about which one moved i
 
 - How many prompts you will test on it:
 - If more than one, how you pick the winner (the rule, not the answer):
-- Every number you tested goes in report §3, not only the winner's:
+- Every number you tested goes in your prompt-iterations section, not only the winner's:
 
 > Testing three prompts and reporting the best is the best of three tries, and it is
 > optimistic by an amount nobody can work out afterwards. Testing three, saying in advance
@@ -213,7 +215,7 @@ with the names your group actually used.
 | 03 annotate   | the filled-in sheet + your adjudication | `data/gold/…_gold.json`, and its `…_dev.json` / `…_test.json` split | |
 | 04 develop    | the **dev** half, the pool, your prompt | `prompts/…` (one file per version), `…_rounds.json`, `…_notes.json` | |
 | 05 test       | the **test** half + the prompt files you committed to | `outputs/…_predictions.json`, `…_test_log.jsonl`, the rounds table with the held-out row | |
-| 06 report     | the **test** half + the frozen run + the rounds table | `outputs/…_report.md` | |
+| 06 report     | the **test** half + the frozen run + the rounds table | `outputs/…_test.json`, `…_predictions.csv`, and the numbers on screen that you write your report from | |
 
 **04 and 05 are two files rather than two sections of one for a single reason:** the test
 set has to be untouchable while you are iterating, and a file boundary is the only version

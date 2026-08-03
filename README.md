@@ -1,17 +1,17 @@
 # LDA II — Final mini-project template
 
 The scaffold for the final group mini-project in **Linguistic Data Analysis II**. You run
-a small LLM-annotation study end to end, across five numbered notebooks:
+a small LLM-annotation study end to end, across six numbered stages:
 
 ```
-01 build pool  →  02 sample  →  03 annotate  →  04 prompt  →  05 report
+01 build pool  →  02 sample  →  03 annotate  →  04 develop  →  05 test  →  06 report
 ```
 
 > **build** a pool from a real corpus → **choose how to sample** it and defend that →
 > **annotate and adjudicate** it yourselves → **split it into dev and test** → write a
 > **baseline prompt** → **read what it got wrong** and iterate on the *dev* half over 2–3
-> rounds → **freeze** one run on the *held-out* half → **triage the errors** →
-> **export a one-page report**
+> rounds → **freeze** one run on the *held-out* half → **read what it got wrong** →
+> **export the results you write your two-page report from**
 
 The plumbing is written for you. What you supply is the judgment: which items, which
 labels, which prompt, and what the errors mean.
@@ -25,7 +25,9 @@ LLM is the thing being measured by it.
 lda2-final-template/
 ├── config.yaml                     # ✏️ the ONE file you edit first: track, group, seed
 ├── config.py                       # turns config.yaml into every path (you do not edit it)
-├── notebooks/                      # YOUR six notebooks. Run them in order.
+├── notebooks/                      # YOUR six stages, ten files. Run them in order.
+│                                   #   (01_build_pool_* has one variant per track —
+│                                   #    you run only the one matching your track)
 │   ├── 01_build_pool_<track>.ipynb #   corpus → data/pools/<track>_pool.json
 │   ├── 02_sample.ipynb             #   pool → your sample → the annotation sheet
 │   ├── 02b_add_samples.ipynb       #   time left over? more items into the SAME sheet
@@ -200,7 +202,7 @@ template cannot produce a study that would support a claim about a corpus — th
 hundreds of items per class, and the confidence interval on a macro-F1 over twenty-odd
 held-out items is wide enough that a five-point difference means nothing.
 
-That is stated rather than worked around, and groups are asked to state it in report §5
+That is stated rather than worked around, and groups are asked to state it in the limitations section of the report
 too. What the project is really rehearsing is the **method**: an annotation scheme you can
 defend, a gold set two people built and argued over, a line drawn between the items you
 tune on and the items you report on, a frozen run, and an audit trail. Those transfer to a
@@ -245,12 +247,14 @@ round-trip is designed for Colab, where your Google account is already available
 
 ## Deliverables
 
-- **Presentation + Q&A** — the main deliverable.
-- **One-page report** — `export_results` writes a scaffold with the five required
-  sections; you fill in the QC narrative, the error attributions, and the limitations.
+- **Presentation + Q&A** — the main deliverable, one per group.
+- **Two-page report** — written **individually**, in Word, from the numbers notebook 06
+  prints on screen. Six sections: intro, methodology, prompt iterations, evaluation,
+  error analysis, limitations. Each member uploads their own to Google Classroom; it is
+  not part of the group bundle below.
 - **Completed notebooks**, run in order, each one top to bottom.
 
-Collect it all with:
+Collect the group's work with:
 
 ```bash
 python scripts/make_submission.py --group groupA

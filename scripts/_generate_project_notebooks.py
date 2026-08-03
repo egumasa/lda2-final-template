@@ -557,7 +557,7 @@ cells = [
         "seen the numbers."),
     *study_cells(
         "### The code that draws the sample\n\n"
-        "This is your **sampling method** — what report section 1 has to describe and "
+        "This is your **sampling method** — what your report's methodology section has to describe and "
         "the Q&A may well ask you to defend, so it is in front of you rather than "
         "behind an import. SETUP did not import these four: **the cells below are "
         "where they come from**, so run them before the step that uses them. They are "
@@ -635,7 +635,8 @@ cells = [
          'print("labels:", LABELS)'),
     md("### Now write down why you drew it that way",
        "",
-       "Not in the notebook — in `PLAN.md` §5, in a sentence. It is report section 1, "
+       "Not in the notebook — in `PLAN.md` §5, in a sentence. It belongs in your "
+       "report's methodology section, "
        "and the Q&A may well ask you to defend it, so write it while the reason is "
        "still in your head.",
        "",
@@ -827,7 +828,8 @@ cells_03 = [
         "# dev/test split: stratifying and rounding are bookkeeping, not judgment.",
         "from pipeline import (load_gold, label_set, save_json, split_dev_test,",
         "                      plot_confusion_matrix)",
-        "from annotate import remembered_sheet, load_coder_sheets, fleiss_kappa",
+        "from annotate import (remembered_sheet, load_coder_sheets, fleiss_kappa,",
+        "                      adjudicated_rows)",
         "",
         "# The sheet's column headings, by the names the code below uses for them.",
         "from _study import COL_ID, COL_TEXT, COL_FINAL",
@@ -847,7 +849,7 @@ cells_03 = [
         "# `disagreements` is NOT imported. Step 3 asks you to write it, because the rule",
         "# inside it — what counts as a disagreement — is a decision about your scheme",
         "# rather than a fact about your data.",
-    ], exclude=["CODER_TRIAGE_PATH"]),
+    ]),
     CONFIG_MD,
     md(
         "## First — your sample, back from the file",
@@ -983,7 +985,7 @@ cells_03 = [
         "argue about. Looking at it changes what you do next, so there is nothing to "
         "protect yourself from.",
         "",
-        "**Write the numbers down as they print** — they are report section 1, and they "
+        "**Write the numbers down as they print** — they belong in your report's methodology section, and they "
         "do not survive a runtime reset. A κ around .8 is strong; around .4 means the "
         "scheme, not the annotators, is doing something wrong. Either is a reportable "
         "finding. A low κ you can explain beats a high one you cannot.",
@@ -1093,12 +1095,32 @@ cells_03 = [
     md(
         "## Step 4 — Adjudicate",
         "",
+        "The rows left on your list do not go away by rewriting the guidelines. You "
+        "decide them. This is the Day 2 S5 step F, on your own data.",
+        "",
         "Go back to the sheet and fill in `Final` for **every** row:",
         "",
         "- Where you agreed, `Final` is that label.",
         "- Where you did not, talk it out and decide. If you cannot agree, the scheme is "
         "underspecified — write down *why* in `Note` and pick one. That note is worth "
         "more to your report than the label is.",
+        "",
+        "### Before you settle them: is a second round worth it?",
+        "",
+        "Look again at the confusion matrix from step 2. **If one pair of labels "
+        "accounts for most of your disagreements**, the boundary between those two is "
+        "not written down clearly enough, and that is fixable: revise what your "
+        "guidelines say about that pair, duplicate the coder tabs into a fresh round, "
+        "re-annotate the affected rows there, and re-run steps 1–3. Agreement should "
+        "move, and you can report by how much.",
+        "",
+        "**If the disagreements are scattered across many pairs**, a second round "
+        "re-measures the same fuzziness and κ will barely move. Adjudicate and go on.",
+        "",
+        "Never overwrite a round — keep each one as its own tab, so the change is "
+        "something you can show rather than assert. Either way, write down which of the "
+        "two you found and what you did about it. That is the answer to *what did your "
+        "QC pass change?*, which is published in advance as a Q&A question.",
         "",
         "Then re-read the sheet and canonicalise it. `to_canonical` reports blanks and "
         "invalid labels rather than silently dropping them; fix them in the sheet and "
@@ -1142,6 +1164,36 @@ cells_03 = [
             "gold = to_canonical(rows, LABELS, source=sampled)   # re-attaches what the sheet drops",
         ]),
     md(
+        "### Now keep the argument, not just the answer",
+        "",
+        "`to_canonical` took your `Final` labels into `gold` and dropped everything "
+        "else — including the `Note` column. The label is what the model gets scored "
+        "against; the note is the only record of **what you decided and on what "
+        "grounds**, and it is what your report's methodology section asks you for.",
+        "",
+        "So this saves the disagreed rows with both. It is one file being written now, "
+        "rather than a sentence you try to reconstruct from memory in a week — and by "
+        "then the sheet may have been deleted, or its owner may have left the group.",
+        "",
+        "It tells you how many rows still have no `Final`, and how many have no note. "
+        "A row with a label and no note is a decision nobody can check."),
+    code("adjudicated = adjudicated_rows(rows, coders=CODERS)",
+         'save_json(adjudicated, ADJUDICATED_PATH,',
+         '          what="rows you adjudicated, with the reason")',
+         "pd.DataFrame(adjudicated)"),
+    for_report(
+        ["Our adjudication settled ___ rows, ___ of which we recorded a reason for.",
+         "Most of them were the ___ / ___ boundary, which our scheme did not settle "
+         "because ___.",
+         "We did / did not run a second annotation round, because ___."],
+        "The second sentence is the finding: it names a boundary in your scheme, and "
+        "the confusion matrix in step 2 is the evidence for it. Notebook 06 asks the "
+        "same question of the model's errors, and the interesting result is when the "
+        "two land on the same pair.",
+        "",
+        "The third comes off the decision rule above — say which of the two patterns "
+        "you saw, not just what you did."),
+    md(
         "## Step 5 — Where do you differ from the published labels?",
         "",
         "Now — and only now, with your own labels settled — look at what the corpus "
@@ -1158,7 +1210,7 @@ cells_03 = [
         "2. **The item is genuinely ambiguous** — it would split any pair of annotators.",
         "3. **One of you is wrong.** It happens, in both directions.",
         "",
-        "This table is report section 1, and it is the one that most often produces a "
+        "This table belongs in your report's methodology section, and it is the one that most often produces a "
         "sentence worth saying out loud in the Q&A. Pick two or three rows and write "
         "down which of the three cases above they are — now, while you still remember "
         "the argument you had about them.",
@@ -1169,7 +1221,7 @@ cells_03 = [
     md(
         "### The code that compares you to the published labels — read it, then run it",
         "",
-        "This function prints the percentage that goes into report section 1, so read "
+        "This function prints the percentage that goes into your report's methodology section, so read "
         "how it gets there. Three decisions are inside it:",
         "",
         "- **What counts as the same item.** It matches on the **text**, because "
@@ -1367,7 +1419,7 @@ cells_04 = [
          "apart, no batching: forty items is minutes and four hundred is most of an "
          "afternoon of a quota you share with everyone else on the course. A study that "
          "could support a claim about a corpus needs hundreds of items per class. This "
-         "one cannot, and that is a limitation to state in report §5 rather than write "
+         "one cannot, and that is a limitation to state in your report's limitations section rather than write "
          "around. What transfers is the method — the split, the freezing, the audit "
          "trail — not the number."]),
     md(*SETUP_MD),
@@ -1579,7 +1631,8 @@ cells_04 = [
         "",
         "`f1_by_round` collects one score per round and `NOTES` collects your one-line "
         "reason for each. Both are saved at the end of this notebook and printed side "
-        "by side as report section 2, so the keys are what your reader sees — name them "
+        "by side as your report's prompt-iterations section, so the keys are what your "
+        "reader sees — name them "
         "for what you **changed**, not which round it was.",
         "",
         "Now we start those two tables and write the baseline prompt."),
@@ -1769,7 +1822,7 @@ cells_04.extend([
        "## Step 6 — Save the trail, and stop",
        "",
        "Both tables go to disk. `05_test.ipynb` reads them back, adds the held-out row, "
-       "and `06_report.ipynb` prints the two side by side as report section 2.",
+       "and `06_report.ipynb` prints the two side by side as your report's prompt-iterations section.",
        "",
        "**Before you save, fill in the `what happened` half of every `NOTES` entry.** "
        "You wrote the prediction before the round; this is where you say whether it "
@@ -1851,7 +1904,7 @@ cells_05_test = [
          "design — a genuine mistake at four o'clock on the last day needs a way "
          "forward. So instead nothing is overwritten, and every scoring appends a line "
          "to a log that travels in your submission. A second attempt is allowed. It is "
-         "just not invisible, and §5 of your report has to account for it."]),
+         "just not invisible, and the limitations section of your report has to account for it."]),
     md(*SETUP_MD),
     setup_cell([
         "",
@@ -1964,7 +2017,7 @@ cells_05_test = [
             '                    key="TEST · " + name,',
             "                    note=note)",
             "",
-            "    # The reason this candidate was tested at all, so report section 2 has",
+            "    # The reason this candidate was tested at all, so your prompt-iterations section has",
             "    # a line for the held-out row rather than a bare number at the bottom.",
             '    NOTES["TEST · " + name] = "held out · " + WINNER_RULE',
             "",
@@ -1972,7 +2025,7 @@ cells_05_test = [
         ]),
     md("### The log, as it now stands",
        "",
-       "One line per scoring. **If there is more than one, report §5 has to account for "
+       "One line per scoring. **If there is more than one, your limitations section has to account for "
        "every one of them** — which is the whole reason this file exists rather than a "
        "lock on the cell above.",
        "",
@@ -2010,7 +2063,8 @@ cells_06 = [
         "Show an item the model got wrong, and say whose fault it was.",
         "the dev/test split (03) · the rounds and notes (04) · the frozen predictions "
         "and test log (05)",
-        "`outputs/` — the predictions CSV, the report scaffold, a copy of your test set",
+        "`outputs/` — the predictions CSV and a copy of your test set; and the numbers "
+        "on screen that you write your report from",
         ["This is the highest-value part of the whole project, and the one the Q&A will "
          "definitely go to. A low F1 with a clear account of *why* is worth more than a "
          "high one without.",
@@ -2023,8 +2077,7 @@ cells_06 = [
         "",
         "# Loading files is plumbing.",
         "from pipeline import (load_gold, load_predictions, load_json, save_json,",
-        "                      export_results, read_test_log, triage_category,",
-        "                      label_set, TRIAGE_CATEGORIES)",
+        "                      export_results, read_test_log, label_set)",
         "",
         "# The scoring comes from scikit-learn, by its own names. You built your own",
         "# versions of these on Day 2 S6 and checked them against these very functions;",
@@ -2032,17 +2085,18 @@ cells_06 = [
         "from sklearn.metrics import (classification_report, cohen_kappa_score,",
         "                             confusion_matrix, f1_score)",
         "",
-        "# The tables: your errors, the join against your coders' arguments, and your",
-        "# triage counted. All met before — none of them calls the model.",
+        "# The tables: your errors, which labels the model swaps, and the join against",
+        "# your coders' arguments. All met before — none of them calls the model.",
         "import pandas as pd",
-        "from metrics import show_errors, errors_on_disagreed, triage_counts, labels_of",
+        "from metrics import (show_errors, confused_pairs, errors_on_disagreed,",
+        "                     labels_of)",
         "from pipeline import plot_confusion_matrix",
     ]),
     CONFIG_MD,
     md("## Step 1 — Open the frozen run",
        "",
        "Now we load the four files notebooks 04 and 05 left behind: the held-out test set, the "
-       "dev half (only so the report can say how big it was), the predictions file, and "
+       "dev half (only so you can say in the report how big it was), the predictions file, and "
        "the per-round table.",
        "",
        "**Nothing in this notebook calls the model.** If a number here differs from "
@@ -2081,7 +2135,7 @@ cells_06 = [
     md("### Your rounds, with the reason for each",
        "",
        "Now we put the two tables side by side: what each round scored, and why you made "
-       "that change. **This is report section 2**, and it is the one section you cannot "
+       "that change. **This is your prompt-iterations section**, and it is the one section you cannot "
        "reconstruct afterwards — a stack of F1 numbers with no reasons attached is a "
        "list of things that happened, not an account of what you did.",
        "",
@@ -2096,7 +2150,7 @@ cells_06 = [
         "",
         "How many times the held-out set was scored. **One row is what we expect.** More "
         "than one is allowed — that is why this file exists rather than a lock — but "
-        "whichever row your headline comes from, report §5 has to account for the others.",
+        "whichever row your headline comes from, your limitations section has to account for the others.",
         "",
         "Look at `prompt_sha1`. Two rows with the *same* fingerprint are the same prompt "
         "run twice, which tells you something useful about how much the model's answers "
@@ -2126,7 +2180,7 @@ cells_06 = [
         "| `plot_confusion_matrix(m, LABELS, title)` | that matrix, drawn | Day 2 S6 |",
         "| `show_errors(test, pred)` | just the rows it got wrong | Day 3 |",
         "| `errors_on_disagreed(errors, disagreed)` | the errors that land where YOUR coders also disagreed | 06 |",
-        "| `triage_counts(TRIAGE, errors)` | your judgments, counted by category | 06 |",
+        "| `confused_pairs(errors)` | which label swaps the model made most often | 06 |",
         "",
         "**The three averages are three different questions, and they disagree.** Macro "
         "asks how well you do on the average *class*, so a rare class counts as much as "
@@ -2144,7 +2198,7 @@ cells_06 = [
         "",
         "**This one is the result.** It is measured on items your prompt was never tuned "
         "against, which is what makes it worth quoting; the per-round table above is the "
-        "*story of how you got here*, and belongs in report §2 rather than §3.",
+        "*story of how you got here*, and belongs in your prompt-iterations section rather than your evaluation section.",
         "",
         "Compare it to your best dev round. If test came out lower, that is the ordinary "
         "outcome and the gap is itself a finding — roughly, how much of your improvement "
@@ -2164,7 +2218,7 @@ cells_06 = [
     *step(
         2, "Score the frozen run",
         ["Lines the gold labels up against the frozen predictions, then reports the",
-         "per-class table. These are the numbers for report section 3."],
+         "per-class table. These are the numbers for your evaluation section."],
         "y_true, y_pred, macro_f1",
         decide="Which one number you lead with, and whether a weighted κ belongs here. "
                "Both follow from your label set, and PLAN.md §9 should already say.",
@@ -2223,22 +2277,17 @@ cells_06 = [
         "a clear account of *why* beats a high one without, every time — and the "
         "account is only available to you because you built the gold set yourselves.",
         "",
-        "`show_errors` gives you every item the model got wrong. Very different findings "
-        "live in that one table, and saying which is which is the whole job:",
+        "`show_errors` gives you every item the model got wrong. The question to ask of "
+        "that table is the Day 2 S6 one: **is this the model's fault, or the scheme's?**",
         "",
-        "| | |",
-        "|---|---|",
-        "| **`model`** | the label is clear, both your coders agreed at once, and the "
-        "model still missed it |",
-        "| **`scheme`** | the item is genuinely borderline *under your scheme* — and you "
-        "know which ones these are, because you argued about them |",
-        "| **`wording`** | the label *name* misleads. `Gap` may read to a model as "
-        "\"missing data\". This one your next prompt could fix |",
-        "| **`ambiguous`** | the item itself is unclear in a way no scheme would settle |",
+        "You are one of the few people who can answer it, because you built the gold set "
+        "yourselves and you know which items you argued about. An item both your coders "
+        "labelled at once and the model still missed is the model's. An item your coders "
+        "split on is a boundary your scheme does not settle, and the model splitting on "
+        "it too is evidence rather than coincidence.",
         "",
-        "The difference between `scheme` and `wording` is worth being careful about: one "
-        "of them is fixable by prompting and the other is not, and confusing them is how "
-        "groups spend three rounds on a problem no prompt can reach."),
+        "So this step works the same way notebook 03 step 2 did — find the label pair "
+        "that keeps swapping, then say what is true of that boundary."),
     *step(
         3, "The errors",
         ["Lists every test item the model got wrong, and shows you the first fifteen."],
@@ -2275,8 +2324,9 @@ cells_06 = [
        "were.",
        "",
        "**If it says the file is missing**, notebook 03 was run before this file was "
-       "part of the project. Re-run its step 3, or skip this cell and the next — the "
-       "triage in step 4 still works without them."),
+       "part of the project. Re-run its step 3 — step 4 below asks whether your "
+       "coders and the model split on the same items, and without this file there is "
+       "nothing to answer it with."),
     code("disagreed = load_json(DISAGREED_PATH)   # written by notebook 03, step 3",
          'print(len(disagreed), "rows your coders labelled differently")'),
     md("### Now the number this whole project has been building towards",
@@ -2294,96 +2344,90 @@ cells_06 = [
     code("overlap = errors_on_disagreed(errors, disagreed)",
          'print("ids to read again before you blame the model:", overlap)'),
     md(
-        "## Step 4 — Triage: say what each error is *caused by*",
+        "## Step 4 — Which boundary is this, and is it the same one?",
         "",
-        "Now the judgment. Go through the errors — **all of them if there are few, at "
-        "least eight or ten if there are many** — and write down, for each, which of the "
-        "four things it is and how you know. Do this **together, out loud**, reading the "
-        "actual sentences. It is the last genuinely analytical thing in the project and "
-        "it takes about fifteen minutes.",
+        "Two questions, and the notebook computes the numbers for both. What it cannot "
+        "do is say what they mean, and that is the last genuinely analytical thing in "
+        "the project. Do it **together, out loud, reading the actual sentences** — it "
+        "takes about fifteen minutes and it is the single hardest thing to reconstruct "
+        "a week later.",
         "",
-        "Start each line with the category word, then a reason:",
+        "**First: which two labels does the model confuse most often?** `confused_pairs` "
+        "counts the `gold -> pred` swaps, commonest first. This is the same reading you "
+        "made of the coder-vs-coder matrix in notebook 03 step 2, made now of the model.",
         "",
-        "```python",
-        "TRIAGE = {",
-        "     7: \"scheme  — Move 1/Move 2 boundary; our coders split on this one too\",",
-        "    12: \"model   — 'The aim of our study was' is about as clear as Move 3 gets\",",
-        "    23: \"wording — the model reads any citation as Move 1\",",
-        "}",
-        "```",
+        "**Then: is it the same pair your own coders disagreed about?** `overlap` from "
+        "step 3 already has the ids. If the two answers point at the same boundary, you "
+        "have something worth saying: two people who read the guidelines and one model "
+        "that did not all failed at the same place, so the problem is in what the scheme "
+        "says, not in who or what was reading it. That is a better finding than a clean "
+        "F1, and nobody who did not build their own gold set can report it.",
         "",
-        "The ids come from the `errors` table above, and the ones in `overlap` are the "
-        "obvious candidates for `scheme` — you have independent evidence for those. "
-        "**A reason, not a verdict**: *\"model — wrong\"* is not worth writing down.",
+        "If they point at different boundaries, that is reportable too, and it means "
+        "something else — the model is failing somewhere your coders found easy.",
         "",
-        "Two things come out of this. The counts go into report §4, so *\"of 14 errors, 6 "
-        "are our scheme's\"* is a finding rather than an impression. And every `wording` "
-        "line is a concrete next prompt round, which is what to say when someone asks "
-        "what you would do with another week.",
-        "",
-        "Write it while the errors are in front of you — it is the single hardest thing "
-        "to reconstruct a week later. And if your `scheme` ids overlap with `overlap` "
-        "from step 3, say so in the report: your own coders are the evidence."),
+        "Read the sentences behind the commonest pair before you write anything. The "
+        "count tells you where to look; it does not tell you what is there."),
     *step(
-        4, "Triage the errors",
-        ["Counts your judgments by category and tells you how many errors you have",
-         "still to go through. It runs empty, so add your lines and re-run it."],
-        "TRIAGE",
+        4, "The boundary the model gets wrong",
+        ["Ranks the label swaps the model made, then says how many of its errors land",
+         "on the items your own coders argued about."],
+        "pairs",
         starter=[
-            "# One line per error you have discussed: the id from the `errors` table",
-            "# above, then one of the four category words, then WHY you say so.",
-            "# It runs empty — and tells you how many you still owe — so add your own",
-            "# and re-run as you work through them, out loud, together.",
-            "TRIAGE = {",
-            "    # 7: \"scheme — Move 1/Move 2 boundary; our coders split on this one too\",",
-            "}",
+            "pairs = confused_pairs(errors)",
             "",
-            "triage_counts(TRIAGE, errors)",
+            "# How much of the error set sits on items your coders split on too.",
+            'print(len(overlap), "of", len(errors), "errors are on rows you argued about")',
+            "",
+            "pairs",
         ]),
-    md("### Now save your triage",
+    md("### Now read the items behind that pair",
        "",
-       "Once the counts above read the way you want them to. Step 5 reads this file "
-       "straight into report §4, so your reasons end up in the report rather than in "
-       "somebody's notes."),
-    code('save_json(TRIAGE, TRIAGE_PATH, what="triaged errors")'),
+       "The commonest swap, as sentences. Change the two labels to look at any other "
+       "pair in the table above — the one that surprises you is often worth more than "
+       "the one that is biggest."),
+    code("# The commonest swap, from the table above. Or type your own two labels.",
+         'GOLD_IS, PRED_WAS = pairs.iloc[0]["gold"], pairs.iloc[0]["pred"]',
+         "",
+         'print("items labelled", GOLD_IS, "that the model called", PRED_WAS)',
+         'errors[(errors["gold"] == GOLD_IS) & (errors["pred"] == PRED_WAS)]'),
     for_report(
-        ["Of ___ errors we triaged ___, of which ___ were `scheme`, ___ `wording`, "
-         "___ `ambiguous` and ___ `model`.",
-         "___ of them fell on items our own coders had disagreed about.",
+        ["The model most often labelled ___ items as ___, ___ times out of ___ errors.",
+         "___ of its errors fell on rows our own coders had disagreed about.",
+         "We read that as ___, and our scheme would have to ___ to settle those items.",
          "With another week we would ___, because ___."],
-        "The second sentence is the one this whole project was built to let you write: "
-        "your coders' disagreements are independent evidence that a boundary is unclear, "
-        "and nobody who did not build their own gold set can say it.",
+        "The second sentence is the one this whole project was built to let you write. "
+        "Your coders' disagreements are independent evidence that a boundary is unclear "
+        "— evidence collected before anyone saw what the model would do with it.",
         "",
-        "The third comes straight off your `wording` lines — those are the errors a "
-        "prompt could still reach.")
-    ,
+        "The third is where the two readings meet: if notebook 03 named the same pair, "
+        "say so explicitly. If it named a different one, say that instead — it is just "
+        "as real a result, and pretending otherwise is visible in the Q&A."),
     md(
         "## Step 5 — Export",
         "",
-        "Writes your test set, a per-item predictions CSV, and a one-page report "
-        "scaffold with the five required sections, all stamped with your group name.",
+        "Writes two files, both stamped with your group name: your test set, and a "
+        "per-item predictions CSV with one row per item — id, gold label, predicted "
+        "label, whether they matched, and the text.",
         "",
-        "The scaffold fills in what it can compute — labels, counts, the F1-per-round "
-        "table, and now your triage: the category counts, and your reason printed beside "
-        "each item. The *italic* placeholders are what is left for you: the QC narrative, "
-        "the pattern in your `scheme` errors, and limitations that apply to **your** run "
-        "rather than the generic three. A section left as the placeholder scores zero, "
-        "so this is the start of the writing, not the end.",
+        "These are what make your reported F1 checkable by someone else: which items "
+        "it was measured on, and what the model said about each one. The CSV is also "
+        "what you sort to find the misses for your error analysis.",
         "",
-        "Two of the arguments change what the report says. With `triage=TRIAGE`, "
-        "section 4 is your analysis; leave it off and section 4 is a placeholder asking "
-        "you for it. With `dev=dev`, the report states which half is which — how many "
-        "items you tuned on, how many you reported on, and that the rounds table is a "
-        "dev trail with one test row at the bottom. From the numbers alone a reader "
-        "cannot tell."),
+        "With `dev=dev`, the saved items are named `_test` rather than `_gold`, because "
+        "with a split the half you scored is the test half and calling it \"gold\" "
+        "would misdescribe it.",
+        "",
+        "**The report itself you write, in Word.** Nothing here drafts it for you. "
+        "Everything it needs is on screen in this notebook: the rounds table in step 1, "
+        "the per-class scores and confusion matrix in step 3, and the errors in step 4."),
     *step(
         5, "Export",
-        ["Writes three files into `../outputs/`: your test set, a per-item predictions",
-         "CSV, and the report scaffold."],
+        ["Writes two files into `../outputs/`: your test set, and the per-item",
+         "predictions CSV."],
         starter=[
-            "export_results(TRACK, test, pred_final, f1_by_round, OUT_DIR,",
-            "               group=GROUP, run=RUN, triage=TRIAGE, dev=dev)",
+            "export_results(TRACK, test, pred_final, OUT_DIR,",
+            "               group=GROUP, run=RUN, dev=dev)",
         ]),
     md(
         "---",
@@ -2403,8 +2447,12 @@ cells_06 = [
         "key**), the big pools in `data/pools/`, and anything ICNALE-derived.",
         "",
         "Then: find the folder in Drive → right-click → **Download** → upload the zip to "
-        "the *Final mini-project* assignment in Google Classroom → **Turn in**. One "
-        "submission per group, with every member's name in `PLAN.md`.",
+        "the *Final mini-project* assignment in Google Classroom → **Turn in**. One zip "
+        "per group, with every member's name in `PLAN.md`.",
+        "",
+        "**Your two-page report is not in that zip.** You write it yourself, in Word, "
+        "from the numbers this notebook printed above, and upload it to Classroom "
+        "separately — one per person, not one per group.",
         "",
         "Before you do, check that **all five notebooks run top to bottom on a fresh "
         "runtime**, in order. If they only work in the session where you built them "

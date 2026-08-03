@@ -1236,6 +1236,71 @@ def to_canonical(rows: list[dict[str, str]],
     return gold
 
 
+def adjudicated_rows(rows: list[dict[str, str]],
+                     coders: list[str] | tuple = DEFAULT_CODERS,
+                     column: str = COL_FINAL,
+                     note: str = COL_NOTES) -> list[dict[str, str]]:
+    """The rows your coders differed on, with the label you settled on and why.
+
+    `to_canonical` takes the Final label into the gold set and drops everything else.
+    The note goes with it, and the note is the only record of what you decided and on
+    what grounds - so this keeps both, for the rows where there was something to
+    decide. Rows nobody has settled yet come back with an empty `final`, so a gap is
+    visible here rather than showing up as a missing item three notebooks later.
+
+    Args:
+        rows: the rows read back by load_coder_sheets, after you have filled Final.
+        coders: the coder column names, so this keeps the same rows `disagreements`
+            listed. Left out, CoderA and CoderB.
+        column: which column holds the adjudicated label.
+        note: which column holds your reason.
+
+    Returns:
+        One dict per disagreed row: {"id", "text", "final", "note"}.
+
+    Example:
+        >>> adjudicated_rows(rows, coders=CODERS)
+    """
+    names = list(coders)
+
+    out = []
+    unsettled = 0
+    for row in rows:
+        labels = []
+        for name in names:
+            labels.append(str(row.get(name, "")).strip())
+
+        everyone_labelled = True
+        for label in labels:
+            if not label:
+                everyone_labelled = False
+
+        if not (everyone_labelled and len(set(labels)) > 1):
+            continue                       # nothing to adjudicate on this row
+
+        final = str(row.get(column, "")).strip()
+        if not final:
+            unsettled = unsettled + 1
+        out.append({"id": row.get(COL_ID),
+                    "text": str(row.get(COL_TEXT, "")),
+                    "final": final,
+                    "note": str(row.get(note, "")).strip()})
+
+    with_note = 0
+    for entry in out:
+        if entry["note"]:
+            with_note = with_note + 1
+
+    print(len(out), "adjudicated rows ·", with_note, "with a note")
+    if unsettled:
+        print(" ", unsettled, "still have no Final label. Fill them in the sheet and",
+              "re-run, or your gold set is that many items short.")
+    if out and with_note == 0:
+        print("  None of them has a note. The label alone does not say what you",
+              "decided or why - and that reason is what your methodology section asks for.")
+    return out
+
+
 def fleiss_kappa(label_lists: list[list[str]]) -> float:
     """Fleiss' kappa: agreement among THREE OR MORE annotators, as one number.
 

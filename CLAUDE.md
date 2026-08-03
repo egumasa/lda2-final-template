@@ -6,9 +6,9 @@ Guidance for working in this repository.
 
 The group final-project scaffold for **Linguistic Data Analysis II** (Tohoku University,
 Graduate School of International Cultural Studies). A group copies this whole folder into
-their shared Google Drive, edits `config.yaml`, and works through notebooks 01-05: build a
+their shared Google Drive, edits `config.yaml`, and works through notebooks 01-06: build a
 pool, draw a balanced sample, annotate it to a gold standard, prompt an LLM against it,
-and report precision/recall/F1.
+freeze one held-out run, and report precision/recall/F1.
 
 ## Who reads this code
 
@@ -149,7 +149,7 @@ earns its keep.
 
 ## Layout
 
-- `config.yaml` — **the only file students edit** in the plumbing. Eight settings.
+- `config.yaml` — **the only file students edit** in the plumbing. Eleven settings.
 - `config.py` — reads `config.yaml` and derives every path. Students never edit it, and
   never type a file path in a notebook; the file notebook 02 writes is by construction the
   file notebook 03 opens.
@@ -179,7 +179,7 @@ Four tiers, and every function belongs to exactly one:
 |---|---|---|
 | **1 · Infrastructure** | the Sheets round-trip, the API backend, pacing and retry, paths, `save_json` / `load_gold`, `freeze_test_run`, `export_results`, `plot_confusion_matrix` | `scripts/`, imported, unread |
 | **2 · The real library** | `classification_report`, `f1_score`, `cohen_kappa_score`, `confusion_matrix` | scikit-learn, **called by its real name** |
-| **3 · Small algorithms carrying a judgment** | `percent_agreement`, `disagreements`, `column`, `show_errors`, `extract_label`, `build_fewshot` | in the notebook, as code |
+| **3 · Small algorithms carrying a judgment** | `percent_agreement`, `disagreements`, `column`, `labels_of`, `show_errors`, `extract_label`, `build_fewshot` | in the notebook, as code |
 | **4 · The composition** | the sequence of tier-2 and tier-3 calls | written by the student |
 
 **The test for tier 1 against tier 3:** if a reader of the composed cell would have to open

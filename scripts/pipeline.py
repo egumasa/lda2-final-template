@@ -2,8 +2,8 @@
 
 You do NOT need to edit anything in this file. It holds the "boring but necessary"
 helpers that move data around: reading the gold file, sampling a balanced subset,
-loading a prompt, asking the LLM, building few-shot examples, plotting, and writing
-the report. The interesting evaluation math lives in metrics.py.
+loading a prompt, asking the LLM, building few-shot examples, plotting, and saving
+your results. The interesting evaluation math lives in metrics.py.
 
 Read it if you are curious — every function is written the long way, on purpose.
 
@@ -905,7 +905,7 @@ def freeze_test_run(prompt: str,
 
     `f1_by_round` is updated in place, with the test score added LAST so the table
     reads as the dev rounds in order with the held-out score at the bottom, and then
-    written to `rounds_path`, which notebook 06 prints as report section 2.
+    written to `rounds_path`, which notebook 06 prints as your prompt-iterations section.
 
     Args:
         prompt: the final prompt, containing {text}.
@@ -966,7 +966,7 @@ def freeze_test_run(prompt: str,
                         round_key=key, note=note)
 
     # The rounds table has existed only in this session's memory until now, and
-    # notebook 06 prints it as report section 2. Overwrite: re-running this cell means
+    # notebook 06 prints it as your prompt-iterations section. Overwrite: re-running this cell means
     # re-running the whole held-out scoring, and the table has to match the log it was
     # written beside.
     save_json(f1_by_round, rounds_path, what="rounds", overwrite=True)
@@ -2129,97 +2129,57 @@ def plot_confusion_matrix(matrix,
 
 
 # ----------------------------------------------------------------------------------
-# Writing the report
+# Saving your results
 # ----------------------------------------------------------------------------------
-# The four things that can be wrong when a model gets an item wrong. Fixed on purpose:
-# a triage is a judgment you make from a menu, not an essay, and fixed words mean the
-# counts say the same thing in every group's report.
-#
-#   model      - the label is clear, both coders agreed at once, the model still missed
-#   scheme     - the item is genuinely borderline under YOUR scheme
-#   wording    - the label NAME misleads; a different word might fix it
-#   ambiguous  - the item itself is unclear, in a way no scheme would settle
-#
-# Note what the difference between `scheme` and `wording` is worth: a wording error is
-# something your next prompt round can fix, and a scheme error is not.
-TRIAGE_CATEGORIES = ["model", "scheme", "wording", "ambiguous"]
-
-def triage_category(reason: str,
-                    categories: list[str] | tuple = TRIAGE_CATEGORIES) -> str | None:
-    """The category word a triage line starts with, or None if it is not one of ours.
-
-    Args:
-        reason: one line of your triage, e.g. "scheme - Move 1/Move 2 boundary".
-        categories: the words that count. Left out, the four for the model's errors.
-            Pass your own list to recognise a different set of words.
-
-    Returns:
-        The category word, or None when the line does not start with one.
-    """
-    first_word = str(reason).strip().split(" ")[0]
-    first_word = first_word.strip("-—:,.").lower()
-    if first_word in categories:
-        return first_word
-    return None
-
 
 
 def export_results(track: str,
                    gold: list[dict[str, str]],
                    predictions: list[str],
-                   macro_f1_by_round: dict[str, float],
                    out_dir: str | Path,
                    group: str = "",
                    run: str = "",
                    overwrite: bool = False,
-                   triage: dict[int, str] | None = None,
                    dev: list[dict[str, str]] | None = None) -> dict[str, Path]:
-    """Write your gold set, a predictions CSV, and a one-page report scaffold.
+    """Write the items you scored and a per-item predictions CSV.
 
-    These three files are what you submit.
+    These are the two files that make your reported F1 checkable: which items it was
+    measured on, and what the model said about each one. You write the report itself,
+    from the numbers notebook 06 prints on screen.
 
     Args:
         track: which dataset track this is.
         gold: whatever you scored - which, from notebook 05, is your TEST half.
         predictions: one predicted label per item, in the same order.
-        macro_f1_by_round: your per-round scores, in the order you ran them.
-        out_dir: the folder to write the three files into.
+        out_dir: the folder to write the two files into.
         group: added to every filename, so several groups can share one folder.
         run: added to every filename, so a second attempt does not replace the first.
         overwrite: True to replace files that are already there.
-        triage: your group's own reading of the errors,
-            {item id: "category - reason"}. Give it and section 4 becomes your
-            analysis, with the counts at the top and your reason beside each item.
-            Leave it off and section 4 is a placeholder asking for exactly that.
-        dev: your dev half. Pass it and the report says how many items you tuned on,
-            how many you reported on, and that the rounds table is a dev trail with
-            one test row at the bottom. A reader cannot tell those apart from the
-            numbers alone.
+        dev: your dev half. With a split, the items saved here are the TEST half, so
+            the file is named _test rather than _gold.
 
     Returns:
-        Where each of the three files was written: {"gold", "csv", "report"}.
+        Where each file was written: {"gold", "csv"}.
 
     Raises:
-        FileExistsError: when any of the three is already there and overwrite is
-            False. All three are checked before any is written.
+        FileExistsError: when either is already there and overwrite is False. Both
+            are checked before either is written.
 
     Example:
-        >>> export_results(TRACK, test, predictions, f1_by_round, OUT_DIR,
-        ...                group=GROUP, run=RUN, triage=triage, dev=dev)
+        >>> export_results(TRACK, test, predictions, OUT_DIR,
+        ...                group=GROUP, run=RUN, dev=dev)
     """
     output_folder = Path(out_dir)
     output_folder.mkdir(parents=True, exist_ok=True)
 
-    ### Step 1: work out the three filenames, and refuse to replace any of them ###
-    gold_path, csv_path, report_path = _export_paths(output_folder, track, group, run,
-                                                     dev)
-    # Checked BEFORE writing any of them. Stopping halfway would leave a report that
-    # describes one run sitting beside the gold set of another.
+    ### Step 1: work out both filenames, and refuse to replace either of them ###
+    gold_path, csv_path = _export_paths(output_folder, track, group, run, dev)
+    # Checked BEFORE writing either. Stopping halfway would leave the predictions of
+    # one run sitting beside the items of another.
     _refuse_to_overwrite(gold_path, overwrite, "items")
     _refuse_to_overwrite(csv_path, overwrite, "rows")
-    _refuse_to_overwrite(report_path, overwrite, "sections")
 
-    ### Step 2: the items themselves - the numbers below mean nothing without them ###
+    ### Step 2: the items themselves - the numbers mean nothing without them ###
     gold_path.write_text(
         json.dumps(gold, ensure_ascii=False, indent=2), encoding="utf-8")
 
@@ -2227,13 +2187,9 @@ def export_results(track: str,
     records = _prediction_records(gold, predictions)
     pd.DataFrame(records).to_csv(csv_path, index=False)
 
-    ### Step 4: the report ###
-    report = _build_report(track, group, gold, dev, records, macro_f1_by_round, triage)
-    report_path.write_text(report, encoding="utf-8")
-
-    print("Wrote", gold_path.name + ",", csv_path.name, "and", report_path.name,
+    print("Wrote", gold_path.name, "and", csv_path.name,
           "to", str(output_folder) + "/")
-    return {"gold": gold_path, "csv": csv_path, "report": report_path}
+    return {"gold": gold_path, "csv": csv_path}
 
 
 def _export_paths(output_folder: Path,
@@ -2241,7 +2197,7 @@ def _export_paths(output_folder: Path,
                   group: str,
                   run: str,
                   dev: list[dict[str, str]] | None) -> tuple:
-    """The three files export_results writes: the items, the CSV and the report.
+    """The two files export_results writes: the items and the predictions CSV.
 
     Args:
         output_folder: the folder they go in.
@@ -2252,7 +2208,7 @@ def _export_paths(output_folder: Path,
             TEST half, so the file is named _test rather than _gold.
 
     Returns:
-        Three paths: the items, the predictions CSV and the report.
+        Two paths: the items and the predictions CSV.
     """
     # The same stem config.py builds, from the same three pieces, so the names cannot
     # drift apart. Any of the three may be empty when export_results is called by hand.
@@ -2268,9 +2224,7 @@ def _export_paths(output_folder: Path,
         gold_path = output_folder / (stem + "_gold.json")
     else:
         gold_path = output_folder / (stem + "_test.json")
-    return (gold_path,
-            output_folder / (stem + "_predictions.csv"),
-            output_folder / (stem + "_report.md"))
+    return (gold_path, output_folder / (stem + "_predictions.csv"))
 
 
 def _prediction_records(gold: list[dict[str, str]],
@@ -2295,236 +2249,3 @@ def _prediction_records(gold: list[dict[str, str]],
         }
         records.append(record)
     return records
-
-
-def _count_labels(gold: list[dict[str, str]]) -> dict[str, int]:
-    """How many gold items carry each label.
-
-    Args:
-        gold: the items to count.
-
-    Returns:
-        How many items carry each label.
-    """
-    counts = {}
-    for item in gold:
-        label = item["label"]
-        if label not in counts:
-            counts[label] = 0
-        counts[label] = counts[label] + 1
-    return counts
-
-
-def _rounds_table(macro_f1_by_round: dict[str, float]) -> str:
-    """The rows of the "F1 per round" table, as Markdown.
-
-    Args:
-        macro_f1_by_round: your per-round scores, in the order you ran them.
-
-    Returns:
-        The table rows, one per round, joined by newlines.
-    """
-    lines = []
-    for round_name in macro_f1_by_round:
-        score = macro_f1_by_round[round_name]
-        lines.append("| " + round_name + " | " + format(score, ".3f") + " |")
-    return "\n".join(lines)
-
-
-def _final_f1(macro_f1_by_round: dict[str, float]) -> float:
-    """The score of the last round we ran.
-
-    Args:
-        macro_f1_by_round: your per-round scores, in the order you ran them.
-
-    Returns:
-        The last score, or nan when there are no rounds.
-    """
-    if len(macro_f1_by_round) == 0:
-        return float("nan")
-    all_scores = list(macro_f1_by_round.values())
-    return all_scores[-1]
-
-
-def _error_line(record: dict) -> str:
-    """One wrong item, as a Markdown bullet.
-
-    Args:
-        record: one row from _prediction_records.
-
-    Returns:
-        The bullet, with the text cut to 120 characters.
-    """
-    snippet = str(record["text"])[:120]
-    return ("- **id " + str(record["id"]) + "** gold `" + str(record["gold"])
-            + "` -> pred `" + str(record["pred"]) + "`: " + snippet)
-
-
-def _error_examples(wrong_records: list[dict],
-                    triage: dict[int, str] | None) -> str:
-    """The wrong items, as Markdown.
-
-    Args:
-        wrong_records: the rows the model got wrong.
-        triage: your group's reading of them. With a triage, EVERY triaged one is
-            listed with your reason beside it - that judgment is the section.
-            Without one, the first five are listed as a prompt to go and make it.
-
-    Returns:
-        The bullets, joined by newlines.
-    """
-    lines = []
-    if triage:
-        for record in wrong_records:
-            reason = triage.get(record["id"])
-            if reason is None:
-                reason = triage.get(str(record["id"]))   # keys survive a JSON trip as text
-            if reason is None:
-                continue
-            lines.append(_error_line(record))
-            lines.append("  - " + str(reason))
-    else:
-        for record in wrong_records:
-            if len(lines) >= 5:
-                break
-            lines.append(_error_line(record))
-
-    if len(lines) == 0:
-        return "- (no errors to show)"
-    return "\n".join(lines)
-
-
-def _triage_summary(triage: dict[int, str] | None,
-                    wrong_records: list[dict]) -> str:
-    """The headline of the error section: what the errors were CAUSED by.
-
-    "6 of 14 are the scheme's fault" is a finding; "F1 was 0.62" is not.
-
-    Args:
-        triage: your group's reading of the errors.
-        wrong_records: the rows the model got wrong, counted into the headline.
-
-    Returns:
-        The headline line, or "" when there is no triage.
-    """
-    if not triage:
-        return ""
-    all_categories = TRIAGE_CATEGORIES + ["uncategorised"]
-    counts = {}
-    for category in all_categories:
-        counts[category] = 0
-    for item_id in triage:
-        category = triage_category(triage[item_id])
-        if category is None:
-            category = "uncategorised"
-        counts[category] = counts[category] + 1
-    parts = []
-    for category in all_categories:
-        if counts[category] > 0:
-            parts.append(str(counts[category]) + " " + category)
-    return ("- **Your triage of " + str(len(triage)) + " of " + str(len(wrong_records))
-            + " errors:** " + " / ".join(parts) + "\n\n")
-
-
-def _build_report(track: str,
-                  group: str,
-                  gold: list[dict[str, str]],
-                  dev: list[dict[str, str]] | None,
-                  records: list[dict],
-                  macro_f1_by_round: dict[str, float],
-                  triage: dict[int, str] | None) -> str:
-    """The one-page report, section by section.
-
-    Anything in _italics_ is a placeholder YOU replace - a section left as the
-    placeholder scores zero.
-
-    Args:
-        track: which dataset track this is.
-        group: the group name.
-        gold: the scored items.
-        dev: the dev half, when there was a split.
-        records: the rows from _prediction_records.
-        macro_f1_by_round: your per-round scores.
-        triage: your group's reading of the errors.
-
-    Returns:
-        The whole report, as Markdown.
-    """
-    labels = label_set(gold)
-    label_counts = _count_labels(gold)
-    round_rows = _rounds_table(macro_f1_by_round)
-    final_f1 = _final_f1(macro_f1_by_round)
-
-    wrong_records = []
-    for record in records:
-        if not record["correct"]:
-            wrong_records.append(record)
-
-    report = ""
-    report = report + "# One-page report - " + track + "\n\n"
-    if group != "":
-        report = report + "Group: " + group + "\n\n"
-    report = report + "## 1. Scheme & gold\n"
-    report = report + "- **Labels:** " + ", ".join(labels) + "\n"
-    if dev is None:
-        report = report + ("- **Gold set:** " + str(len(gold))
-                           + " items sampled from the pool; per-label counts: "
-                           + str(label_counts) + "\n")
-    else:
-        report = report + ("- **Gold set:** " + str(len(dev) + len(gold))
-                           + " items sampled and double-coded, split into "
-                           + str(len(dev)) + " dev (tuned on) and " + str(len(gold))
-                           + " test (held out, scored once). Per-label counts of the "
-                           "test half: " + str(label_counts) + "\n")
-    report = report + ("- **QC / adjudication:** _<your percent agreement and kappa, how "
-                       "many labels your adjudication changed, which label pair caused "
-                       "the most disagreement, and what your scheme now says about it>_\n\n")
-    report = report + "## 2. Prompt iterations\n"
-    report = report + "| Round | Macro-F1 |\n|---|---|\n" + round_rows + "\n\n"
-    if dev is not None:
-        report = report + ("_Every round above is a **dev** score. The last row is the "
-                           "held-out test set, scored once._\n\n")
-    report = report + ("_For each round: what did you change, and WHY did you expect it to "
-                       "help?_\n\n")
-    report = report + "## 3. Evaluation\n"
-    if dev is None:
-        report = report + ("- **Final macro-F1:** " + format(final_f1, ".3f") + " on "
-                           + str(len(gold)) + " gold items.\n")
-    else:
-        report = report + ("- **Final macro-F1:** " + format(final_f1, ".3f") + " on "
-                           + str(len(gold)) + " held-out test items.\n")
-        report = report + ("- _How far below your best dev round did that land? That "
-                           "distance is roughly how much of your improvement was tuning "
-                           "to those particular dev items._\n")
-    report = report + ("- Per-class precision/recall/F1 and the confusion matrix are in "
-                       "the notebook output.\n")
-    report = report + "- _Which class did worst, and what did it get confused with?_\n\n"
-    report = report + "## 4. Error analysis\n"
-    report = report + _triage_summary(triage, wrong_records)
-    report = report + _error_examples(wrong_records, triage) + "\n\n"
-    if triage:
-        report = report + ("_What do the **scheme** errors have in common? That pattern "
-                           "is the finding - say what your scheme would have to add to "
-                           "settle those items._\n\n")
-    else:
-        report = report + ("_For each miss: is it the **model's** fault or the "
-                           "**scheme's** (a genuinely borderline item)? Give a reason, "
-                           "not a verdict. Passing `triage=` to export_results puts your "
-                           "reasons here automatically._\n\n")
-    report = report + "## 5. Limitations\n"
-    report = report + ("_Replace these three generic lines with at least two limitations "
-                       "that apply to YOUR run._\n")
-    report = report + "- LLM output is stochastic; a re-run can shift the numbers.\n"
-    report = report + ("- Contamination risk: these are published datasets the model may "
-                       "have seen.\n")
-    report = report + ("- " + str(len(gold)) + " items is a small sample - treat per-class "
-                       "scores for rare labels with caution.\n")
-    if dev is not None:
-        report = report + ("- The prompt was tuned on " + str(len(dev)) + " dev items and "
-                           "reported on " + str(len(gold)) + " held-out ones. A study that "
-                           "could support a claim about the corpus would need hundreds of "
-                           "each; at roughly 4.4 seconds per API call, that was not "
-                           "available in a five-day course. The discipline here is real; "
-                           "the confidence interval on the number is wide.\n")
-
-    return report
